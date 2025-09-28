@@ -1,0 +1,194 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- SMS Statistics Cards -->
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-info">
+            <div class="inner">
+                <h3>{{ total_sms }}</h3>
+                <p>Total SMS</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-sms"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-success">
+            <div class="inner">
+                <h3>{{ delivered_sms }}</h3>
+                <p>Delivered</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-warning">
+            <div class="inner">
+                <h3>{{ sent_sms }}</h3>
+                <p>Sent</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-paper-plane"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-danger">
+            <div class="inner">
+                <h3>{{ failed_sms }}</h3>
+                <p>Failed</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Provider Statistics -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-server"></i>
+                    SMS Provider Statistics
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Provider</th>
+                                <th>Messages</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for provider in provider_stats %}
+                            <tr>
+                                <td>{{ provider.name }}</td>
+                                <td>
+                                    <span class="badge badge-primary">{{ provider.message_count }}</span>
+                                </td>
+                                <td>
+                                    {% if provider.is_active %}
+                                        <span class="badge badge-success">Active</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sender ID Statistics -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-id-badge"></i>
+                    Sender ID Statistics
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Sender ID</th>
+                                <th>Messages</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sender in sender_stats %}
+                            <tr>
+                                <td>{{ sender.sender_id }}</td>
+                                <td>
+                                    <span class="badge badge-info">{{ sender.message_count }}</span>
+                                </td>
+                                <td>
+                                    {% if sender.status == 'active' %}
+                                        <span class="badge badge-success">Active</span>
+                                    {% else %}
+                                        <span class="badge badge-warning">{{ sender.status|title }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SMS Status Pie Chart -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-chart-pie"></i>
+                    SMS Status Distribution
+                </h3>
+            </div>
+            <div class="card-body">
+                <canvas id="smsStatusChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const smsStatusCtx = document.getElementById('smsStatusChart').getContext('2d');
+new Chart(smsStatusCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ['Delivered', 'Sent', 'Failed'],
+        datasets: [{
+            data: [{{ delivered_sms }}, {{ sent_sms }}, {{ failed_sms }}],
+            backgroundColor: [
+                '#28a745',
+                '#ffc107',
+                '#dc3545'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

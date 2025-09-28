@@ -1,0 +1,115 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-chart-line"></i>
+                    Analytics Dashboard
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>User Growth (Last 30 Days)</h5>
+                        <canvas id="userGrowthChart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Message Volume (Last 30 Days)</h5>
+                        <canvas id="messageVolumeChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-md-12">
+                        <h5>Campaign Status Distribution</h5>
+                        <canvas id="campaignStatsChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// User Growth Chart
+const userGrowthCtx = document.getElementById('userGrowthChart').getContext('2d');
+new Chart(userGrowthCtx, {
+    type: 'line',
+    data: {
+        labels: {{ user_growth|safe }},
+        datasets: [{
+            label: 'New Users',
+            data: {{ user_growth|safe }},
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Message Volume Chart
+const messageVolumeCtx = document.getElementById('messageVolumeChart').getContext('2d');
+new Chart(messageVolumeCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ message_volume|safe }},
+        datasets: [{
+            label: 'Messages',
+            data: {{ message_volume|safe }},
+            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Campaign Stats Chart
+const campaignStatsCtx = document.getElementById('campaignStatsChart').getContext('2d');
+new Chart(campaignStatsCtx, {
+    type: 'doughnut',
+    data: {
+        labels: {{ campaign_stats|safe }},
+        datasets: [{
+            data: {{ campaign_stats|safe }},
+            backgroundColor: [
+                '#FF6384',
+                '#36A2EB',
+                '#FFCE56',
+                '#4BC0C0'
+            ]
+        }]
+    },
+    options: {
+        responsive: true
+    }
+});
+</script>
+{% endblock %}

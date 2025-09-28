@@ -1,7 +1,10 @@
 """
-Admin configuration for messaging models.
+Admin configuration for messaging models with Jazzmin enhancements.
 """
 from django.contrib import admin
+from django.utils.html import format_html
+from django.urls import reverse
+from django.utils.safestring import mark_safe
 from .models import (
     Contact, Segment, Template, Conversation, Message, Attachment,
     Campaign, Flow
@@ -10,11 +13,39 @@ from .models import (
 
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
-    list_display = ['name', 'phone_e164', 'email', 'is_active', 'is_opted_in', 'created_at']
+    list_display = ['name', 'phone_e164', 'email', 'status_badge', 'opt_in_status', 'created_at']
     list_filter = ['is_active', 'opt_in_at', 'opt_out_at', 'created_at']
     search_fields = ['name', 'phone_e164', 'email']
-    readonly_fields = ['created_at', 'updated_at', 'last_contacted_at']
+    readonly_fields = ['created_at', 'updated_at', 'last_contacted_at', 'is_opted_in']
     raw_id_fields = ['tenant']
+    list_per_page = 25
+    
+    fieldsets = (
+        ('Contact Information', {
+            'fields': ('name', 'phone_e164', 'email', 'tenant'),
+            'classes': ('wide',)
+        }),
+        ('Status & Preferences', {
+            'fields': ('is_active', 'is_opted_in', 'opt_in_at', 'opt_out_at', 'last_contacted_at'),
+            'classes': ('wide',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('wide', 'collapse')
+        }),
+    )
+    
+    def status_badge(self, obj):
+        if obj.is_active:
+            return format_html('<span class="badge badge-success">Active</span>')
+        return format_html('<span class="badge badge-secondary">Inactive</span>')
+    status_badge.short_description = 'Status'
+    
+    def opt_in_status(self, obj):
+        if obj.is_opted_in:
+            return format_html('<span class="badge badge-info">Opted In</span>')
+        return format_html('<span class="badge badge-warning">Not Opted In</span>')
+    opt_in_status.short_description = 'Opt-in Status'
 
 
 @admin.register(Segment)
@@ -46,11 +77,51 @@ class ConversationAdmin(admin.ModelAdmin):
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ['conversation', 'direction', 'provider', 'status', 'created_at']
+    list_display = ['conversation', 'direction_badge', 'provider', 'status_badge', 'preview_text', 'created_at']
     list_filter = ['direction', 'provider', 'status', 'created_at']
     search_fields = ['text', 'conversation__contact__name']
     readonly_fields = ['created_at', 'updated_at', 'sent_at', 'delivered_at', 'read_at']
     raw_id_fields = ['tenant', 'conversation', 'template', 'created_by']
+    list_per_page = 25
+    
+    fieldsets = (
+        ('Message Content', {
+            'fields': ('conversation', 'text', 'template'),
+            'classes': ('wide',)
+        }),
+        ('Delivery Information', {
+            'fields': ('direction', 'provider', 'status', 'created_by'),
+            'classes': ('wide',)
+        }),
+        ('Timestamps', {
+            'fields': ('sent_at', 'delivered_at', 'read_at', 'created_at', 'updated_at'),
+            'classes': ('wide', 'collapse')
+        }),
+    )
+    
+    def direction_badge(self, obj):
+        if obj.direction == 'inbound':
+            return format_html('<span class="badge badge-info">Inbound</span>')
+        return format_html('<span class="badge badge-primary">Outbound</span>')
+    direction_badge.short_description = 'Direction'
+    
+    def status_badge(self, obj):
+        status_colors = {
+            'pending': 'badge-warning',
+            'sent': 'badge-info',
+            'delivered': 'badge-success',
+            'failed': 'badge-danger',
+            'read': 'badge-success'
+        }
+        color = status_colors.get(obj.status, 'badge-secondary')
+        return format_html(f'<span class="badge {color}">{obj.status.title()}</span>')
+    status_badge.short_description = 'Status'
+    
+    def preview_text(self, obj):
+        if obj.text:
+            return obj.text[:50] + '...' if len(obj.text) > 50 else obj.text
+        return '-'
+    preview_text.short_description = 'Preview'
 
 
 @admin.register(Attachment)

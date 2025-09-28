@@ -21,6 +21,9 @@ httpx==0.25.2
 # API documentation
 drf-yasg==1.21.7
 
+# Admin UI Enhancement
+django-jazzmin==2.6.0
+
 # Database filtering
 django-filter==23.5
 
