@@ -1,0 +1,48 @@
+# Django and DRF
+Django
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+django-allauth==0.57.0
+djangorestframework-simplejwt==5.3.0
+
+# Database
+psycopg2-binary==2.9.9
+dj-database-url==2.1.0
+
+# Redis and Celery
+redis==5.0.1
+celery==5.3.4
+django-celery-beat==2.5.0
+
+# HTTP requests
+requests==2.31.0
+httpx==0.25.2
+
+# API documentation
+drf-yasg==1.21.7
+
+# Database filtering
+django-filter==23.5
+
+# WhatsApp and messaging
+phonenumbers==8.13.25
+
+# AI and ML
+transformers==4.36.2
+torch==2.1.2
+
+# Billing
+stripe==7.8.0
+
+# Monitoring and logging
+sentry-sdk==1.38.0
+structlog==23.2.0
+
+# Utilities
+python-decouple==3.8
+Pillow==10.1.0
+whitenoise==6.6.0
+gunicorn==21.2.0
+
+# Code formatting
+black==23.11.0

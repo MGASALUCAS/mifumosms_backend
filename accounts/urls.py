@@ -1,0 +1,29 @@
+"""
+URL patterns for user authentication and management.
+"""
+from django.urls import path
+from rest_framework_simplejwt.views import TokenRefreshView
+from . import views
+
+urlpatterns = [
+    # Authentication
+    path('register/', views.UserRegistrationView.as_view(), name='user-register'),
+    path('login/', views.UserLoginView.as_view(), name='user-login'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
+    
+    # Profile management
+    path('profile/', views.UserProfileView.as_view(), name='user-profile'),
+    path('profile/detail/', views.UserProfileDetailView.as_view(), name='user-profile-detail'),
+    
+    # Password management
+    path('password/change/', views.PasswordChangeView.as_view(), name='password-change'),
+    path('password/reset/', views.password_reset_request, name='password-reset'),
+    path('password/reset/confirm/', views.password_reset_confirm, name='password-reset-confirm'),
+    
+    # Email verification
+    path('verify-email/', views.verify_email, name='verify-email'),
+    
+    # API key management
+    path('api-key/generate/', views.generate_api_key, name='generate-api-key'),
+    path('api-key/revoke/', views.revoke_api_key, name='revoke-api-key'),
+]
