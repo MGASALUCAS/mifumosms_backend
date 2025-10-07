@@ -23,23 +23,27 @@ def create_superuser():
     User = get_user_model()
     
     # Superuser details
-    email = 'admin@mifumo.com'
+    email = 'admin2@mifumo.com'
     password = 'admin123'
     first_name = 'Admin'
-    last_name = 'User'
+    last_name = 'Mgasa'
     
     try:
         # Check if superuser already exists
         if User.objects.filter(email=email).exists():
-            print(f"❌ Superuser with email '{email}' already exists!")
-            return False
+            print(f"ℹ️  Superuser with email '{email}' already exists!")
+            return True
         
-        # Create superuser
-        superuser = User.objects.create_superuser(
+        # Create user with username=email to satisfy AbstractUser manager
+        superuser = User.objects.create_user(
+            username=email,
             email=email,
             password=password,
             first_name=first_name,
-            last_name=last_name
+            last_name=last_name,
+            is_superuser=True,
+            is_staff=True,
+            is_active=True,
         )
         
         print("✅ Superuser created successfully!")
@@ -67,12 +71,11 @@ def create_tenant():
             print("ℹ️  Default tenant already exists!")
             return True
         
-        # Create default tenant
+        # Create default tenant (Tenant has no 'domain' field)
         tenant = Tenant.objects.create(
             name='Mifumo Admin',
             subdomain='admin',
-            domain='admin.mifumo.com',
-            is_active=True
+            is_active=True,
         )
         
         print("✅ Default tenant created successfully!")
@@ -88,18 +91,28 @@ def create_tenant():
 def assign_tenant_to_user():
     """Assign the default tenant to the superuser."""
     try:
-        from tenants.models import Tenant
+        from tenants.models import Tenant, Membership
         User = get_user_model()
         
         # Get the superuser and tenant
-        user = User.objects.get(email='admin@mifumo.com')
+        user = User.objects.get(email='admin2@mifumo.com')
         tenant = Tenant.objects.get(subdomain='admin')
         
-        # Assign tenant to user
-        user.tenant = tenant
-        user.save()
+        # Assign tenant via Membership
+        membership, created = Membership.objects.get_or_create(
+            user=user,
+            tenant=tenant,
+            defaults={
+                'role': 'owner',
+                'status': 'active',
+            }
+        )
         
-        print("✅ Tenant assigned to superuser successfully!")
+        if created:
+            print("✅ Tenant membership created for superuser!")
+        else:
+            print("ℹ️  Superuser already has membership for tenant.")
+        
         print(f"👤 User: {user.email}")
         print(f"🏢 Tenant: {tenant.name}")
         
@@ -136,7 +149,7 @@ def main():
     print()
     print("🎉 Setup completed successfully!")
     print("=" * 50)
-    print("📧 Login with: admin@mifumo.com")
+    print("📧 Login with: admin2@mifumo.com")
     print("🔑 Password: admin123")
     print("🌐 Access: http://localhost:8000/admin/")
     
