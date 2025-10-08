@@ -8,13 +8,13 @@
 # ENVIRONMENT CONFIGURATION
 # =============================================================================
 # NEVER commit environment files with real secrets
-.env
-.env.local
-.env.development
-.env.staging
-.env.production
-.env.test
-environment_config.env
+# .env
+# .env.local
+# .env.development
+# .env.staging
+# .env.production
+# .env.test
+# environment_config.env
 
 # =============================================================================
 # PYTHON
