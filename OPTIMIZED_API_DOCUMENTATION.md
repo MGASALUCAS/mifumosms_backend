@@ -50,16 +50,16 @@ Content-Type: application/json
 ### 3. Messaging (`/messaging/`)
 
 #### Contacts
-| Method | Endpoint | Description | Frontend Usage |
-|--------|----------|-------------|----------------|
-| GET | `/messaging/contacts/` | List contacts | Contacts page |
-| POST | `/messaging/contacts/` | Create contact | Add contact dialog |
-| GET | `/messaging/contacts/{id}/` | Get contact details | Contact details panel |
-| PUT | `/messaging/contacts/{id}/` | Update contact | Edit contact |
-| DELETE | `/messaging/contacts/{id}/` | Delete contact | Delete contact |
-| POST | `/messaging/contacts/bulk-import/` | Bulk import contacts | Import CSV |
-| POST | `/messaging/contacts/{id}/opt-in/` | Opt-in contact | Contact actions |
-| POST | `/messaging/contacts/{id}/opt-out/` | Opt-out contact | Contact actions |
+| Method | Endpoint | Description | Frontend Usage | Smart Features |
+|--------|----------|-------------|----------------|----------------|
+| GET | `/messaging/contacts/` | List contacts with smart filtering | Contacts page | Search, tag filtering, pagination |
+| POST | `/messaging/contacts/` | Create/Upsert contact (smart deduplication) | Add contact dialog | Auto-upsert by phone/email, validation |
+| GET | `/messaging/contacts/{id}/` | Get contact details | Contact details panel | Full contact data with attributes |
+| PUT | `/messaging/contacts/{id}/` | Update contact | Edit contact | Smart validation, attribute management |
+| DELETE | `/messaging/contacts/{id}/` | Delete contact | Delete contact | Soft delete with confirmation |
+| POST | `/messaging/contacts/bulk-import/` | Bulk import contacts | Import CSV | Smart deduplication, validation |
+| POST | `/messaging/contacts/{id}/opt-in/` | Opt-in contact | Contact actions | Compliance tracking |
+| POST | `/messaging/contacts/{id}/opt-out/` | Opt-out contact | Contact actions | Reason tracking, compliance |
 
 #### Segments
 | Method | Endpoint | Description | Frontend Usage |
@@ -96,15 +96,16 @@ Content-Type: application/json
 | GET | `/messaging/messages/{id}/` | Get message details | Message details |
 
 #### Campaigns
-| Method | Endpoint | Description | Frontend Usage |
-|--------|----------|-------------|----------------|
-| GET | `/messaging/campaigns/` | List campaigns | Campaigns page |
-| POST | `/messaging/campaigns/` | Create campaign | Create campaign |
-| GET | `/messaging/campaigns/{id}/` | Get campaign details | Campaign details |
-| PUT | `/messaging/campaigns/{id}/` | Update campaign | Edit campaign |
-| POST | `/messaging/campaigns/{id}/start/` | Start campaign | Campaign actions |
-| POST | `/messaging/campaigns/{id}/pause/` | Pause campaign | Campaign actions |
-| POST | `/messaging/campaigns/{id}/cancel/` | Cancel campaign | Campaign actions |
+| Method | Endpoint | Description | Frontend Usage | Smart Features |
+|--------|----------|-------------|----------------|----------------|
+| GET | `/messaging/campaigns/` | List campaigns with smart filtering | Campaigns page | Status/type filtering, pagination, analytics |
+| POST | `/messaging/campaigns/` | Create campaign with smart targeting | Create campaign | Auto-recipient resolution, cost estimation, dry-run |
+| GET | `/messaging/campaigns/{id}/` | Get campaign details with analytics | Campaign details | Real-time stats, action permissions |
+| PUT | `/messaging/campaigns/{id}/` | Update campaign (smart validation) | Edit campaign | Status-aware editing, validation |
+| DELETE | `/messaging/campaigns/{id}/` | Delete campaign | Delete campaign | Safe deletion with confirmation |
+| POST | `/messaging/campaigns/{id}/start/` | Start campaign | Campaign actions | Smart validation, immediate execution |
+| POST | `/messaging/campaigns/{id}/pause/` | Pause campaign | Campaign actions | Graceful pausing |
+| POST | `/messaging/campaigns/{id}/cancel/` | Cancel campaign | Campaign actions | Safe cancellation with cleanup |
 
 #### Analytics
 | Method | Endpoint | Description | Frontend Usage |
@@ -289,6 +290,380 @@ python test_api_integration.py
 - Error rates tracked
 - Usage statistics collected
 - Performance metrics available
+
+---
+
+## 🧠 Smart API Specifications
+
+### Contact Management - Enhanced Endpoints
+
+#### 1. List Contacts (Smart Filtering)
+**GET** `/messaging/contacts/`
+
+**Query Parameters:**
+- `search` (optional): Search by name, phone, or email
+- `is_active` (optional): Filter by active status (true/false)
+- `is_opted_in` (optional): Filter by opt-in status (true/false)
+- `tag` (optional): Filter by a single tag (repeatable for multiple tags)
+- `page` (optional): Page number for pagination
+- `page_size` (optional): Number of items per page (default: 20)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "id": "uuid",
+        "name": "John Doe",
+        "phone_e164": "+255123456789",
+        "email": "john@example.com",
+        "is_active": true,
+        "is_opted_in": true,
+        "opt_in_at": "2024-01-01T10:00:00Z",
+        "last_contacted_at": "2024-01-15T14:30:00Z",
+        "attributes": {
+          "company": "Acme Corp",
+          "department": "Marketing"
+        },
+        "tags": ["vip", "marketing"],
+        "created_at": "2024-01-01T10:00:00Z",
+        "updated_at": "2024-01-15T14:30:00Z"
+      }
+    ],
+    "count": 150,
+    "next": "http://localhost:8000/api/messaging/contacts/?page=2",
+    "previous": null
+  }
+}
+```
+
+#### 2. Create/Upsert Contact (Smart Deduplication)
+**POST** `/messaging/contacts/`
+
+**Smart Features:**
+- Auto-upsert by `phone_e164` or `email`
+- E.164 phone number validation and normalization
+- Tag normalization and deduplication
+- Attribute validation (flat JSON object)
+
+**Request Body:**
+```json
+{
+  "name": "Jane Smith",
+  "phone_e164": "+255987654321",
+  "email": "jane@example.com",
+  "attributes": {
+    "company": "Acme Corp",
+    "department": "Marketing"
+  },
+  "tags": ["vip", "marketing"],
+  "is_active": true
+}
+```
+
+**Response (Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "Jane Smith",
+    "phone_e164": "+255987654321",
+    "email": "jane@example.com",
+    "is_active": true,
+    "is_opted_in": false,
+    "opt_in_at": null,
+    "last_contacted_at": null,
+    "attributes": {
+      "company": "Acme Corp",
+      "department": "Marketing"
+    },
+    "tags": ["vip", "marketing"],
+    "created_at": "2024-01-01T10:00:00Z",
+    "updated_at": "2024-01-01T10:00:00Z",
+    "upserted": false
+  }
+}
+```
+
+**Response (Upserted):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "Jane Smith",
+    "phone_e164": "+255987654321",
+    "email": "jane@example.com",
+    "is_active": true,
+    "is_opted_in": true,
+    "opt_in_at": "2024-01-10T08:00:00Z",
+    "last_contacted_at": null,
+    "attributes": {
+      "company": "Acme Corp",
+      "department": "Marketing"
+    },
+    "tags": ["vip", "marketing"],
+    "created_at": "2023-12-15T10:00:00Z",
+    "updated_at": "2024-01-01T10:00:00Z",
+    "upserted": true
+  }
+}
+```
+
+#### 3. Opt-in Contact (Compliance Tracking)
+**POST** `/messaging/contacts/{id}/opt-in/`
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Contact opted in successfully",
+  "data": {
+    "id": "uuid",
+    "is_opted_in": true,
+    "opt_in_at": "2024-01-20T09:00:00Z"
+  }
+}
+```
+
+#### 4. Opt-out Contact (Reason Tracking)
+**POST** `/messaging/contacts/{id}/opt-out/`
+
+**Request Body:**
+```json
+{
+  "reason": "User requested"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Contact opted out successfully",
+  "data": {
+    "id": "uuid",
+    "is_opted_in": false,
+    "opt_out_reason": "User requested",
+    "opt_out_at": "2024-01-20T09:05:00Z"
+  }
+}
+```
+
+### Campaign Management - Enhanced Endpoints
+
+#### 1. List Campaigns (Smart Analytics)
+**GET** `/messaging/campaigns/`
+
+**Query Parameters:**
+- `status` (optional): Filter by status (draft, scheduled, running, paused, completed, cancelled, failed)
+- `type` (optional): Filter by type (sms, whatsapp, email, mixed)
+- `page` (optional): Page number for pagination
+- `page_size` (optional): Number of items per page (default: 20)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "id": "uuid",
+        "name": "Black Friday Sale",
+        "description": "Promotional campaign for Black Friday",
+        "campaign_type": "sms",
+        "campaign_type_display": "SMS",
+        "message_text": "Get 50% off on all items! Use code BLACK50",
+        "template": null,
+        "status": "running",
+        "status_display": "Running",
+        "scheduled_at": null,
+        "started_at": "2024-01-15T10:00:00Z",
+        "completed_at": null,
+        "total_recipients": 1000,
+        "sent_count": 750,
+        "delivered_count": 720,
+        "read_count": 450,
+        "failed_count": 30,
+        "estimated_cost": 250.0,
+        "actual_cost": 187.5,
+        "progress_percentage": 75,
+        "delivery_rate": 96.0,
+        "read_rate": 62.5,
+        "is_active": true,
+        "can_edit": false,
+        "can_start": false,
+        "can_pause": true,
+        "can_cancel": true,
+        "is_recurring": false,
+        "recurring_schedule": {},
+        "settings": {},
+        "created_by": "uuid",
+        "created_by_name": "John Doe",
+        "created_at": "2024-01-15T09:00:00Z",
+        "updated_at": "2024-01-15T10:30:00Z",
+        "target_contact_count": 1000,
+        "target_segment_names": ["VIP Customers", "New Subscribers"]
+      }
+    ],
+    "count": 25,
+    "next": "http://localhost:8000/api/messaging/campaigns/?page=2",
+    "previous": null
+  }
+}
+```
+
+#### 2. Create Campaign (Smart Targeting & Cost Estimation)
+**POST** `/messaging/campaigns/`
+
+**Smart Features:**
+- Auto-recipient resolution from contacts, segments, and criteria
+- Duplicate removal and opt-in validation
+- Real-time cost estimation
+- Dry-run mode for testing
+- Idempotency support
+
+**Request Body:**
+```json
+{
+  "name": "New Year Promotion",
+  "description": "Welcome the new year with our special offers",
+  "campaign_type": "sms",
+  "message_text": "Happy New Year! Get 30% off on your first order. Use code NEWYEAR30",
+  "template": null,
+  "scheduled_at": "2024-01-01T09:00:00Z",
+  "target_contact_ids": ["uuid1", "uuid2", "uuid3"],
+  "target_segment_ids": ["uuid4", "uuid5"],
+  "target_criteria": {
+    "tags": ["vip", "premium"],
+    "opt_in_status": "opted_in"
+  },
+  "settings": {
+    "send_time": "09:00",
+    "timezone": "Africa/Dar_es_Salaam"
+  },
+  "is_recurring": false,
+  "recurring_schedule": {}
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "New Year Promotion",
+    "description": "Welcome the new year with our special offers",
+    "campaign_type": "sms",
+    "status": "draft",
+    "total_recipients": 500,
+    "estimated_cost": 125.0,
+    "created_at": "2024-01-01T08:00:00Z",
+    "target_contact_count": 200,
+    "target_segment_names": ["VIP Customers"]
+  }
+}
+```
+
+#### 3. Dry-run Campaign (Cost Estimation)
+**POST** `/messaging/campaigns/?dry_run=true`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "total_recipients": 500,
+    "estimated_cost": 125.0,
+    "explanations": [
+      "Duplicates removed: 25 contacts",
+      "Opted-out contacts excluded: 10 contacts",
+      "Invalid numbers excluded: 5 contacts"
+    ]
+  }
+}
+```
+
+#### 4. Start Campaign (Smart Validation)
+**POST** `/messaging/campaigns/{id}/start/`
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Campaign started successfully",
+  "campaign": {
+    "id": "uuid",
+    "status": "running",
+    "started_at": "2024-01-01T10:00:00Z"
+  }
+}
+```
+
+### Smart Management Rules
+
+#### Contact Management Rules
+- **Uniqueness**: `phone_e164` and `email` are unique across contacts
+- **Upsert Logic**: Create operations automatically upsert by phone/email
+- **Normalization**: Phone numbers auto-converted to E.164 format
+- **Tag Management**: Tags normalized to lowercase and deduplicated
+- **Attribute Validation**: Must be flat JSON object with string/number/boolean values
+- **Idempotency**: Support `Idempotency-Key` header for safe retries
+
+#### Campaign Management Rules
+- **Recipient Resolution**: Union of contacts from IDs, segments, and criteria
+- **Duplicate Removal**: Automatic deduplication of target contacts
+- **Opt-in Compliance**: Only opted-in contacts receive messages
+- **Cost Estimation**: Real-time calculation based on channel pricing
+- **Status Management**: Smart state transitions with validation
+- **Idempotency**: Create operations support `Idempotency-Key` header
+
+### Error Handling (Enhanced)
+
+**Validation Error Response:**
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": {
+    "phone_e164": ["Invalid E.164 format"],
+    "email": ["Invalid email address"],
+    "message_text": ["Message too long for single SMS"]
+  }
+}
+```
+
+**Business Logic Error Response:**
+```json
+{
+  "success": false,
+  "message": "Campaign cannot be started",
+  "error_code": "INVALID_STATUS",
+  "details": {
+    "current_status": "completed",
+    "allowed_statuses": ["draft", "scheduled"]
+  }
+}
+```
+
+### Rate Limiting (Smart)
+- **Authentication endpoints**: 5 requests per minute
+- **SMS sending**: 10 requests per minute
+- **Contact operations**: 100 requests per minute
+- **Campaign operations**: 50 requests per minute
+- **Bulk operations**: 10 requests per minute
+
+### Idempotency Support
+All create operations support the `Idempotency-Key` header:
+```
+Idempotency-Key: unique-request-id-12345
+```
+
+Keys are valid for 24 hours and prevent duplicate operations.
 
 ---
 

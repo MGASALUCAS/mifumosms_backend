@@ -1,0 +1,1265 @@
+openapi: 3.0.3
+info:
+  title: Mifumo WMS Smart API
+  description: |
+    Intelligent and smart-managed API for Mifumo WMS with advanced contact and campaign management.
+    
+    ## Smart Features
+    - **Auto-upsert**: Contact creation automatically handles duplicates
+    - **Smart Targeting**: Campaign recipient resolution with deduplication
+    - **Cost Estimation**: Real-time cost calculation for campaigns
+    - **Compliance Tracking**: Opt-in/opt-out audit trails
+    - **Idempotency**: Safe retry operations with unique keys
+    - **Validation**: Comprehensive input validation and normalization
+    
+    ## Authentication
+    All endpoints require JWT authentication via the `Authorization` header.
+    
+    ## Rate Limiting
+    - Authentication: 5 requests/minute
+    - SMS sending: 10 requests/minute
+    - Contact operations: 100 requests/minute
+    - Campaign operations: 50 requests/minute
+    - Bulk operations: 10 requests/minute
+  version: 2.0.0
+  contact:
+    name: Mifumo Labs
+    email: support@mifumolabs.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000/api
+    description: Development server
+  - url: https://api.mifumolabs.com/api
+    description: Production server
+
+security:
+  - bearerAuth: []
+
+paths:
+  # Contact Management Endpoints
+  /messaging/contacts/:
+    get:
+      tags:
+        - Contacts
+      summary: List contacts with smart filtering
+      description: |
+        Retrieve contacts with advanced filtering capabilities including search, tag filtering, and pagination.
+        Returns comprehensive contact data with attributes and tags.
+      parameters:
+        - name: search
+          in: query
+          description: Search by name, phone, or email
+          required: false
+          schema:
+            type: string
+            example: "john"
+        - name: is_active
+          in: query
+          description: Filter by active status
+          required: false
+          schema:
+            type: boolean
+            example: true
+        - name: is_opted_in
+          in: query
+          description: Filter by opt-in status
+          required: false
+          schema:
+            type: boolean
+            example: true
+        - name: tag
+          in: query
+          description: Filter by tag (repeatable for multiple tags)
+          required: false
+          schema:
+            type: string
+            example: "vip"
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Successfully retrieved contacts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Contacts
+      summary: Create or upsert contact (smart deduplication)
+      description: |
+        Create a new contact or update existing one if phone/email already exists.
+        Automatically handles deduplication, validation, and normalization.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactCreateRequest'
+            examples:
+              create_new:
+                summary: Create new contact
+                value:
+                  name: "Jane Smith"
+                  phone_e164: "+255987654321"
+                  email: "jane@example.com"
+                  attributes:
+                    company: "Acme Corp"
+                    department: "Marketing"
+                  tags: ["vip", "marketing"]
+                  is_active: true
+              update_existing:
+                summary: Update existing contact
+                value:
+                  name: "Jane Smith Updated"
+                  phone_e164: "+255987654321"
+                  email: "jane.updated@example.com"
+                  attributes:
+                    company: "New Corp"
+                    department: "Sales"
+                  tags: ["vip", "sales"]
+      responses:
+        '201':
+          description: Contact created or updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /messaging/contacts/{id}/:
+    get:
+      tags:
+        - Contacts
+      summary: Get contact details
+      description: Retrieve detailed information about a specific contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Contact UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contact details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags:
+        - Contacts
+      summary: Update contact
+      description: Update contact information with smart validation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Contact UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactUpdateRequest'
+      responses:
+        '200':
+          description: Contact updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags:
+        - Contacts
+      summary: Delete contact
+      description: Soft delete a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Contact UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contact deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /messaging/contacts/{id}/opt-in/:
+    post:
+      tags:
+        - Contacts
+      summary: Opt-in contact
+      description: Opt-in a contact with compliance tracking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Contact UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contact opted in successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptInResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /messaging/contacts/{id}/opt-out/:
+    post:
+      tags:
+        - Contacts
+      summary: Opt-out contact
+      description: Opt-out a contact with reason tracking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Contact UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OptOutRequest'
+      responses:
+        '200':
+          description: Contact opted out successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptOutResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # Campaign Management Endpoints
+  /messaging/campaigns/:
+    get:
+      tags:
+        - Campaigns
+      summary: List campaigns with smart analytics
+      description: |
+        Retrieve campaigns with real-time analytics, filtering, and pagination.
+        Includes comprehensive metrics and action permissions.
+      parameters:
+        - name: status
+          in: query
+          description: Filter by campaign status
+          required: false
+          schema:
+            type: string
+            enum: [draft, scheduled, running, paused, completed, cancelled, failed]
+            example: "running"
+        - name: type
+          in: query
+          description: Filter by campaign type
+          required: false
+          schema:
+            type: string
+            enum: [sms, whatsapp, email, mixed]
+            example: "sms"
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Successfully retrieved campaigns
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Campaigns
+      summary: Create campaign with smart targeting
+      description: |
+        Create a new campaign with automatic recipient resolution, cost estimation,
+        and smart validation. Supports dry-run mode for testing.
+      parameters:
+        - name: dry_run
+          in: query
+          description: Enable dry-run mode for cost estimation
+          required: false
+          schema:
+            type: boolean
+            default: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignCreateRequest'
+            examples:
+              sms_campaign:
+                summary: SMS Campaign
+                value:
+                  name: "New Year Promotion"
+                  description: "Welcome the new year with our special offers"
+                  campaign_type: "sms"
+                  message_text: "Happy New Year! Get 30% off on your first order. Use code NEWYEAR30"
+                  scheduled_at: "2024-01-01T09:00:00Z"
+                  target_contact_ids: ["uuid1", "uuid2", "uuid3"]
+                  target_segment_ids: ["uuid4", "uuid5"]
+                  target_criteria:
+                    tags: ["vip", "premium"]
+                    opt_in_status: "opted_in"
+                  settings:
+                    send_time: "09:00"
+                    timezone: "Africa/Dar_es_Salaam"
+                  is_recurring: false
+                  recurring_schedule: {}
+      responses:
+        '201':
+          description: Campaign created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /messaging/campaigns/{id}/:
+    get:
+      tags:
+        - Campaigns
+      summary: Get campaign details
+      description: Retrieve detailed information about a specific campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Campaign UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Campaign details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags:
+        - Campaigns
+      summary: Update campaign
+      description: Update campaign with status-aware validation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Campaign UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignUpdateRequest'
+      responses:
+        '200':
+          description: Campaign updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags:
+        - Campaigns
+      summary: Delete campaign
+      description: Delete a campaign with confirmation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Campaign UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Campaign deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /messaging/campaigns/{id}/start/:
+    post:
+      tags:
+        - Campaigns
+      summary: Start campaign
+      description: Start a campaign with smart validation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Campaign UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Campaign started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignActionResponse'
+        '400':
+          $ref: '#/components/responses/BusinessLogicError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /messaging/campaigns/{id}/pause/:
+    post:
+      tags:
+        - Campaigns
+      summary: Pause campaign
+      description: Pause a running campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Campaign UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Campaign paused successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignActionResponse'
+        '400':
+          $ref: '#/components/responses/BusinessLogicError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /messaging/campaigns/{id}/cancel/:
+    post:
+      tags:
+        - Campaigns
+      summary: Cancel campaign
+      description: Cancel a campaign with cleanup
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Campaign UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Campaign cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignActionResponse'
+        '400':
+          $ref: '#/components/responses/BusinessLogicError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  schemas:
+    # Contact Schemas
+    Contact:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique contact identifier
+        name:
+          type: string
+          description: Contact name
+          example: "John Doe"
+        phone_e164:
+          type: string
+          description: Phone number in E.164 format
+          pattern: '^\+[1-9]\d{1,14}$'
+          example: "+255123456789"
+        email:
+          type: string
+          format: email
+          description: Contact email address
+          example: "john@example.com"
+        is_active:
+          type: boolean
+          description: Whether contact is active
+          default: true
+        is_opted_in:
+          type: boolean
+          description: Whether contact has opted in
+          default: false
+        opt_in_at:
+          type: string
+          format: date-time
+          description: When contact opted in
+          nullable: true
+        last_contacted_at:
+          type: string
+          format: date-time
+          description: When contact was last contacted
+          nullable: true
+        attributes:
+          type: object
+          description: Custom contact attributes
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+          example:
+            company: "Acme Corp"
+            department: "Marketing"
+        tags:
+          type: array
+          items:
+            type: string
+          description: Contact tags
+          example: ["vip", "marketing"]
+        created_at:
+          type: string
+          format: date-time
+          description: When contact was created
+        updated_at:
+          type: string
+          format: date-time
+          description: When contact was last updated
+        upserted:
+          type: boolean
+          description: Whether contact was upserted (for create responses)
+          default: false
+
+    ContactCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Contact name
+          example: "Jane Smith"
+        phone_e164:
+          type: string
+          description: Phone number in E.164 format
+          pattern: '^\+[1-9]\d{1,14}$'
+          example: "+255987654321"
+        email:
+          type: string
+          format: email
+          description: Contact email address
+          example: "jane@example.com"
+        attributes:
+          type: object
+          description: Custom contact attributes
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+        tags:
+          type: array
+          items:
+            type: string
+          description: Contact tags
+        is_active:
+          type: boolean
+          description: Whether contact is active
+          default: true
+
+    ContactUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Contact name
+        phone_e164:
+          type: string
+          description: Phone number in E.164 format
+          pattern: '^\+[1-9]\d{1,14}$'
+        email:
+          type: string
+          format: email
+          description: Contact email address
+        attributes:
+          type: object
+          description: Custom contact attributes
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+        tags:
+          type: array
+          items:
+            type: string
+          description: Contact tags
+        is_active:
+          type: boolean
+          description: Whether contact is active
+
+    ContactResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Contact'
+
+    ContactListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/Contact'
+            count:
+              type: integer
+              description: Total number of contacts
+            next:
+              type: string
+              format: uri
+              description: URL for next page
+              nullable: true
+            previous:
+              type: string
+              format: uri
+              description: URL for previous page
+              nullable: true
+
+    OptInRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Reason for opt-in
+          example: "User requested"
+
+    OptInResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Contact opted in successfully"
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            is_opted_in:
+              type: boolean
+              example: true
+            opt_in_at:
+              type: string
+              format: date-time
+
+    OptOutRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          description: Reason for opt-out
+          example: "User requested"
+
+    OptOutResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Contact opted out successfully"
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            is_opted_in:
+              type: boolean
+              example: false
+            opt_out_reason:
+              type: string
+            opt_out_at:
+              type: string
+              format: date-time
+
+    # Campaign Schemas
+    Campaign:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique campaign identifier
+        name:
+          type: string
+          description: Campaign name
+          example: "Black Friday Sale"
+        description:
+          type: string
+          description: Campaign description
+          example: "Promotional campaign for Black Friday"
+        campaign_type:
+          type: string
+          enum: [sms, whatsapp, email, mixed]
+          description: Type of campaign
+          example: "sms"
+        campaign_type_display:
+          type: string
+          description: Human-readable campaign type
+          example: "SMS"
+        message_text:
+          type: string
+          description: Campaign message text
+          example: "Get 50% off on all items! Use code BLACK50"
+        template:
+          type: string
+          format: uuid
+          description: Template ID (if using template)
+          nullable: true
+        status:
+          type: string
+          enum: [draft, scheduled, running, paused, completed, cancelled, failed]
+          description: Campaign status
+          example: "running"
+        status_display:
+          type: string
+          description: Human-readable status
+          example: "Running"
+        scheduled_at:
+          type: string
+          format: date-time
+          description: When campaign is scheduled to start
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          description: When campaign started
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          description: When campaign completed
+          nullable: true
+        total_recipients:
+          type: integer
+          description: Total number of recipients
+          example: 1000
+        sent_count:
+          type: integer
+          description: Number of messages sent
+          example: 750
+        delivered_count:
+          type: integer
+          description: Number of messages delivered
+          example: 720
+        read_count:
+          type: integer
+          description: Number of messages read
+          example: 450
+        failed_count:
+          type: integer
+          description: Number of failed messages
+          example: 30
+        estimated_cost:
+          type: number
+          format: float
+          description: Estimated cost
+          example: 250.0
+        actual_cost:
+          type: number
+          format: float
+          description: Actual cost
+          example: 187.5
+        progress_percentage:
+          type: number
+          format: float
+          description: Campaign progress percentage
+          example: 75.0
+        delivery_rate:
+          type: number
+          format: float
+          description: Delivery rate percentage
+          example: 96.0
+        read_rate:
+          type: number
+          format: float
+          description: Read rate percentage
+          example: 62.5
+        is_active:
+          type: boolean
+          description: Whether campaign is active
+          example: true
+        can_edit:
+          type: boolean
+          description: Whether campaign can be edited
+          example: false
+        can_start:
+          type: boolean
+          description: Whether campaign can be started
+          example: false
+        can_pause:
+          type: boolean
+          description: Whether campaign can be paused
+          example: true
+        can_cancel:
+          type: boolean
+          description: Whether campaign can be cancelled
+          example: true
+        is_recurring:
+          type: boolean
+          description: Whether campaign is recurring
+          example: false
+        recurring_schedule:
+          type: object
+          description: Recurring schedule configuration
+          example: {}
+        settings:
+          type: object
+          description: Campaign settings
+          example:
+            send_time: "09:00"
+            timezone: "Africa/Dar_es_Salaam"
+        created_by:
+          type: string
+          format: uuid
+          description: User who created the campaign
+        created_by_name:
+          type: string
+          description: Name of user who created the campaign
+          example: "John Doe"
+        created_at:
+          type: string
+          format: date-time
+          description: When campaign was created
+        updated_at:
+          type: string
+          format: date-time
+          description: When campaign was last updated
+        target_contact_count:
+          type: integer
+          description: Number of target contacts
+          example: 1000
+        target_segment_names:
+          type: array
+          items:
+            type: string
+          description: Names of target segments
+          example: ["VIP Customers", "New Subscribers"]
+
+    CampaignCreateRequest:
+      type: object
+      required:
+        - name
+        - campaign_type
+      properties:
+        name:
+          type: string
+          description: Campaign name
+          example: "New Year Promotion"
+        description:
+          type: string
+          description: Campaign description
+          example: "Welcome the new year with our special offers"
+        campaign_type:
+          type: string
+          enum: [sms, whatsapp, email, mixed]
+          description: Type of campaign
+          example: "sms"
+        message_text:
+          type: string
+          description: Campaign message text
+          example: "Happy New Year! Get 30% off on your first order. Use code NEWYEAR30"
+        template:
+          type: string
+          format: uuid
+          description: Template ID (if using template)
+          nullable: true
+        scheduled_at:
+          type: string
+          format: date-time
+          description: When campaign should start
+          example: "2024-01-01T09:00:00Z"
+        target_contact_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Target contact IDs
+          example: ["uuid1", "uuid2", "uuid3"]
+        target_segment_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Target segment IDs
+          example: ["uuid4", "uuid5"]
+        target_criteria:
+          type: object
+          description: Target criteria for contact filtering
+          properties:
+            tags:
+              type: array
+              items:
+                type: string
+              description: Required tags
+              example: ["vip", "premium"]
+            opt_in_status:
+              type: string
+              enum: [opted_in, opted_out, all]
+              description: Opt-in status filter
+              example: "opted_in"
+        settings:
+          type: object
+          description: Campaign settings
+          properties:
+            send_time:
+              type: string
+              pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+              description: Send time in HH:MM format
+              example: "09:00"
+            timezone:
+              type: string
+              description: Timezone for scheduling
+              example: "Africa/Dar_es_Salaam"
+        is_recurring:
+          type: boolean
+          description: Whether campaign is recurring
+          default: false
+        recurring_schedule:
+          type: object
+          description: Recurring schedule configuration
+          default: {}
+
+    CampaignUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Campaign name
+        description:
+          type: string
+          description: Campaign description
+        message_text:
+          type: string
+          description: Campaign message text
+        scheduled_at:
+          type: string
+          format: date-time
+          description: When campaign should start
+        target_contact_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Target contact IDs
+        target_segment_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Target segment IDs
+        settings:
+          type: object
+          description: Campaign settings
+
+    CampaignResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Campaign'
+
+    CampaignListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/Campaign'
+            count:
+              type: integer
+              description: Total number of campaigns
+            next:
+              type: string
+              format: uri
+              description: URL for next page
+              nullable: true
+            previous:
+              type: string
+              format: uri
+              description: URL for previous page
+              nullable: true
+
+    CampaignActionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Campaign started successfully"
+        campaign:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [draft, scheduled, running, paused, completed, cancelled, failed]
+            started_at:
+              type: string
+              format: date-time
+              nullable: true
+            completed_at:
+              type: string
+              format: date-time
+              nullable: true
+
+    # Common Schemas
+    SuccessMessage:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operation completed successfully"
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          description: Error message
+        error_code:
+          type: string
+          description: Error code for programmatic handling
+        details:
+          type: object
+          description: Additional error details
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Validation failed"
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: Field-specific validation errors
+          example:
+            phone_e164: ["Invalid E.164 format"]
+            email: ["Invalid email address"]
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+
+    BusinessLogicError:
+      description: Business logic error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: Contacts
+    description: Smart contact management with deduplication and compliance tracking
+  - name: Campaigns
+    description: Intelligent campaign management with targeting and analytics

@@ -18,15 +18,22 @@ Authorization: Bearer <your-jwt-token>
 
 ## 📱 CONTACT MANAGEMENT
 
-### 1. List Contacts
+### 1. List Contacts (Smart Filtering)
 **GET** `/messaging/contacts/`
 
 **Query Parameters:**
 - `search` (optional): Search by name, phone, or email
 - `is_active` (optional): Filter by active status (true/false)
 - `is_opted_in` (optional): Filter by opt-in status (true/false)
+- `tag` (optional): Filter by a single tag (repeatable for multiple tags)
 - `page` (optional): Page number for pagination
 - `page_size` (optional): Number of items per page (default: 20)
+
+**Smart Features:**
+- Multi-field search across name, phone, and email
+- Tag-based filtering with support for multiple tags
+- Optimized pagination with count metadata
+- Real-time filtering without page reload
 
 **Response:**
 ```json
@@ -43,6 +50,11 @@ Authorization: Bearer <your-jwt-token>
         "is_opted_in": true,
         "opt_in_at": "2024-01-01T10:00:00Z",
         "last_contacted_at": "2024-01-15T14:30:00Z",
+        "attributes": {
+          "company": "Acme Corp",
+          "department": "Marketing"
+        },
+        "tags": ["vip", "marketing"],
         "created_at": "2024-01-01T10:00:00Z",
         "updated_at": "2024-01-15T14:30:00Z"
       }
@@ -54,8 +66,15 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
-### 2. Create Contact
+### 2. Create/Upsert Contact (Smart Deduplication)
 **POST** `/messaging/contacts/`
+
+**Smart Features:**
+- Auto-upsert by `phone_e164` or `email` - prevents duplicates
+- E.164 phone number validation and normalization
+- Tag normalization and deduplication
+- Attribute validation (flat JSON object)
+- Idempotency support with `Idempotency-Key` header
 
 **Request Body:**
 ```json
@@ -67,11 +86,12 @@ Authorization: Bearer <your-jwt-token>
     "company": "Acme Corp",
     "department": "Marketing"
   },
-  "tags": ["vip", "marketing"]
+  "tags": ["vip", "marketing"],
+  "is_active": true
 }
 ```
 
-**Response:**
+**Response (Created):**
 ```json
 {
   "success": true,
@@ -84,8 +104,51 @@ Authorization: Bearer <your-jwt-token>
     "is_opted_in": false,
     "opt_in_at": null,
     "last_contacted_at": null,
+    "attributes": {
+      "company": "Acme Corp",
+      "department": "Marketing"
+    },
+    "tags": ["vip", "marketing"],
     "created_at": "2024-01-01T10:00:00Z",
-    "updated_at": "2024-01-01T10:00:00Z"
+    "updated_at": "2024-01-01T10:00:00Z",
+    "upserted": false
+  }
+}
+```
+
+**Response (Upserted - Contact Already Exists):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "Jane Smith",
+    "phone_e164": "+255987654321",
+    "email": "jane@example.com",
+    "is_active": true,
+    "is_opted_in": true,
+    "opt_in_at": "2024-01-10T08:00:00Z",
+    "last_contacted_at": null,
+    "attributes": {
+      "company": "Acme Corp",
+      "department": "Marketing"
+    },
+    "tags": ["vip", "marketing"],
+    "created_at": "2023-12-15T10:00:00Z",
+    "updated_at": "2024-01-01T10:00:00Z",
+    "upserted": true
+  }
+}
+```
+
+**Validation Error Response:**
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": {
+    "phone_e164": ["Invalid E.164 format"],
+    "email": ["Invalid email address"]
   }
 }
 ```
@@ -117,19 +180,34 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
-### 5. Opt-in Contact
+### 5. Opt-in Contact (Compliance Tracking)
 **POST** `/messaging/contacts/{id}/opt-in/`
+
+**Smart Features:**
+- Compliance tracking with timestamp
+- Automatic status updates
+- Audit trail for opt-in events
 
 **Response:**
 ```json
 {
   "success": true,
-  "message": "Contact opted in successfully"
+  "message": "Contact opted in successfully",
+  "data": {
+    "id": "uuid",
+    "is_opted_in": true,
+    "opt_in_at": "2024-01-20T09:00:00Z"
+  }
 }
 ```
 
-### 6. Opt-out Contact
+### 6. Opt-out Contact (Reason Tracking)
 **POST** `/messaging/contacts/{id}/opt-out/`
+
+**Smart Features:**
+- Reason tracking for compliance
+- Automatic status updates
+- Audit trail for opt-out events
 
 **Request Body:**
 ```json
@@ -138,11 +216,25 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Contact opted out successfully",
+  "data": {
+    "id": "uuid",
+    "is_opted_in": false,
+    "opt_out_reason": "User requested",
+    "opt_out_at": "2024-01-20T09:05:00Z"
+  }
+}
+```
+
 ---
 
 ## 🎯 CAMPAIGN MANAGEMENT
 
-### 1. List Campaigns
+### 1. List Campaigns (Smart Analytics)
 **GET** `/messaging/campaigns/`
 
 **Query Parameters:**
@@ -150,6 +242,12 @@ Authorization: Bearer <your-jwt-token>
 - `type` (optional): Filter by type (sms, whatsapp, email, mixed)
 - `page` (optional): Page number for pagination
 - `page_size` (optional): Number of items per page (default: 20)
+
+**Smart Features:**
+- Real-time analytics and metrics
+- Smart filtering by status and type
+- Progress tracking and delivery rates
+- Action permissions based on campaign state
 
 **Response:**
 ```json
@@ -203,8 +301,15 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
-### 2. Create Campaign
+### 2. Create Campaign (Smart Targeting & Cost Estimation)
 **POST** `/messaging/campaigns/`
+
+**Smart Features:**
+- Auto-recipient resolution from contacts, segments, and criteria
+- Duplicate removal and opt-in validation
+- Real-time cost estimation
+- Dry-run mode for testing (`?dry_run=true`)
+- Idempotency support with `Idempotency-Key` header
 
 **Request Body:**
 ```json
@@ -241,9 +346,26 @@ Authorization: Bearer <your-jwt-token>
     "campaign_type": "sms",
     "status": "draft",
     "total_recipients": 500,
+    "estimated_cost": 125.0,
     "created_at": "2024-01-01T08:00:00Z",
     "target_contact_count": 200,
     "target_segment_names": ["VIP Customers"]
+  }
+}
+```
+
+**Dry-run Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "total_recipients": 500,
+    "estimated_cost": 125.0,
+    "explanations": [
+      "Duplicates removed: 25 contacts",
+      "Opted-out contacts excluded: 10 contacts",
+      "Invalid numbers excluded: 5 contacts"
+    ]
   }
 }
 ```
@@ -671,4 +793,146 @@ All API responses follow this format:
 
 8. **File Uploads**: For contact imports, use the bulk upload endpoint with CSV files.
 
-This documentation should provide everything needed for frontend integration. Let me know if you need clarification on any specific endpoint or functionality!
+---
+
+## 🧠 Smart Management Rules & Best Practices
+
+### Contact Management Rules
+- **Uniqueness**: `phone_e164` and `email` are unique across contacts
+- **Upsert Logic**: Create operations automatically upsert by phone/email
+- **Normalization**: Phone numbers auto-converted to E.164 format
+- **Tag Management**: Tags normalized to lowercase and deduplicated
+- **Attribute Validation**: Must be flat JSON object with string/number/boolean values
+- **Idempotency**: Support `Idempotency-Key` header for safe retries
+
+### Campaign Management Rules
+- **Recipient Resolution**: Union of contacts from IDs, segments, and criteria
+- **Duplicate Removal**: Automatic deduplication of target contacts
+- **Opt-in Compliance**: Only opted-in contacts receive messages
+- **Cost Estimation**: Real-time calculation based on channel pricing
+- **Status Management**: Smart state transitions with validation
+- **Idempotency**: Create operations support `Idempotency-Key` header
+
+### Error Handling (Enhanced)
+
+**Validation Error Response:**
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": {
+    "phone_e164": ["Invalid E.164 format"],
+    "email": ["Invalid email address"],
+    "message_text": ["Message too long for single SMS"]
+  }
+}
+```
+
+**Business Logic Error Response:**
+```json
+{
+  "success": false,
+  "message": "Campaign cannot be started",
+  "error_code": "INVALID_STATUS",
+  "details": {
+    "current_status": "completed",
+    "allowed_statuses": ["draft", "scheduled"]
+  }
+}
+```
+
+### Rate Limiting (Smart)
+- **Authentication endpoints**: 5 requests per minute
+- **SMS sending**: 10 requests per minute
+- **Contact operations**: 100 requests per minute
+- **Campaign operations**: 50 requests per minute
+- **Bulk operations**: 10 requests per minute
+
+### Idempotency Support
+All create operations support the `Idempotency-Key` header:
+```
+Idempotency-Key: unique-request-id-12345
+```
+
+Keys are valid for 24 hours and prevent duplicate operations.
+
+### Frontend Integration Best Practices
+
+#### 1. Smart Contact Management
+```typescript
+// Use upsert for contact creation
+const createContact = async (contactData) => {
+  const response = await apiClient.post('/messaging/contacts/', contactData, {
+    headers: {
+      'Idempotency-Key': `contact-${Date.now()}-${Math.random()}`
+    }
+  });
+  
+  if (response.data.upserted) {
+    showNotification('Contact updated successfully');
+  } else {
+    showNotification('Contact created successfully');
+  }
+  
+  return response.data;
+};
+```
+
+#### 2. Smart Campaign Creation
+```typescript
+// Use dry-run for cost estimation
+const estimateCampaignCost = async (campaignData) => {
+  const response = await apiClient.post('/messaging/campaigns/?dry_run=true', campaignData);
+  return response.data;
+};
+
+// Create campaign with idempotency
+const createCampaign = async (campaignData) => {
+  const response = await apiClient.post('/messaging/campaigns/', campaignData, {
+    headers: {
+      'Idempotency-Key': `campaign-${Date.now()}-${Math.random()}`
+    }
+  });
+  
+  return response.data;
+};
+```
+
+#### 3. Real-time Updates
+```typescript
+// Poll for campaign updates
+const useCampaignUpdates = (campaignId) => {
+  const [campaign, setCampaign] = useState(null);
+  
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const response = await apiClient.get(`/messaging/campaigns/${campaignId}/`);
+      setCampaign(response.data.data);
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [campaignId]);
+  
+  return campaign;
+};
+```
+
+#### 4. Error Handling
+```typescript
+const handleApiError = (error) => {
+  if (error.response?.data?.errors) {
+    // Display field-specific validation errors
+    Object.entries(error.response.data.errors).forEach(([field, messages]) => {
+      showFieldError(field, messages[0]);
+    });
+  } else if (error.response?.data?.error_code) {
+    // Handle business logic errors
+    showBusinessError(error.response.data.message, error.response.data.details);
+  } else {
+    // Generic error handling
+    showGenericError(error.message);
+  }
+};
+```
+
+This documentation provides everything needed for smart frontend integration with intelligent error handling, real-time updates, and best practices. The API is designed to be developer-friendly while maintaining data integrity and compliance.
