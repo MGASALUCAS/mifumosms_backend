@@ -1,153 +1,99 @@
 """
-Serializers for billing models.
+Serializers for billing functionality.
 """
 from rest_framework import serializers
-from .models import Plan, Subscription, Invoice, UsageRecord, PaymentMethod, Coupon
+from .models import (
+    SMSPackage, SMSBalance, Purchase, UsageRecord, 
+    BillingPlan, Subscription
+)
 
 
-class PlanSerializer(serializers.ModelSerializer):
-    """Serializer for Plan model."""
+class SMSPackageSerializer(serializers.ModelSerializer):
+    """Serializer for SMS packages."""
+    savings_percentage = serializers.ReadOnlyField()
     
     class Meta:
-        model = Plan
+        model = SMSPackage
         fields = [
-            'id', 'name', 'plan_type', 'description', 'price_monthly', 'price_yearly',
-            'messages_limit', 'cost_limit', 'users_limit', 'features', 'is_active',
-            'created_at', 'updated_at'
+            'id', 'name', 'package_type', 'credits', 'price', 'unit_price',
+            'is_popular', 'features', 'savings_percentage'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
-class SubscriptionSerializer(serializers.ModelSerializer):
-    """Serializer for Subscription model."""
-    
-    plan_name = serializers.CharField(source='plan.name', read_only=True)
-    is_active = serializers.BooleanField(read_only=True)
-    is_trial = serializers.BooleanField(read_only=True)
+class SMSBalanceSerializer(serializers.ModelSerializer):
+    """Serializer for SMS balance."""
     
     class Meta:
-        model = Subscription
+        model = SMSBalance
         fields = [
-            'id', 'tenant', 'plan', 'plan_name', 'status', 'billing_cycle',
-            'current_period_start', 'current_period_end', 'trial_end',
-            'is_active', 'is_trial', 'created_at', 'updated_at', 'cancelled_at'
-        ]
-        read_only_fields = [
-            'id', 'created_at', 'updated_at', 'cancelled_at'
+            'id', 'credits', 'total_purchased', 'total_used', 
+            'last_updated', 'created_at'
         ]
 
 
-class InvoiceSerializer(serializers.ModelSerializer):
-    """Serializer for Invoice model."""
-    
-    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+class PurchaseSerializer(serializers.ModelSerializer):
+    """Serializer for purchase records."""
+    package_name = serializers.CharField(source='package.name', read_only=True)
+    payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
     
     class Meta:
-        model = Invoice
+        model = Purchase
         fields = [
-            'id', 'tenant', 'tenant_name', 'subscription', 'invoice_number',
-            'status', 'subtotal', 'tax_amount', 'total_amount', 'amount_paid',
-            'amount_due', 'currency', 'invoice_date', 'due_date', 'paid_at',
-            'created_at', 'updated_at'
+            'id', 'invoice_number', 'package', 'package_name',
+            'amount', 'credits', 'unit_price', 'payment_method',
+            'payment_method_display', 'payment_reference', 'status',
+            'status_display', 'created_at', 'completed_at'
         ]
-        read_only_fields = [
-            'id', 'invoice_number', 'created_at', 'updated_at'
-        ]
+
+
+class PurchaseCreateSerializer(serializers.Serializer):
+    """Serializer for creating purchases."""
+    package_id = serializers.UUIDField()
+    payment_method = serializers.ChoiceField(choices=Purchase.PAYMENT_METHODS)
+    payment_reference = serializers.CharField(required=False, allow_blank=True)
+    
+    def validate_package_id(self, value):
+        """Validate that package exists and is active."""
+        try:
+            package = SMSPackage.objects.get(id=value, is_active=True)
+            return value
+        except SMSPackage.DoesNotExist:
+            raise serializers.ValidationError("Invalid or inactive package")
 
 
 class UsageRecordSerializer(serializers.ModelSerializer):
-    """Serializer for UsageRecord model."""
-    
-    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    """Serializer for usage records."""
     
     class Meta:
         model = UsageRecord
         fields = [
-            'id', 'tenant', 'tenant_name', 'subscription', 'metric_name',
-            'quantity', 'unit_price', 'total_cost', 'period_start', 'period_end',
-            'created_at', 'updated_at'
+            'id', 'credits_used', 'cost', 'created_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
-class PaymentMethodSerializer(serializers.ModelSerializer):
-    """Serializer for PaymentMethod model."""
-    
-    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+class BillingPlanSerializer(serializers.ModelSerializer):
+    """Serializer for billing plans."""
     
     class Meta:
-        model = PaymentMethod
+        model = BillingPlan
         fields = [
-            'id', 'tenant', 'tenant_name', 'payment_type', 'is_default',
-            'card_brand', 'card_last4', 'card_exp_month', 'card_exp_year',
-            'is_active', 'created_at', 'updated_at'
-        ]
-        read_only_fields = [
-            'id', 'created_at', 'updated_at'
+            'id', 'name', 'plan_type', 'description', 'price', 'currency',
+            'billing_cycle', 'max_contacts', 'max_campaigns', 'max_sms_per_month',
+            'features', 'is_active'
         ]
 
 
-class CouponSerializer(serializers.ModelSerializer):
-    """Serializer for Coupon model."""
-    
-    is_valid = serializers.BooleanField(read_only=True)
+class SubscriptionSerializer(serializers.ModelSerializer):
+    """Serializer for subscriptions."""
+    plan_name = serializers.CharField(source='plan.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    is_active = serializers.ReadOnlyField()
     
     class Meta:
-        model = Coupon
+        model = Subscription
         fields = [
-            'id', 'code', 'name', 'description', 'coupon_type', 'discount_value',
-            'currency', 'max_uses', 'used_count', 'valid_from', 'valid_until',
-            'is_valid', 'is_active', 'created_at', 'updated_at'
+            'id', 'plan', 'plan_name', 'status', 'status_display',
+            'current_period_start', 'current_period_end', 'cancel_at_period_end',
+            'is_active', 'created_at'
         ]
-        read_only_fields = [
-            'id', 'used_count', 'is_valid', 'created_at', 'updated_at'
-        ]
-
-
-class CreateSubscriptionSerializer(serializers.Serializer):
-    """Serializer for creating a subscription."""
-    
-    plan_id = serializers.UUIDField()
-    billing_cycle = serializers.ChoiceField(choices=['monthly', 'yearly'])
-    payment_method_id = serializers.UUIDField(required=False)
-    coupon_code = serializers.CharField(required=False, allow_blank=True)
-    
-    def validate_plan_id(self, value):
-        """Validate plan exists and is active."""
-        try:
-            plan = Plan.objects.get(id=value, is_active=True)
-            return value
-        except Plan.DoesNotExist:
-            raise serializers.ValidationError("Invalid plan ID")
-    
-    def validate_coupon_code(self, value):
-        """Validate coupon code if provided."""
-        if value:
-            try:
-                coupon = Coupon.objects.get(code=value, is_active=True)
-                if not coupon.is_valid:
-                    raise serializers.ValidationError("Coupon is not valid")
-                return value
-            except Coupon.DoesNotExist:
-                raise serializers.ValidationError("Invalid coupon code")
-        return value
-
-
-class UpdateSubscriptionSerializer(serializers.Serializer):
-    """Serializer for updating a subscription."""
-    
-    plan_id = serializers.UUIDField(required=False)
-    billing_cycle = serializers.ChoiceField(choices=['monthly', 'yearly'], required=False)
-    payment_method_id = serializers.UUIDField(required=False)
-
-
-class BillingOverviewSerializer(serializers.Serializer):
-    """Serializer for billing overview."""
-    
-    current_plan = PlanSerializer(read_only=True)
-    subscription = SubscriptionSerializer(read_only=True)
-    current_usage = serializers.DictField(read_only=True)
-    upcoming_invoice = InvoiceSerializer(read_only=True)
-    payment_methods = PaymentMethodSerializer(many=True, read_only=True)
-    recent_invoices = InvoiceSerializer(many=True, read_only=True)
-    usage_history = UsageRecordSerializer(many=True, read_only=True)

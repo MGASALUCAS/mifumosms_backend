@@ -4,7 +4,6 @@ Messaging models for Mifumo WMS.
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from tenants.models import Tenant
 import uuid
 import json
 
@@ -19,7 +18,6 @@ class Contact(models.Model):
     Represents a contact that can receive messages.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='contacts')
     
     # Basic information
     name = models.CharField(max_length=255)
@@ -47,7 +45,6 @@ class Contact(models.Model):
     
     class Meta:
         db_table = 'contacts'
-        unique_together = ['tenant', 'phone_e164']
         ordering = ['-created_at']
     
     def __str__(self):
@@ -77,7 +74,6 @@ class Segment(models.Model):
     Represents a saved contact filter for targeting campaigns.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='segments')
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     
@@ -105,7 +101,7 @@ class Segment(models.Model):
         from django.db import connection
         
         # Build Q object from filter_json
-        q = Q(tenant=self.tenant, is_active=True)
+        q = Q(is_active=True)
         
         if 'tags' in self.filter_json:
             tags = self.filter_json['tags']
@@ -152,7 +148,6 @@ class Template(models.Model):
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='templates')
     
     # Template details
     name = models.CharField(max_length=255)
@@ -358,8 +353,15 @@ class Attachment(models.Model):
 
 class Campaign(models.Model):
     """
-    Represents a marketing campaign.
+    Smart campaign model with user-specific tracking and management.
     """
+    CAMPAIGN_TYPES = [
+        ('sms', 'SMS'),
+        ('whatsapp', 'WhatsApp'),
+        ('email', 'Email'),
+        ('mixed', 'Mixed'),
+    ]
+    
     STATUS_CHOICES = [
         ('draft', 'Draft'),
         ('scheduled', 'Scheduled'),
@@ -367,46 +369,160 @@ class Campaign(models.Model):
         ('paused', 'Paused'),
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
+        ('failed', 'Failed'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='campaigns')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_campaigns')
     
-    # Campaign details
+    # Basic campaign info
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    template = models.ForeignKey(Template, on_delete=models.CASCADE, related_name='campaigns')
-    segment = models.ForeignKey(Segment, on_delete=models.CASCADE, related_name='campaigns')
+    campaign_type = models.CharField(max_length=20, choices=CAMPAIGN_TYPES, default='sms')
+    
+    # Content
+    message_text = models.TextField()
+    template = models.ForeignKey(Template, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Targeting
+    target_segments = models.ManyToManyField(Segment, blank=True, related_name='campaigns')
+    target_contacts = models.ManyToManyField(Contact, blank=True, related_name='campaigns')
+    target_criteria = models.JSONField(default=dict, blank=True)  # Advanced targeting
     
     # Scheduling
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
-    schedule_at = models.DateTimeField(null=True, blank=True)
+    scheduled_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     
-    # Statistics
-    total_contacts = models.PositiveIntegerField(default=0)
+    # Statistics (computed fields)
+    total_recipients = models.PositiveIntegerField(default=0)
     sent_count = models.PositiveIntegerField(default=0)
     delivered_count = models.PositiveIntegerField(default=0)
     read_count = models.PositiveIntegerField(default=0)
     failed_count = models.PositiveIntegerField(default=0)
     
+    # Cost tracking
+    estimated_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    actual_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    
+    # Settings
+    settings = models.JSONField(default=dict, blank=True)  # Campaign-specific settings
+    is_recurring = models.BooleanField(default=False)
+    recurring_schedule = models.JSONField(default=dict, blank=True)  # For recurring campaigns
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     
     class Meta:
         db_table = 'campaigns'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['created_by']),
+            models.Index(fields=['status', 'scheduled_at']),
+            models.Index(fields=['campaign_type', 'status']),
+        ]
     
     def __str__(self):
-        return f"{self.name} ({self.status})"
+        return f"{self.name} ({self.get_status_display()})"
     
-    def start(self):
+    @property
+    def progress_percentage(self):
+        """Calculate campaign progress percentage."""
+        if self.total_recipients == 0:
+            return 0
+        return min(100, int((self.sent_count / self.total_recipients) * 100))
+    
+    @property
+    def delivery_rate(self):
+        """Calculate delivery rate percentage."""
+        if self.sent_count == 0:
+            return 0
+        return round((self.delivered_count / self.sent_count) * 100, 2)
+    
+    @property
+    def read_rate(self):
+        """Calculate read rate percentage."""
+        if self.delivered_count == 0:
+            return 0
+        return round((self.read_count / self.delivered_count) * 100, 2)
+    
+    @property
+    def is_active(self):
+        """Check if campaign is currently active."""
+        return self.status in ['running', 'scheduled']
+    
+    @property
+    def can_edit(self):
+        """Check if campaign can be edited."""
+        return self.status in ['draft', 'scheduled']
+    
+    @property
+    def can_start(self):
+        """Check if campaign can be started."""
+        return self.status in ['draft', 'scheduled', 'paused']
+    
+    @property
+    def can_pause(self):
+        """Check if campaign can be paused."""
+        return self.status == 'running'
+    
+    @property
+    def can_cancel(self):
+        """Check if campaign can be cancelled."""
+        return self.status in ['draft', 'scheduled', 'running', 'paused']
+    
+    def calculate_recipients(self):
+        """Calculate total recipients based on targeting."""
+        if self.target_contacts.exists():
+            return self.target_contacts.filter(is_active=True).count()
+        
+        if self.target_segments.exists():
+            total = 0
+            for segment in self.target_segments.all():
+                total += segment.contact_count
+            return total
+        
+        # If no specific targeting, use tenant contacts
+        return self.tenant.contacts.filter(is_active=True).count()
+    
+    def update_statistics(self):
+        """Update campaign statistics."""
+        self.total_recipients = self.calculate_recipients()
+        self.save(update_fields=['total_recipients'])
+    
+    def start_campaign(self):
         """Start the campaign."""
+        if not self.can_start:
+            raise ValueError(f"Cannot start campaign in {self.status} status")
+        
         self.status = 'running'
         self.started_at = timezone.now()
+        self.update_statistics()
+        self.save()
+    
+    def pause_campaign(self):
+        """Pause the campaign."""
+        if not self.can_pause:
+            raise ValueError(f"Cannot pause campaign in {self.status} status")
+        
+        self.status = 'paused'
+        self.save()
+    
+    def complete_campaign(self):
+        """Mark campaign as completed."""
+        self.status = 'completed'
+        self.completed_at = timezone.now()
+        self.save()
+    
+    def cancel_campaign(self):
+        """Cancel the campaign."""
+        if not self.can_cancel:
+            raise ValueError(f"Cannot cancel campaign in {self.status} status")
+        
+        self.status = 'cancelled'
+        self.completed_at = timezone.now()
         self.save()
     
     def complete(self):

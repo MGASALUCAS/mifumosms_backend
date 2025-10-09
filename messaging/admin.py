@@ -17,12 +17,12 @@ class ContactAdmin(admin.ModelAdmin):
     list_filter = ['is_active', 'opt_in_at', 'opt_out_at', 'created_at']
     search_fields = ['name', 'phone_e164', 'email']
     readonly_fields = ['created_at', 'updated_at', 'last_contacted_at', 'is_opted_in']
-    raw_id_fields = ['tenant']
+    # Removed tenant field
     list_per_page = 25
     
     fieldsets = (
         ('Contact Information', {
-            'fields': ('name', 'phone_e164', 'email', 'tenant'),
+            'fields': ('name', 'phone_e164', 'email'),
             'classes': ('wide',)
         }),
         ('Status & Preferences', {
@@ -54,7 +54,7 @@ class SegmentAdmin(admin.ModelAdmin):
     list_filter = ['created_at']
     search_fields = ['name', 'description']
     readonly_fields = ['contact_count', 'created_at', 'updated_at']
-    raw_id_fields = ['tenant', 'created_by']
+    raw_id_fields = ['created_by']
 
 
 @admin.register(Template)
@@ -63,7 +63,7 @@ class TemplateAdmin(admin.ModelAdmin):
     list_filter = ['category', 'language', 'approved', 'created_at']
     search_fields = ['name', 'body_text']
     readonly_fields = ['usage_count', 'created_at', 'updated_at']
-    raw_id_fields = ['tenant', 'created_by']
+    raw_id_fields = ['created_by']
 
 
 @admin.register(Conversation)
@@ -135,14 +135,51 @@ class AttachmentAdmin(admin.ModelAdmin):
 
 @admin.register(Campaign)
 class CampaignAdmin(admin.ModelAdmin):
-    list_display = ['name', 'status', 'total_contacts', 'sent_count', 'created_at']
-    list_filter = ['status', 'created_at', 'schedule_at']
-    search_fields = ['name', 'description']
+    list_display = ['name', 'status', 'campaign_type', 'total_recipients', 'sent_count', 'created_at']
+    list_filter = ['status', 'campaign_type', 'created_at', 'scheduled_at']
+    search_fields = ['name', 'description', 'message_text']
     readonly_fields = [
-        'total_contacts', 'sent_count', 'delivered_count', 'read_count', 'failed_count',
-        'started_at', 'completed_at', 'created_at', 'updated_at'
+        'total_recipients', 'sent_count', 'delivered_count', 'read_count', 'failed_count',
+        'started_at', 'completed_at', 'created_at', 'updated_at', 'progress_percentage',
+        'delivery_rate', 'read_rate', 'is_active', 'can_edit', 'can_start', 'can_pause', 'can_cancel'
     ]
-    raw_id_fields = ['tenant', 'template', 'segment', 'created_by']
+    raw_id_fields = ['template', 'created_by']
+    filter_horizontal = ['target_segments', 'target_contacts']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'description', 'campaign_type', 'created_by'),
+            'classes': ('wide',)
+        }),
+        ('Content', {
+            'fields': ('message_text', 'template'),
+            'classes': ('wide',)
+        }),
+        ('Targeting', {
+            'fields': ('target_segments', 'target_contacts', 'target_criteria'),
+            'classes': ('wide',)
+        }),
+        ('Scheduling', {
+            'fields': ('status', 'scheduled_at', 'is_recurring', 'recurring_schedule'),
+            'classes': ('wide',)
+        }),
+        ('Statistics', {
+            'fields': ('total_recipients', 'sent_count', 'delivered_count', 'read_count', 'failed_count'),
+            'classes': ('wide', 'collapse')
+        }),
+        ('Cost Tracking', {
+            'fields': ('estimated_cost', 'actual_cost'),
+            'classes': ('wide', 'collapse')
+        }),
+        ('Settings', {
+            'fields': ('settings',),
+            'classes': ('wide', 'collapse')
+        }),
+        ('Timestamps', {
+            'fields': ('started_at', 'completed_at', 'created_at', 'updated_at'),
+            'classes': ('wide', 'collapse')
+        }),
+    )
 
 
 @admin.register(Flow)

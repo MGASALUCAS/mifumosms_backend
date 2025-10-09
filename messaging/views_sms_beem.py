@@ -434,6 +434,95 @@ def get_beem_balance(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def get_sms_stats(request):
+    """
+    Get SMS statistics for the tenant
+    
+    GET /api/messaging/sms/stats/
+    
+    Response:
+    {
+        "success": true,
+        "data": {
+            "total_sent": 1500,
+            "total_delivered": 1450,
+            "total_failed": 50,
+            "delivery_rate": 96.67,
+            "this_month_sent": 300,
+            "this_month_delivered": 290,
+            "this_month_failed": 10,
+            "cost_this_month": 7.50
+        }
+    }
+    """
+    try:
+        tenant = request.user.tenant
+        if not tenant:
+            return Response({
+                'success': False,
+                'message': 'User is not associated with any tenant. Please contact support.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get SMS statistics for the tenant
+        from django.db.models import Count, Sum, Q
+        from datetime import datetime, timedelta
+        
+        now = timezone.now()
+        this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Total statistics
+        total_sent = SMSMessage.objects.filter(tenant=tenant).count()
+        total_delivered = SMSMessage.objects.filter(tenant=tenant, status='delivered').count()
+        total_failed = SMSMessage.objects.filter(tenant=tenant, status='failed').count()
+        
+        # This month statistics
+        this_month_sent = SMSMessage.objects.filter(
+            tenant=tenant, 
+            created_at__gte=this_month_start
+        ).count()
+        this_month_delivered = SMSMessage.objects.filter(
+            tenant=tenant, 
+            status='delivered',
+            created_at__gte=this_month_start
+        ).count()
+        this_month_failed = SMSMessage.objects.filter(
+            tenant=tenant, 
+            status='failed',
+            created_at__gte=this_month_start
+        ).count()
+        
+        # Calculate delivery rate
+        delivery_rate = (total_delivered / total_sent * 100) if total_sent > 0 else 0
+        
+        # Calculate cost (assuming 25 TZS per SMS)
+        cost_per_sms = 25  # TZS
+        cost_this_month = this_month_sent * cost_per_sms
+        
+        return Response({
+            'success': True,
+            'data': {
+                'total_sent': total_sent,
+                'total_delivered': total_delivered,
+                'total_failed': total_failed,
+                'delivery_rate': round(delivery_rate, 2),
+                'this_month_sent': this_month_sent,
+                'this_month_delivered': this_month_delivered,
+                'this_month_failed': this_month_failed,
+                'cost_this_month': cost_this_month
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"SMS stats error: {str(e)}")
+        return Response({
+            'success': False,
+            'message': 'Failed to retrieve SMS statistics',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_sms_delivery_status(request, message_id):
     """
     Get delivery status for SMS message

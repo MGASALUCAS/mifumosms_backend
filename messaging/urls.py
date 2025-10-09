@@ -1,10 +1,12 @@
 """
 URL patterns for messaging functionality.
+Optimized for frontend integration.
 """
 from django.urls import path, include
-from . import views
+from . import views, views_dashboard, views_campaign
 
 urlpatterns = [
+    # Core messaging endpoints (used by frontend)
     # Contacts
     path('contacts/', views.ContactListCreateView.as_view(), name='contact-list-create'),
     path('contacts/<uuid:pk>/', views.ContactDetailView.as_view(), name='contact-detail'),
@@ -29,25 +31,22 @@ urlpatterns = [
     path('messages/', views.MessageListCreateView.as_view(), name='message-list-create'),
     path('messages/<uuid:pk>/', views.MessageDetailView.as_view(), name='message-detail'),
     
-    # Campaigns
-    path('campaigns/', views.CampaignListCreateView.as_view(), name='campaign-list-create'),
-    path('campaigns/<uuid:pk>/', views.CampaignDetailView.as_view(), name='campaign-detail'),
-    path('campaigns/<uuid:campaign_id>/start/', views.campaign_start, name='campaign-start'),
-    path('campaigns/<uuid:campaign_id>/pause/', views.campaign_pause, name='campaign-pause'),
-    path('campaigns/<uuid:campaign_id>/cancel/', views.campaign_cancel, name='campaign-cancel'),
-    
-    # Flows
-    path('flows/', views.FlowListCreateView.as_view(), name='flow-list-create'),
-    path('flows/<uuid:pk>/', views.FlowDetailView.as_view(), name='flow-detail'),
-    path('flows/<uuid:flow_id>/activate/', views.flow_activate, name='flow-activate'),
-    path('flows/<uuid:flow_id>/deactivate/', views.flow_deactivate, name='flow-deactivate'),
-    
-    # AI Features
-    path('ai/suggest-reply/<uuid:conversation_id>/', views.ai_suggest_reply, name='ai-suggest-reply'),
-    path('ai/summarize/<uuid:conversation_id>/', views.ai_summarize_conversation, name='ai-summarize'),
+    # Smart Campaign Management
+    path('campaigns/', views_campaign.CampaignListView.as_view(), name='campaign-list-create'),
+    path('campaigns/summary/', views_campaign.user_campaigns_summary, name='campaign-summary'),
+    path('campaigns/<uuid:pk>/', views_campaign.CampaignDetailView.as_view(), name='campaign-detail'),
+    path('campaigns/<uuid:campaign_id>/start/', views_campaign.start_campaign, name='campaign-start'),
+    path('campaigns/<uuid:campaign_id>/pause/', views_campaign.pause_campaign, name='campaign-pause'),
+    path('campaigns/<uuid:campaign_id>/cancel/', views_campaign.cancel_campaign, name='campaign-cancel'),
+    path('campaigns/<uuid:campaign_id>/analytics/', views_campaign.campaign_analytics, name='campaign-analytics'),
+    path('campaigns/<uuid:campaign_id>/duplicate/', views_campaign.duplicate_campaign, name='campaign-duplicate'),
     
     # Analytics
     path('analytics/overview/', views.analytics_overview, name='analytics-overview'),
+    
+    # Dashboard
+    path('dashboard/overview/', views_dashboard.dashboard_overview, name='dashboard-overview'),
+    path('dashboard/metrics/', views_dashboard.dashboard_metrics, name='dashboard-metrics'),
 ]
 
 # Include SMS URLs

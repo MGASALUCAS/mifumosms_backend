@@ -1,35 +1,24 @@
 """
 URL patterns for billing functionality.
+Optimized for frontend integration.
 """
 from django.urls import path
-from . import views
+from . import views, views_sms
 
 urlpatterns = [
-    # Plans
+    # Core billing endpoints (used by frontend)
     path('plans/', views.PlanListView.as_view(), name='plan-list'),
-    
-    # Subscriptions
     path('subscription/', views.SubscriptionDetailView.as_view(), name='subscription-detail'),
-    path('subscription/create/', views.create_subscription, name='subscription-create'),
-    path('subscription/cancel/', views.cancel_subscription, name='subscription-cancel'),
-    
-    # Invoices
-    path('invoices/', views.InvoiceListView.as_view(), name='invoice-list'),
-    path('invoices/<uuid:pk>/', views.InvoiceDetailView.as_view(), name='invoice-detail'),
-    
-    # Payment Methods
-    path('payment-methods/', views.PaymentMethodListView.as_view(), name='payment-method-list'),
-    path('payment-methods/<uuid:pk>/', views.PaymentMethodDetailView.as_view(), name='payment-method-detail'),
-    path('payment-methods/<uuid:payment_method_id>/set-default/', views.set_default_payment_method, name='payment-method-set-default'),
-    
-    # Usage
     path('usage/', views.UsageRecordListView.as_view(), name='usage-list'),
-    path('usage/limits/', views.usage_limits, name='usage-limits'),
-    
-    # Billing Overview
     path('overview/', views.billing_overview, name='billing-overview'),
     
-    # Coupons
-    path('coupons/', views.CouponListView.as_view(), name='coupon-list'),
-    path('coupons/validate/', views.validate_coupon, name='coupon-validate'),
+    # SMS billing endpoints
+    path('sms/packages/', views_sms.SMSPackageListView.as_view(), name='sms-package-list'),
+    path('sms/balance/', views_sms.SMSBalanceView.as_view(), name='sms-balance'),
+    path('sms/purchase/', views_sms.create_purchase, name='sms-purchase-create'),
+    path('sms/purchases/', views_sms.PurchaseListView.as_view(), name='sms-purchase-list'),
+    path('sms/purchases/history/', views_sms.purchase_history, name='sms-purchase-history'),
+    path('sms/purchases/<uuid:pk>/', views_sms.PurchaseDetailView.as_view(), name='sms-purchase-detail'),
+    path('sms/purchases/<uuid:purchase_id>/complete/', views_sms.complete_purchase, name='sms-purchase-complete'),
+    path('sms/usage/statistics/', views_sms.usage_statistics, name='sms-usage-statistics'),
 ]
