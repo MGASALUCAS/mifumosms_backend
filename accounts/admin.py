@@ -16,7 +16,7 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ['email', 'first_name', 'last_name', 'phone_number']
     ordering = ['-created_at']
     list_per_page = 25
-    
+
     fieldsets = (
         ('Authentication', {
             'fields': ('email', 'password'),
@@ -43,21 +43,21 @@ class UserAdmin(BaseUserAdmin):
             'classes': ('wide', 'collapse')
         }),
     )
-    
+
     add_fieldsets = (
         ('Create New User', {
             'classes': ('wide',),
             'fields': ('email', 'first_name', 'last_name', 'password1', 'password2'),
         }),
     )
-    
+
     readonly_fields = ['created_at', 'updated_at', 'last_login_at', 'date_joined']
-    
+
     def get_full_name(self, obj):
         return obj.get_full_name()
     get_full_name.short_description = 'Full Name'
     get_full_name.admin_order_field = 'first_name'
-    
+
     def get_tenant_name(self, obj):
         tenant = obj.tenant
         if tenant:
@@ -78,7 +78,7 @@ class UserProfileAdmin(admin.ModelAdmin):
     search_fields = ['user__email', 'job_title', 'company', 'industry']
     readonly_fields = ['api_key_created_at', 'created_at', 'updated_at']
     list_per_page = 25
-    
+
     fieldsets = (
         ('User Information', {
             'fields': ('user',),
@@ -101,7 +101,7 @@ class UserProfileAdmin(admin.ModelAdmin):
             'classes': ('wide', 'collapse')
         }),
     )
-    
+
     def api_key_status(self, obj):
         if obj.api_key:
             return format_html(

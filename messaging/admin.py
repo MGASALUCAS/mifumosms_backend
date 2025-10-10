@@ -19,7 +19,7 @@ class ContactAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'updated_at', 'last_contacted_at', 'is_opted_in']
     # Removed tenant field
     list_per_page = 25
-    
+
     fieldsets = (
         ('Contact Information', {
             'fields': ('name', 'phone_e164', 'email'),
@@ -34,13 +34,13 @@ class ContactAdmin(admin.ModelAdmin):
             'classes': ('wide', 'collapse')
         }),
     )
-    
+
     def status_badge(self, obj):
         if obj.is_active:
             return format_html('<span class="badge badge-success">Active</span>')
         return format_html('<span class="badge badge-secondary">Inactive</span>')
     status_badge.short_description = 'Status'
-    
+
     def opt_in_status(self, obj):
         if obj.is_opted_in:
             return format_html('<span class="badge badge-info">Opted In</span>')
@@ -83,7 +83,7 @@ class MessageAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'updated_at', 'sent_at', 'delivered_at', 'read_at']
     raw_id_fields = ['tenant', 'conversation', 'template', 'created_by']
     list_per_page = 25
-    
+
     fieldsets = (
         ('Message Content', {
             'fields': ('conversation', 'text', 'template'),
@@ -98,13 +98,13 @@ class MessageAdmin(admin.ModelAdmin):
             'classes': ('wide', 'collapse')
         }),
     )
-    
+
     def direction_badge(self, obj):
         if obj.direction == 'inbound':
             return format_html('<span class="badge badge-info">Inbound</span>')
         return format_html('<span class="badge badge-primary">Outbound</span>')
     direction_badge.short_description = 'Direction'
-    
+
     def status_badge(self, obj):
         status_colors = {
             'pending': 'badge-warning',
@@ -116,7 +116,7 @@ class MessageAdmin(admin.ModelAdmin):
         color = status_colors.get(obj.status, 'badge-secondary')
         return format_html(f'<span class="badge {color}">{obj.status.title()}</span>')
     status_badge.short_description = 'Status'
-    
+
     def preview_text(self, obj):
         if obj.text:
             return obj.text[:50] + '...' if len(obj.text) > 50 else obj.text
@@ -143,9 +143,8 @@ class CampaignAdmin(admin.ModelAdmin):
         'started_at', 'completed_at', 'created_at', 'updated_at', 'progress_percentage',
         'delivery_rate', 'read_rate', 'is_active', 'can_edit', 'can_start', 'can_pause', 'can_cancel'
     ]
-    raw_id_fields = ['template', 'created_by']
     filter_horizontal = ['target_segments', 'target_contacts']
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('name', 'description', 'campaign_type', 'created_by'),
