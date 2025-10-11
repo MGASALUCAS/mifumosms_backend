@@ -10,7 +10,6 @@ from .models import (
     Campaign, Flow
 )
 
-
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
     list_display = ['name', 'phone_e164', 'email', 'created_by', 'status_badge', 'opt_in_status', 'created_at']
@@ -38,27 +37,12 @@ class ContactAdmin(admin.ModelAdmin):
         }),
     )
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     def save_model(self, request, obj, form, change):
         """Automatically set created_by to the current user when creating a new contact."""
         if not change:  # Only for new objects
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     def status_badge(self, obj):
         if obj.is_active:
             return format_html('<span class="badge badge-success">Active</span>')
@@ -70,7 +54,6 @@ class ContactAdmin(admin.ModelAdmin):
             return format_html('<span class="badge badge-info">Opted In</span>')
         return format_html('<span class="badge badge-warning">Not Opted In</span>')
     opt_in_status.short_description = 'Opt-in Status'
-
 
 @admin.register(Segment)
 class SegmentAdmin(admin.ModelAdmin):
@@ -85,7 +68,6 @@ class SegmentAdmin(admin.ModelAdmin):
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
-
 @admin.register(Template)
 class TemplateAdmin(admin.ModelAdmin):
     list_display = ['name', 'created_by', 'category', 'language', 'approved', 'usage_count', 'created_at']
@@ -99,14 +81,12 @@ class TemplateAdmin(admin.ModelAdmin):
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
-
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
     list_display = ['contact', 'status', 'message_count', 'unread_count', 'last_message_at']
     list_filter = ['status', 'created_at', 'last_message_at']
     search_fields = ['contact__name', 'contact__phone_e164', 'subject']
     readonly_fields = ['message_count', 'unread_count', 'created_at', 'updated_at', 'last_message_at', 'closed_at']
-
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
@@ -155,14 +135,12 @@ class MessageAdmin(admin.ModelAdmin):
         return '-'
     preview_text.short_description = 'Preview'
 
-
 @admin.register(Attachment)
 class AttachmentAdmin(admin.ModelAdmin):
     list_display = ['message', 'file_name', 'file_type', 'file_size', 'created_at']
     list_filter = ['file_type', 'created_at']
     search_fields = ['file_name']
     readonly_fields = ['created_at']
-
 
 @admin.register(Campaign)
 class CampaignAdmin(admin.ModelAdmin):
@@ -176,27 +154,12 @@ class CampaignAdmin(admin.ModelAdmin):
     ]
     filter_horizontal = ['target_segments', 'target_contacts']
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     def save_model(self, request, obj, form, change):
         """Automatically set created_by to the current user when creating a new campaign."""
         if not change:  # Only for new objects
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     fieldsets = (
         ('Basic Information', {
             'fields': ('name', 'description', 'campaign_type', 'created_by'),
@@ -231,7 +194,6 @@ class CampaignAdmin(admin.ModelAdmin):
             'classes': ('wide', 'collapse')
         }),
     )
-
 
 @admin.register(Flow)
 class FlowAdmin(admin.ModelAdmin):
