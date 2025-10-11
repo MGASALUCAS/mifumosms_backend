@@ -39,13 +39,19 @@ class ContactAdmin(admin.ModelAdmin):
     )
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
     def save_model(self, request, obj, form, change):
         """Automatically set created_by to the current user when creating a new contact."""
         if not change:  # Only for new objects
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
     def status_badge(self, obj):
         if obj.is_active:
@@ -165,13 +171,19 @@ class CampaignAdmin(admin.ModelAdmin):
     filter_horizontal = ['target_segments', 'target_contacts']
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
     def save_model(self, request, obj, form, change):
         """Automatically set created_by to the current user when creating a new campaign."""
         if not change:  # Only for new objects
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
     fieldsets = (
         ('Basic Information', {

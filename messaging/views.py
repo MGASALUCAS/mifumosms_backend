@@ -64,11 +64,19 @@ class ContactListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Filter contacts by authenticated user."""
         return Contact.objects.filter(created_by=self.request.user)
 
     def perform_create(self, serializer):
         """Create contact for the authenticated user."""
+=======
+        """Filter contacts by user."""
+        return Contact.objects.filter(created_by=self.request.user)
+
+    def perform_create(self, serializer):
+        """Create contact for the current user."""
+>>>>>>> Stashed changes
 =======
         """Filter contacts by user."""
         return Contact.objects.filter(created_by=self.request.user)
@@ -87,7 +95,11 @@ class ContactDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Filter contacts by authenticated user."""
+=======
+        """Filter contacts by user."""
+>>>>>>> Stashed changes
 =======
         """Filter contacts by user."""
 >>>>>>> Stashed changes
@@ -183,8 +195,13 @@ class SegmentListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all segments."""
         return Segment.objects.all()
+=======
+        """Filter segments by user."""
+        return Segment.objects.filter(created_by=self.request.user)
+>>>>>>> Stashed changes
 =======
         """Filter segments by user."""
         return Segment.objects.filter(created_by=self.request.user)
@@ -199,8 +216,13 @@ class SegmentDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all segments."""
         return Segment.objects.all()
+=======
+        """Filter segments by user."""
+        return Segment.objects.filter(created_by=self.request.user)
+>>>>>>> Stashed changes
 =======
         """Filter segments by user."""
         return Segment.objects.filter(created_by=self.request.user)
@@ -212,7 +234,11 @@ class SegmentDetailView(generics.RetrieveUpdateDestroyAPIView):
 def segment_update_count(request, segment_id):
     """Update segment contact count."""
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     segment = get_object_or_404(Segment, id=segment_id)
+=======
+    segment = get_object_or_404(Segment, id=segment_id, created_by=request.user)
+>>>>>>> Stashed changes
 =======
     segment = get_object_or_404(Segment, id=segment_id, created_by=request.user)
 >>>>>>> Stashed changes
@@ -241,8 +267,13 @@ class TemplateListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all templates."""
         return Template.objects.all()
+=======
+        """Filter templates by user."""
+        return Template.objects.filter(created_by=self.request.user)
+>>>>>>> Stashed changes
 =======
         """Filter templates by user."""
         return Template.objects.filter(created_by=self.request.user)
@@ -257,8 +288,13 @@ class TemplateDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all templates."""
         return Template.objects.all()
+=======
+        """Filter templates by user."""
+        return Template.objects.filter(created_by=self.request.user)
+>>>>>>> Stashed changes
 =======
         """Filter templates by user."""
         return Template.objects.filter(created_by=self.request.user)
@@ -282,8 +318,13 @@ class ConversationListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all conversations."""
         return Conversation.objects.all().select_related('contact')
+=======
+        """Filter conversations by user."""
+        return Conversation.objects.filter(contact__created_by=self.request.user).select_related('contact')
+>>>>>>> Stashed changes
 =======
         """Filter conversations by user."""
         return Conversation.objects.filter(contact__created_by=self.request.user).select_related('contact')
@@ -298,8 +339,13 @@ class ConversationDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all conversations."""
         return Conversation.objects.all().select_related('contact')
+=======
+        """Filter conversations by user."""
+        return Conversation.objects.filter(contact__created_by=self.request.user).select_related('contact')
+>>>>>>> Stashed changes
 =======
         """Filter conversations by user."""
         return Conversation.objects.filter(contact__created_by=self.request.user).select_related('contact')
@@ -323,8 +369,13 @@ class MessageListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all messages."""
         return Message.objects.all().select_related('conversation__contact')
+=======
+        """Filter messages by user."""
+        return Message.objects.filter(conversation__contact__created_by=self.request.user).select_related('conversation__contact')
+>>>>>>> Stashed changes
 =======
         """Filter messages by user."""
         return Message.objects.filter(conversation__contact__created_by=self.request.user).select_related('conversation__contact')
@@ -349,8 +400,13 @@ class MessageDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all messages."""
         return Message.objects.all()
+=======
+        """Filter messages by user."""
+        return Message.objects.filter(conversation__contact__created_by=self.request.user)
+>>>>>>> Stashed changes
 =======
         """Filter messages by user."""
         return Message.objects.filter(conversation__contact__created_by=self.request.user)
@@ -374,8 +430,13 @@ class CampaignListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all campaigns."""
         return Campaign.objects.all().select_related('template', 'segment')
+=======
+        """Filter campaigns by user."""
+        return Campaign.objects.filter(created_by=self.request.user).select_related('template', 'segment')
+>>>>>>> Stashed changes
 =======
         """Filter campaigns by user."""
         return Campaign.objects.filter(created_by=self.request.user).select_related('template', 'segment')
@@ -390,8 +451,13 @@ class CampaignDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all campaigns."""
         return Campaign.objects.all()
+=======
+        """Filter campaigns by user."""
+        return Campaign.objects.filter(created_by=self.request.user)
+>>>>>>> Stashed changes
 =======
         """Filter campaigns by user."""
         return Campaign.objects.filter(created_by=self.request.user)
@@ -403,7 +469,11 @@ class CampaignDetailView(generics.RetrieveUpdateDestroyAPIView):
 def campaign_start(request, campaign_id):
     """Start a campaign."""
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     campaign = get_object_or_404(Campaign, id=campaign_id)
+=======
+    campaign = get_object_or_404(Campaign, id=campaign_id, created_by=request.user)
+>>>>>>> Stashed changes
 =======
     campaign = get_object_or_404(Campaign, id=campaign_id, created_by=request.user)
 >>>>>>> Stashed changes
@@ -425,7 +495,11 @@ def campaign_start(request, campaign_id):
 def campaign_pause(request, campaign_id):
     """Pause a campaign."""
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     campaign = get_object_or_404(Campaign, id=campaign_id)
+=======
+    campaign = get_object_or_404(Campaign, id=campaign_id, created_by=request.user)
+>>>>>>> Stashed changes
 =======
     campaign = get_object_or_404(Campaign, id=campaign_id, created_by=request.user)
 >>>>>>> Stashed changes
@@ -439,7 +513,11 @@ def campaign_pause(request, campaign_id):
 def campaign_cancel(request, campaign_id):
     """Cancel a campaign."""
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     campaign = get_object_or_404(Campaign, id=campaign_id)
+=======
+    campaign = get_object_or_404(Campaign, id=campaign_id, created_by=request.user)
+>>>>>>> Stashed changes
 =======
     campaign = get_object_or_404(Campaign, id=campaign_id, created_by=request.user)
 >>>>>>> Stashed changes
@@ -465,8 +543,13 @@ class FlowListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all flows."""
         return Flow.objects.all()
+=======
+        """Filter flows by user."""
+        return Flow.objects.filter(created_by=self.request.user)
+>>>>>>> Stashed changes
 =======
         """Filter flows by user."""
         return Flow.objects.filter(created_by=self.request.user)
@@ -481,8 +564,13 @@ class FlowDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Get all flows."""
         return Flow.objects.all()
+=======
+        """Filter flows by user."""
+        return Flow.objects.filter(created_by=self.request.user)
+>>>>>>> Stashed changes
 =======
         """Filter flows by user."""
         return Flow.objects.filter(created_by=self.request.user)
@@ -494,7 +582,11 @@ class FlowDetailView(generics.RetrieveUpdateDestroyAPIView):
 def flow_activate(request, flow_id):
     """Activate a flow."""
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     flow = get_object_or_404(Flow, id=flow_id)
+=======
+    flow = get_object_or_404(Flow, id=flow_id, created_by=request.user)
+>>>>>>> Stashed changes
 =======
     flow = get_object_or_404(Flow, id=flow_id, created_by=request.user)
 >>>>>>> Stashed changes
@@ -508,7 +600,11 @@ def flow_activate(request, flow_id):
 def flow_deactivate(request, flow_id):
     """Deactivate a flow."""
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     flow = get_object_or_404(Flow, id=flow_id)
+=======
+    flow = get_object_or_404(Flow, id=flow_id, created_by=request.user)
+>>>>>>> Stashed changes
 =======
     flow = get_object_or_404(Flow, id=flow_id, created_by=request.user)
 >>>>>>> Stashed changes
@@ -522,7 +618,11 @@ def flow_deactivate(request, flow_id):
 def ai_suggest_reply(request, conversation_id):
     """Get AI suggestions for a conversation."""
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     conversation = get_object_or_404(Conversation, id=conversation_id)
+=======
+    conversation = get_object_or_404(Conversation, id=conversation_id, contact__created_by=request.user)
+>>>>>>> Stashed changes
 =======
     conversation = get_object_or_404(Conversation, id=conversation_id, contact__created_by=request.user)
 >>>>>>> Stashed changes
@@ -538,7 +638,11 @@ def ai_suggest_reply(request, conversation_id):
 def ai_summarize_conversation(request, conversation_id):
     """Get AI summary for a conversation."""
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     conversation = get_object_or_404(Conversation, id=conversation_id)
+=======
+    conversation = get_object_or_404(Conversation, id=conversation_id, contact__created_by=request.user)
+>>>>>>> Stashed changes
 =======
     conversation = get_object_or_404(Conversation, id=conversation_id, contact__created_by=request.user)
 >>>>>>> Stashed changes
@@ -552,6 +656,7 @@ def ai_summarize_conversation(request, conversation_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def analytics_overview(request):
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
     """Get analytics overview."""
 
@@ -571,6 +676,27 @@ def analytics_overview(request):
 
     # Cost statistics
     total_cost = Message.objects.aggregate(
+=======
+    """Get analytics overview for the user."""
+    user = request.user
+
+    # Message statistics
+    total_messages = Message.objects.filter(conversation__contact__created_by=user).count()
+    sent_messages = Message.objects.filter(conversation__contact__created_by=user, direction='out', status__in=['sent', 'delivered', 'read']).count()
+    delivered_messages = Message.objects.filter(conversation__contact__created_by=user, direction='out', status__in=['delivered', 'read']).count()
+    read_messages = Message.objects.filter(conversation__contact__created_by=user, direction='out', status='read').count()
+
+    # Conversation statistics
+    total_conversations = Conversation.objects.filter(contact__created_by=user).count()
+    open_conversations = Conversation.objects.filter(contact__created_by=user, status='open').count()
+
+    # Contact statistics
+    total_contacts = Contact.objects.filter(created_by=user).count()
+    opted_in_contacts = Contact.objects.filter(created_by=user, opt_in_at__isnull=False, opt_out_at__isnull=True).count()
+
+    # Cost statistics
+    total_cost = Message.objects.filter(conversation__contact__created_by=user).aggregate(
+>>>>>>> Stashed changes
 =======
     """Get analytics overview for the user."""
     user = request.user
