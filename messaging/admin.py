@@ -40,7 +40,10 @@ class ContactAdmin(admin.ModelAdmin):
 
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
     def save_model(self, request, obj, form, change):
@@ -50,6 +53,9 @@ class ContactAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -172,7 +178,10 @@ class CampaignAdmin(admin.ModelAdmin):
 
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
     def save_model(self, request, obj, form, change):
@@ -182,6 +191,9 @@ class CampaignAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
