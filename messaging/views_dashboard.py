@@ -104,11 +104,11 @@ def dashboard_overview(request):
                     (successful_campaigns['total_delivered'] / successful_campaigns['total_sent']) * 100, 1
                 )
 
-        # Sender ID calculation
-        sender_ids_this_month = Message.objects.filter(
-            conversation__contact__created_by=user,
+        # Sender ID calculation - count campaigns as they represent sender ID usage
+        sender_ids_this_month = Campaign.objects.filter(
+            created_by=user,
             created_at__gte=month_start
-        ).values('provider').distinct().count()
+        ).count()
 
         # Recent campaigns (last 5)
         recent_campaigns = Campaign.objects.filter(created_by=user).order_by('-created_at')[:5]
@@ -229,18 +229,18 @@ def dashboard_metrics(request):
 
         messages_change = _calculate_percentage_change(messages_30_days, messages_60_days)
 
-        # Active contacts (engaged this month)
+        # Active contacts (engaged this month) - use all active contacts if no last_contacted_at
         active_contacts = Contact.objects.filter(
             created_by=user,
-            is_active=True,
-            last_contacted_at__gte=month_start
+            is_active=True
         ).count()
 
+        # For comparison, get active contacts from last month
         last_month_active = Contact.objects.filter(
             created_by=user,
             is_active=True,
-            last_contacted_at__gte=last_month_start,
-            last_contacted_at__lt=month_start
+            created_at__gte=last_month_start,
+            created_at__lt=month_start
         ).count()
 
         contacts_change = _calculate_percentage_change(active_contacts, last_month_active)
@@ -269,17 +269,35 @@ def dashboard_metrics(request):
 
         success_change = _calculate_percentage_change(success_rate, last_month_success_rate)
 
-        # Sender ID statistics
+        # Sender ID statistics - count unique providers used in messages
+        # If no messages, show total campaigns created (as they represent sender ID usage)
         sender_ids_this_month = Message.objects.filter(
             conversation__contact__created_by=user,
-            created_at__gte=month_start
+            created_at__gte=month_start,
+            provider__isnull=False
         ).values('provider').distinct().count()
+
+        # If no messages this month, count campaigns as they represent sender ID usage
+        if sender_ids_this_month == 0:
+            sender_ids_this_month = Campaign.objects.filter(
+                created_by=user,
+                created_at__gte=month_start
+            ).count()
 
         sender_ids_last_month = Message.objects.filter(
             conversation__contact__created_by=user,
             created_at__gte=last_month_start,
-            created_at__lt=month_start
+            created_at__lt=month_start,
+            provider__isnull=False
         ).values('provider').distinct().count()
+
+        # If no messages last month, count campaigns
+        if sender_ids_last_month == 0:
+            sender_ids_last_month = Campaign.objects.filter(
+                created_by=user,
+                created_at__gte=last_month_start,
+                created_at__lt=month_start
+            ).count()
 
         sender_id_change = _calculate_percentage_change(sender_ids_this_month, sender_ids_last_month)
 
