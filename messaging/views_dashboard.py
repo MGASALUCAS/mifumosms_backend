@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 def dashboard_overview(request):
     """
     Get comprehensive dashboard overview data.
-    
+
     GET /api/messaging/dashboard/overview/
-    
+
     Response:
     {
         "success": true,
@@ -51,75 +51,69 @@ def dashboard_overview(request):
     }
     """
     try:
-        tenant = request.user.tenant
-        if not tenant:
-            return Response({
-                'success': False,
-                'message': 'User is not associated with any tenant. Please contact support.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+        user = request.user
+
         now = timezone.now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = now - timedelta(days=7)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        
+
         # Message statistics
-        total_messages = Message.objects.filter(tenant=tenant).count()
+        total_messages = Message.objects.filter(conversation__contact__created_by=user).count()
         messages_today = Message.objects.filter(
-            tenant=tenant, 
+            conversation__contact__created_by=user,
             created_at__gte=today_start
         ).count()
         messages_this_week = Message.objects.filter(
-            tenant=tenant, 
+            conversation__contact__created_by=user,
             created_at__gte=week_start
         ).count()
         messages_this_month = Message.objects.filter(
-            tenant=tenant, 
+            conversation__contact__created_by=user,
             created_at__gte=month_start
         ).count()
-        
+
         # Contact statistics
-        total_contacts = Contact.objects.filter(tenant=tenant).count()
-        active_contacts = Contact.objects.filter(tenant=tenant, is_active=True).count()
+        total_contacts = Contact.objects.filter(created_by=user).count()
+        active_contacts = Contact.objects.filter(created_by=user, is_active=True).count()
         new_contacts_this_month = Contact.objects.filter(
-            tenant=tenant, 
+            created_by=user,
             created_at__gte=month_start
         ).count()
-        
+
         # Campaign statistics
-        total_campaigns = Campaign.objects.filter(tenant=tenant).count()
+        total_campaigns = Campaign.objects.filter(created_by=user).count()
         completed_campaigns = Campaign.objects.filter(
-            tenant=tenant, 
+            created_by=user,
             status='completed'
         ).count()
-        
+
         # Calculate campaign success rate
         campaign_success_rate = 0
         if total_campaigns > 0:
             successful_campaigns = Campaign.objects.filter(
-                tenant=tenant,
+                created_by=user,
                 status='completed'
             ).aggregate(
                 total_sent=Sum('sent_count', default=0),
                 total_delivered=Sum('delivered_count', default=0)
             )
-            
+
             if successful_campaigns['total_sent'] > 0:
                 campaign_success_rate = round(
                     (successful_campaigns['total_delivered'] / successful_campaigns['total_sent']) * 100, 1
                 )
-        
-        # Revenue calculation (SMS cost tracking)
-        sms_messages_this_month = SMSMessage.objects.filter(
-            tenant=tenant,
+
+        # Sender ID calculation - count campaigns as they represent sender ID usage
+        sender_ids_this_month = Campaign.objects.filter(
+            created_by=user,
             created_at__gte=month_start
         ).count()
-        revenue_this_month = sms_messages_this_month * 25  # 25 TZS per SMS
-        
+
         # Recent campaigns (last 5)
-        recent_campaigns = Campaign.objects.filter(tenant=tenant).order_by('-created_at')[:5]
+        recent_campaigns = Campaign.objects.filter(created_by=user).order_by('-created_at')[:5]
         campaigns_data = []
-        
+
         for campaign in recent_campaigns:
             campaigns_data.append({
                 'id': str(campaign.id),
@@ -133,7 +127,7 @@ def dashboard_overview(request):
                 'created_at': campaign.created_at.strftime('%Y-%m-%d %H:%M'),
                 'created_at_human': _get_human_time(campaign.created_at)
             })
-        
+
         # Message trends
         message_trends = {
             'today': messages_today,
@@ -141,7 +135,7 @@ def dashboard_overview(request):
             'this_month': messages_this_month,
             'growth_rate': _calculate_growth_rate(messages_this_month, messages_this_week)
         }
-        
+
         # Contact trends
         contact_trends = {
             'total': total_contacts,
@@ -149,7 +143,7 @@ def dashboard_overview(request):
             'new_this_month': new_contacts_this_month,
             'growth_rate': _calculate_growth_rate(active_contacts, total_contacts)
         }
-        
+
         return Response({
             'success': True,
             'data': {
@@ -157,7 +151,7 @@ def dashboard_overview(request):
                     'total_messages': total_messages,
                     'active_contacts': active_contacts,
                     'campaign_success_rate': campaign_success_rate,
-                    'revenue_this_month': revenue_this_month
+                    'sender_ids_this_month': sender_ids_this_month
                 },
                 'recent_campaigns': campaigns_data,
                 'message_stats': message_trends,
@@ -165,7 +159,7 @@ def dashboard_overview(request):
                 'last_updated': now.isoformat()
             }
         })
-        
+
     except Exception as e:
         logger.error(f"Dashboard overview error: {str(e)}")
         return Response({
@@ -180,9 +174,9 @@ def dashboard_overview(request):
 def dashboard_metrics(request):
     """
     Get detailed metrics for dashboard cards.
-    
+
     GET /api/messaging/dashboard/metrics/
-    
+
     Response:
     {
         "success": true,
@@ -215,88 +209,98 @@ def dashboard_metrics(request):
     }
     """
     try:
-        tenant = request.user.tenant
-        if not tenant:
-            return Response({
-                'success': False,
-                'message': 'User is not associated with any tenant. Please contact support.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+        user = request.user
+
         now = timezone.now()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         last_month_start = (month_start - timedelta(days=1)).replace(day=1)
-        
+
         # Total messages (last 30 days)
         messages_30_days = Message.objects.filter(
-            tenant=tenant,
+            conversation__contact__created_by=user,
             created_at__gte=now - timedelta(days=30)
         ).count()
-        
+
         messages_60_days = Message.objects.filter(
-            tenant=tenant,
+            conversation__contact__created_by=user,
             created_at__gte=now - timedelta(days=60),
             created_at__lt=now - timedelta(days=30)
         ).count()
-        
+
         messages_change = _calculate_percentage_change(messages_30_days, messages_60_days)
-        
-        # Active contacts (engaged this month)
+
+        # Active contacts (engaged this month) - use all active contacts if no last_contacted_at
         active_contacts = Contact.objects.filter(
-            tenant=tenant, 
-            is_active=True,
-            last_contacted_at__gte=month_start
+            created_by=user,
+            is_active=True
         ).count()
-        
+
+        # For comparison, get active contacts from last month
         last_month_active = Contact.objects.filter(
-            tenant=tenant,
+            created_by=user,
             is_active=True,
-            last_contacted_at__gte=last_month_start,
-            last_contacted_at__lt=month_start
+            created_at__gte=last_month_start,
+            created_at__lt=month_start
         ).count()
-        
+
         contacts_change = _calculate_percentage_change(active_contacts, last_month_active)
-        
+
         # Campaign success rate
         campaigns_this_month = Campaign.objects.filter(
-            tenant=tenant,
+            created_by=user,
             created_at__gte=month_start
         )
-        
-        total_sent = campaigns_this_month.aggregate(Sum('sent_count'))['sent_count'] or 0
-        total_delivered = campaigns_this_month.aggregate(Sum('delivered_count'))['delivered_count'] or 0
-        
+
+        total_sent = campaigns_this_month.aggregate(total_sent=Sum('sent_count'))['total_sent'] or 0
+        total_delivered = campaigns_this_month.aggregate(total_delivered=Sum('delivered_count'))['total_delivered'] or 0
+
         success_rate = round((total_delivered / max(1, total_sent)) * 100, 1) if total_sent > 0 else 0
-        
+
         # Previous month for comparison
         campaigns_last_month = Campaign.objects.filter(
-            tenant=tenant,
+            created_by=user,
             created_at__gte=last_month_start,
             created_at__lt=month_start
         )
-        
-        last_month_sent = campaigns_last_month.aggregate(Sum('sent_count'))['sent_count'] or 0
-        last_month_delivered = campaigns_last_month.aggregate(Sum('delivered_count'))['delivered_count'] or 0
+
+        last_month_sent = campaigns_last_month.aggregate(last_month_sent=Sum('sent_count'))['last_month_sent'] or 0
+        last_month_delivered = campaigns_last_month.aggregate(last_month_delivered=Sum('delivered_count'))['last_month_delivered'] or 0
         last_month_success_rate = round((last_month_delivered / max(1, last_month_sent)) * 100, 1) if last_month_sent > 0 else 0
-        
+
         success_change = _calculate_percentage_change(success_rate, last_month_success_rate)
-        
-        # Revenue this month
-        sms_messages_this_month = SMSMessage.objects.filter(
-            tenant=tenant,
-            created_at__gte=month_start
-        ).count()
-        
-        sms_messages_last_month = SMSMessage.objects.filter(
-            tenant=tenant,
+
+        # Sender ID statistics - count unique providers used in messages
+        # If no messages, show total campaigns created (as they represent sender ID usage)
+        sender_ids_this_month = Message.objects.filter(
+            conversation__contact__created_by=user,
+            created_at__gte=month_start,
+            provider__isnull=False
+        ).values('provider').distinct().count()
+
+        # If no messages this month, count campaigns as they represent sender ID usage
+        if sender_ids_this_month == 0:
+            sender_ids_this_month = Campaign.objects.filter(
+                created_by=user,
+                created_at__gte=month_start
+            ).count()
+
+        sender_ids_last_month = Message.objects.filter(
+            conversation__contact__created_by=user,
             created_at__gte=last_month_start,
-            created_at__lt=month_start
-        ).count()
-        
-        revenue_this_month = sms_messages_this_month * 25  # 25 TZS per SMS
-        revenue_last_month = sms_messages_last_month * 25
-        
-        revenue_change = _calculate_percentage_change(revenue_this_month, revenue_last_month)
-        
+            created_at__lt=month_start,
+            provider__isnull=False
+        ).values('provider').distinct().count()
+
+        # If no messages last month, count campaigns
+        if sender_ids_last_month == 0:
+            sender_ids_last_month = Campaign.objects.filter(
+                created_by=user,
+                created_at__gte=last_month_start,
+                created_at__lt=month_start
+            ).count()
+
+        sender_id_change = _calculate_percentage_change(sender_ids_this_month, sender_ids_last_month)
+
         return Response({
             'success': True,
             'data': {
@@ -318,15 +322,15 @@ def dashboard_metrics(request):
                     'change_type': success_change['type'],
                     'description': 'Delivery rate'
                 },
-                'revenue': {
-                    'value': f"Tsh {revenue_this_month:,}",
-                    'change': f"{revenue_change['sign']}{revenue_change['percentage']:.1f}%",
-                    'change_type': revenue_change['type'],
-                    'description': 'This month'
+                'sender_id': {
+                    'value': sender_ids_this_month,
+                    'change': f"{sender_id_change['sign']}{sender_id_change['percentage']:.1f}%",
+                    'change_type': sender_id_change['type'],
+                    'description': 'Active this month'
                 }
             }
         })
-        
+
     except Exception as e:
         logger.error(f"Dashboard metrics error: {str(e)}")
         return Response({
@@ -340,7 +344,7 @@ def _get_human_time(dt):
     """Convert datetime to human readable format."""
     now = timezone.now()
     diff = now - dt
-    
+
     if diff.days > 0:
         return f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
     elif diff.seconds > 3600:
@@ -369,7 +373,7 @@ def _calculate_percentage_change(current, previous):
             'sign': '+' if current > 0 else '',
             'type': 'positive' if current > 0 else 'neutral'
         }
-    
+
     change = ((current - previous) / previous) * 100
     return {
         'percentage': abs(change),

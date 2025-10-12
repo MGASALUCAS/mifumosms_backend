@@ -10,16 +10,14 @@ from .models import (
     Campaign, Flow
 )
 
-
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
-    list_display = ['name', 'phone_e164', 'email', 'status_badge', 'opt_in_status', 'created_at']
-    list_filter = ['is_active', 'opt_in_at', 'opt_out_at', 'created_at']
-    search_fields = ['name', 'phone_e164', 'email']
+    list_display = ['name', 'phone_e164', 'email', 'created_by', 'status_badge', 'opt_in_status', 'created_at']
+    list_filter = ['is_active', 'opt_in_at', 'opt_out_at', 'created_at', 'created_by']
+    search_fields = ['name', 'phone_e164', 'email', 'created_by__email']
     readonly_fields = ['created_at', 'updated_at', 'last_contacted_at', 'is_opted_in']
-    # Removed tenant field
     list_per_page = 25
-    
+
     fieldsets = (
         ('Contact Information', {
             'fields': ('name', 'phone_e164', 'email'),
@@ -29,42 +27,59 @@ class ContactAdmin(admin.ModelAdmin):
             'fields': ('is_active', 'is_opted_in', 'opt_in_at', 'opt_out_at', 'last_contacted_at'),
             'classes': ('wide',)
         }),
+        ('Ownership', {
+            'fields': ('created_by',),
+            'classes': ('wide',)
+        }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('wide', 'collapse')
         }),
     )
-    
+
+    def save_model(self, request, obj, form, change):
+        """Automatically set created_by to the current user when creating a new contact."""
+        if not change:  # Only for new objects
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
     def status_badge(self, obj):
         if obj.is_active:
             return format_html('<span class="badge badge-success">Active</span>')
         return format_html('<span class="badge badge-secondary">Inactive</span>')
     status_badge.short_description = 'Status'
-    
+
     def opt_in_status(self, obj):
         if obj.is_opted_in:
             return format_html('<span class="badge badge-info">Opted In</span>')
         return format_html('<span class="badge badge-warning">Not Opted In</span>')
     opt_in_status.short_description = 'Opt-in Status'
 
-
 @admin.register(Segment)
 class SegmentAdmin(admin.ModelAdmin):
-    list_display = ['name', 'contact_count', 'created_at']
-    list_filter = ['created_at']
-    search_fields = ['name', 'description']
+    list_display = ['name', 'created_by', 'contact_count', 'created_at']
+    list_filter = ['created_at', 'created_by']
+    search_fields = ['name', 'description', 'created_by__email']
     readonly_fields = ['contact_count', 'created_at', 'updated_at']
-    raw_id_fields = ['created_by']
 
+    def save_model(self, request, obj, form, change):
+        """Automatically set created_by to the current user when creating a new segment."""
+        if not change:  # Only for new objects
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
 @admin.register(Template)
 class TemplateAdmin(admin.ModelAdmin):
-    list_display = ['name', 'category', 'language', 'approved', 'usage_count', 'created_at']
-    list_filter = ['category', 'language', 'approved', 'created_at']
-    search_fields = ['name', 'body_text']
+    list_display = ['name', 'created_by', 'category', 'language', 'approved', 'usage_count', 'created_at']
+    list_filter = ['category', 'language', 'approved', 'created_at', 'created_by']
+    search_fields = ['name', 'body_text', 'created_by__email']
     readonly_fields = ['usage_count', 'created_at', 'updated_at']
-    raw_id_fields = ['created_by']
 
+    def save_model(self, request, obj, form, change):
+        """Automatically set created_by to the current user when creating a new template."""
+        if not change:  # Only for new objects
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
@@ -72,8 +87,6 @@ class ConversationAdmin(admin.ModelAdmin):
     list_filter = ['status', 'created_at', 'last_message_at']
     search_fields = ['contact__name', 'contact__phone_e164', 'subject']
     readonly_fields = ['message_count', 'unread_count', 'created_at', 'updated_at', 'last_message_at', 'closed_at']
-    raw_id_fields = ['tenant', 'contact']
-
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
@@ -81,9 +94,8 @@ class MessageAdmin(admin.ModelAdmin):
     list_filter = ['direction', 'provider', 'status', 'created_at']
     search_fields = ['text', 'conversation__contact__name']
     readonly_fields = ['created_at', 'updated_at', 'sent_at', 'delivered_at', 'read_at']
-    raw_id_fields = ['tenant', 'conversation', 'template', 'created_by']
     list_per_page = 25
-    
+
     fieldsets = (
         ('Message Content', {
             'fields': ('conversation', 'text', 'template'),
@@ -98,13 +110,13 @@ class MessageAdmin(admin.ModelAdmin):
             'classes': ('wide', 'collapse')
         }),
     )
-    
+
     def direction_badge(self, obj):
         if obj.direction == 'inbound':
             return format_html('<span class="badge badge-info">Inbound</span>')
         return format_html('<span class="badge badge-primary">Outbound</span>')
     direction_badge.short_description = 'Direction'
-    
+
     def status_badge(self, obj):
         status_colors = {
             'pending': 'badge-warning',
@@ -116,13 +128,12 @@ class MessageAdmin(admin.ModelAdmin):
         color = status_colors.get(obj.status, 'badge-secondary')
         return format_html(f'<span class="badge {color}">{obj.status.title()}</span>')
     status_badge.short_description = 'Status'
-    
+
     def preview_text(self, obj):
         if obj.text:
             return obj.text[:50] + '...' if len(obj.text) > 50 else obj.text
         return '-'
     preview_text.short_description = 'Preview'
-
 
 @admin.register(Attachment)
 class AttachmentAdmin(admin.ModelAdmin):
@@ -130,22 +141,25 @@ class AttachmentAdmin(admin.ModelAdmin):
     list_filter = ['file_type', 'created_at']
     search_fields = ['file_name']
     readonly_fields = ['created_at']
-    raw_id_fields = ['message']
-
 
 @admin.register(Campaign)
 class CampaignAdmin(admin.ModelAdmin):
-    list_display = ['name', 'status', 'campaign_type', 'total_recipients', 'sent_count', 'created_at']
-    list_filter = ['status', 'campaign_type', 'created_at', 'scheduled_at']
-    search_fields = ['name', 'description', 'message_text']
+    list_display = ['name', 'created_by', 'status', 'campaign_type', 'total_recipients', 'sent_count', 'created_at']
+    list_filter = ['status', 'campaign_type', 'created_at', 'scheduled_at', 'created_by']
+    search_fields = ['name', 'description', 'message_text', 'created_by__email']
     readonly_fields = [
         'total_recipients', 'sent_count', 'delivered_count', 'read_count', 'failed_count',
         'started_at', 'completed_at', 'created_at', 'updated_at', 'progress_percentage',
         'delivery_rate', 'read_rate', 'is_active', 'can_edit', 'can_start', 'can_pause', 'can_cancel'
     ]
-    raw_id_fields = ['template', 'created_by']
     filter_horizontal = ['target_segments', 'target_contacts']
-    
+
+    def save_model(self, request, obj, form, change):
+        """Automatically set created_by to the current user when creating a new campaign."""
+        if not change:  # Only for new objects
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('name', 'description', 'campaign_type', 'created_by'),
@@ -181,11 +195,15 @@ class CampaignAdmin(admin.ModelAdmin):
         }),
     )
 
-
 @admin.register(Flow)
 class FlowAdmin(admin.ModelAdmin):
-    list_display = ['name', 'active', 'trigger_count', 'created_at']
-    list_filter = ['active', 'created_at']
-    search_fields = ['name', 'description']
+    list_display = ['name', 'created_by', 'active', 'trigger_count', 'created_at']
+    list_filter = ['active', 'created_at', 'created_by']
+    search_fields = ['name', 'description', 'created_by__email']
     readonly_fields = ['trigger_count', 'created_at', 'updated_at']
-    raw_id_fields = ['tenant', 'created_by']
+
+    def save_model(self, request, obj, form, change):
+        """Automatically set created_by to the current user when creating a new flow."""
+        if not change:  # Only for new objects
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
