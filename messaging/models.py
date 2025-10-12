@@ -20,7 +20,7 @@ class Contact(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     # Owner information
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_contacts')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_contacts', null=True, blank=True)
 
     # Basic information
     name = models.CharField(max_length=255)
