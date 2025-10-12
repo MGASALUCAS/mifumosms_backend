@@ -138,8 +138,6 @@ class TenantScopedManager(models.Manager):
         return TenantScopedQuerySet(self.model, using=self._db)
 
 
-
-
     def filter_by_tenant(self, tenant):
         return self.get_queryset().filter_by_tenant(tenant)
 
