@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sender Name Requests - Frontend Integration Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .header {
+            background: #007bff;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #007bff;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .requests-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .requests-table th,
+        .requests-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .requests-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .status-approved {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-rejected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-requires_changes {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            background-color: #0056b3;
+        }
+
+        .btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>📱 Sender Name Requests</h1>
+        <p>Frontend Integration Example - Debug Your Listing Issues</p>
+    </div>
+
+    <div class="container">
+        <h2>🔧 Configuration</h2>
+        <div>
+            <label for="apiBaseUrl">API Base URL:</label>
+            <input type="text" id="apiBaseUrl" value="http://127.0.0.1:8000/api" style="width: 300px; padding: 8px; margin: 5px;">
+        </div>
+        <div>
+            <label for="authToken">Auth Token:</label>
+            <input type="text" id="authToken" placeholder="Enter your JWT token here" style="width: 400px; padding: 8px; margin: 5px;">
+        </div>
+        <button class="btn" onclick="testConnection()">Test Connection</button>
+        <button class="btn" onclick="loadData()">Load Sender Requests</button>
+        <button class="btn" onclick="loadStats()">Load Statistics</button>
+    </div>
+
+    <div class="container">
+        <h2>📊 Statistics</h2>
+        <div id="statsContainer">
+            <div class="loading">Click "Load Statistics" to see stats</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📋 Sender Name Requests</h2>
+        <div id="requestsContainer">
+            <div class="loading">Click "Load Sender Requests" to see the list</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🐛 Debug Information</h2>
+        <div id="debugContainer">
+            <p>Debug information will appear here when you make API calls.</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:8000/api';
+
+        function getAuthHeaders() {
+            const token = document.getElementById('authToken').value;
+            if (!token) {
+                throw new Error('Please enter your JWT token');
+            }
+            return {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+        }
+
+        function showError(message, containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `<div class="error">❌ Error: ${message}</div>`;
+        }
+
+        function showSuccess(message, containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `<div class="success">✅ ${message}</div>`;
+        }
+
+        function addDebugInfo(message, data = null) {
+            const container = document.getElementById('debugContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            const debugDiv = document.createElement('div');
+            debugDiv.innerHTML = `
+                <strong>[${timestamp}]</strong> ${message}
+                ${data ? `<pre>${JSON.stringify(data, null, 2)}</pre>` : ''}
+            `;
+            container.appendChild(debugDiv);
+        }
+
+        async function testConnection() {
+            try {
+                addDebugInfo('Testing connection...');
+
+                const response = await fetch(`${API_BASE_URL}/messaging/sender-requests/`, {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+
+                addDebugInfo(`Connection test response: ${response.status} ${response.statusText}`);
+
+                if (response.status === 401) {
+                    showError('Authentication failed. Please check your token.', 'debugContainer');
+                } else if (response.status === 200) {
+                    showSuccess('Connection successful!', 'debugContainer');
+                } else {
+                    const errorData = await response.text();
+                    addDebugInfo('Error response:', errorData);
+                    showError(`Connection failed: ${response.status}`, 'debugContainer');
+                }
+            } catch (error) {
+                addDebugInfo('Connection error:', error.message);
+                showError(`Connection error: ${error.message}`, 'debugContainer');
+            }
+        }
+
+        async function loadStats() {
+            try {
+                addDebugInfo('Loading statistics...');
+
+                const response = await fetch(`${API_BASE_URL}/messaging/sender-requests/stats/`, {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+
+                addDebugInfo(`Stats response: ${response.status} ${response.statusText}`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    addDebugInfo('Stats data received:', data);
+                    displayStats(data);
+                } else {
+                    const errorData = await response.text();
+                    addDebugInfo('Stats error:', errorData);
+                    showError(`Failed to load stats: ${response.status}`, 'statsContainer');
+                }
+            } catch (error) {
+                addDebugInfo('Stats error:', error.message);
+                showError(`Stats error: ${error.message}`, 'statsContainer');
+            }
+        }
+
+        function displayStats(data) {
+            const container = document.getElementById('statsContainer');
+
+            if (data.success && data.data) {
+                const stats = data.data;
+                container.innerHTML = `
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-number">${stats.total_requests || 0}</div>
+                            <div class="stat-label">Total Requests</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${stats.pending_requests || 0}</div>
+                            <div class="stat-label">Pending</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${stats.approved_requests || 0}</div>
+                            <div class="stat-label">Approved</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${stats.rejected_requests || 0}</div>
+                            <div class="stat-label">Rejected</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${stats.requires_changes_requests || 0}</div>
+                            <div class="stat-label">Requires Changes</div>
+                        </div>
+                    </div>
+                `;
+                showSuccess('Statistics loaded successfully!', 'statsContainer');
+            } else {
+                showError('Invalid stats data format', 'statsContainer');
+            }
+        }
+
+        async function loadData() {
+            try {
+                addDebugInfo('Loading sender requests...');
+
+                const response = await fetch(`${API_BASE_URL}/messaging/sender-requests/`, {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+
+                addDebugInfo(`List response: ${response.status} ${response.statusText}`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    addDebugInfo('List data received:', data);
+                    displayRequests(data);
+                } else {
+                    const errorData = await response.text();
+                    addDebugInfo('List error:', errorData);
+                    showError(`Failed to load requests: ${response.status}`, 'requestsContainer');
+                }
+            } catch (error) {
+                addDebugInfo('List error:', error.message);
+                showError(`List error: ${error.message}`, 'requestsContainer');
+            }
+        }
+
+        function displayRequests(data) {
+            const container = document.getElementById('requestsContainer');
+
+            if (data.success && data.data) {
+                const requests = data.data.results || data.data;
+                const count = data.data.count || requests.length;
+
+                if (Array.isArray(requests) && requests.length > 0) {
+                    let tableHTML = `
+                        <p><strong>Total Requests: ${count}</strong></p>
+                        <table class="requests-table">
+                            <thead>
+                                <tr>
+                                    <th>Sender Name</th>
+                                    <th>Status</th>
+                                    <th>Use Case</th>
+                                    <th>Created At</th>
+                                    <th>Created By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+
+                    requests.forEach(req => {
+                        const statusClass = `status-${req.status}`;
+                        const createdDate = new Date(req.created_at).toLocaleDateString();
+                        tableHTML += `
+                            <tr>
+                                <td><strong>${req.sender_name}</strong></td>
+                                <td><span class="status-badge ${statusClass}">${req.status}</span></td>
+                                <td>${req.use_case}</td>
+                                <td>${createdDate}</td>
+                                <td>${req.created_by_name || 'N/A'}</td>
+                            </tr>
+                        `;
+                    });
+
+                    tableHTML += `
+                            </tbody>
+                        </table>
+                    `;
+
+                    container.innerHTML = tableHTML;
+                    showSuccess(`Loaded ${requests.length} sender requests!`, 'requestsContainer');
+                } else {
+                    container.innerHTML = '<p>No sender requests found.</p>';
+                    showSuccess('No requests found (this is normal for new users)', 'requestsContainer');
+                }
+            } else {
+                showError('Invalid request data format', 'requestsContainer');
+            }
+        }
+
+        // Auto-load on page load if token is provided
+        window.onload = function() {
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                document.getElementById('authToken').value = token;
+            }
+        };
+
+        // Save token to localStorage
+        document.getElementById('authToken').addEventListener('change', function() {
+            localStorage.setItem('authToken', this.value);
+        });
+    </script>
+</body>
+
+</html>

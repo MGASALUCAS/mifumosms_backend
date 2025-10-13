@@ -111,11 +111,31 @@ def submit_sender_name_request(request):
         "success": true,
         "message": "Sender name request submitted successfully",
         "data": {
-            "id": "uuid",
-            "sender_name": "MYCOMPANY",
-            "status": "pending",
-            "created_at": "2024-01-01T10:00:00Z",
-            ...
+            "created_request": {
+                "id": "uuid",
+                "sender_name": "MYCOMPANY",
+                "status": "pending",
+                "created_at": "2024-01-01T10:00:00Z",
+                ...
+            },
+            "user_requests": [
+                {
+                    "id": "uuid",
+                    "sender_name": "MYCOMPANY",
+                    "status": "pending",
+                    "created_at": "2024-01-01T10:00:00Z",
+                    ...
+                },
+                ...
+            ],
+            "user_stats": {
+                "total_requests": 3,
+                "pending_requests": 2,
+                "approved_requests": 1,
+                "rejected_requests": 0,
+                "requires_changes_requests": 0
+            },
+            "total_count": 3
         }
     }
     """
@@ -175,12 +195,37 @@ def submit_sender_name_request(request):
             created_by=request.user
         )
 
-        # Return response
-        response_serializer = SenderNameRequestSerializer(sender_request)
+        # Get user's updated list and stats
+        user_requests = SenderNameRequest.objects.filter(
+            tenant=tenant,
+            created_by=request.user
+        ).order_by('-created_at')
+
+        # Serialize the created request
+        created_request_serializer = SenderNameRequestSerializer(sender_request)
+
+        # Serialize user's complete list
+        user_requests_serializer = SenderNameRequestSerializer(user_requests, many=True)
+
+        # Calculate user's statistics
+        user_stats = {
+            'total_requests': user_requests.count(),
+            'pending_requests': user_requests.filter(status='pending').count(),
+            'approved_requests': user_requests.filter(status='approved').count(),
+            'rejected_requests': user_requests.filter(status='rejected').count(),
+            'requires_changes_requests': user_requests.filter(status='requires_changes').count(),
+        }
+
+        # Return response with created request, updated list, and stats
         return Response({
             'success': True,
             'message': 'Sender name request submitted successfully',
-            'data': response_serializer.data
+            'data': {
+                'created_request': created_request_serializer.data,
+                'user_requests': user_requests_serializer.data,
+                'user_stats': user_stats,
+                'total_count': user_requests.count()
+            }
         }, status=status.HTTP_201_CREATED)
 
     except Exception as e:
@@ -252,9 +297,10 @@ def get_sender_name_requests(request):
 
         if page is not None:
             serializer = SenderNameRequestSerializer(page, many=True)
-            return paginator.get_paginated_response({
+            paginated_data = paginator.get_paginated_response(serializer.data).data
+            return Response({
                 'success': True,
-                'data': paginator.get_paginated_response(serializer.data).data
+                'data': paginated_data
             })
 
         # No pagination
@@ -484,7 +530,7 @@ def delete_sender_name_request(request, request_id):
 @permission_classes([IsAuthenticated])
 def get_sender_name_request_stats(request):
     """
-    Get statistics for sender name requests.
+    Get statistics for sender name requests created by the current user.
 
     GET /api/messaging/sender-requests/stats/
 
@@ -492,11 +538,11 @@ def get_sender_name_request_stats(request):
     {
         "success": true,
         "data": {
-            "total_requests": 10,
-            "pending_requests": 5,
-            "approved_requests": 3,
-            "rejected_requests": 2,
-            "my_requests": 8
+            "total_requests": 4,
+            "pending_requests": 2,
+            "approved_requests": 1,
+            "rejected_requests": 1,
+            "requires_changes_requests": 0
         }
     }
     """
@@ -508,20 +554,18 @@ def get_sender_name_request_stats(request):
                 'message': 'No tenant found. Please contact support.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Get all requests for tenant
-        all_requests = SenderNameRequest.objects.filter(tenant=tenant)
-
-        # Get user's requests
-        user_requests = all_requests.filter(created_by=request.user)
+        # Get user's requests only (like campaigns)
+        user_requests = SenderNameRequest.objects.filter(
+            tenant=tenant,
+            created_by=request.user
+        )
 
         stats = {
-            'total_requests': all_requests.count(),
-            'pending_requests': all_requests.filter(status='pending').count(),
-            'approved_requests': all_requests.filter(status='approved').count(),
-            'rejected_requests': all_requests.filter(status='rejected').count(),
-            'requires_changes_requests': all_requests.filter(status='requires_changes').count(),
-            'my_requests': user_requests.count(),
-            'my_pending_requests': user_requests.filter(status='pending').count(),
+            'total_requests': user_requests.count(),
+            'pending_requests': user_requests.filter(status='pending').count(),
+            'approved_requests': user_requests.filter(status='approved').count(),
+            'rejected_requests': user_requests.filter(status='rejected').count(),
+            'requires_changes_requests': user_requests.filter(status='requires_changes').count(),
         }
 
         return Response({
