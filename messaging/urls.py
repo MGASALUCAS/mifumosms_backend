@@ -54,3 +54,8 @@ urlpatterns = [
 urlpatterns += [
     path('sms/', include('messaging.urls_sms')),
 ]
+
+# Include Sender Name Request URLs
+urlpatterns += [
+    path('sender-requests/', include('messaging.urls_sender_requests')),
+]
