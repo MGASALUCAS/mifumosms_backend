@@ -94,15 +94,19 @@ class ConversationAdmin(admin.ModelAdmin):
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ['conversation', 'direction_badge', 'provider', 'status_badge', 'preview_text', 'created_at']
+    list_display = ['conversation', 'recipient_display', 'direction_badge', 'provider', 'status_badge', 'preview_text', 'created_at']
     list_filter = ['direction', 'provider', 'status', 'created_at']
-    search_fields = ['text', 'conversation__contact__name']
+    search_fields = ['text', 'conversation__contact__name', 'recipient_number']
     readonly_fields = ['created_at', 'updated_at', 'sent_at', 'delivered_at', 'read_at']
     list_per_page = 25
 
     fieldsets = (
         ('Message Content', {
             'fields': ('conversation', 'text', 'template'),
+            'classes': ('wide',)
+        }),
+        ('Recipient Information', {
+            'fields': ('recipient_number',),
             'classes': ('wide',)
         }),
         ('Delivery Information', {
@@ -138,6 +142,20 @@ class MessageAdmin(admin.ModelAdmin):
             return obj.text[:50] + '...' if len(obj.text) > 50 else obj.text
         return '-'
     preview_text.short_description = 'Preview'
+
+    def recipient_display(self, obj):
+        """Display recipient information with proper formatting."""
+        if obj.conversation and obj.conversation.contact:
+            return format_html(
+                '<strong>{}</strong><br><small>{}</small>',
+                obj.conversation.contact.name,
+                obj.conversation.contact.phone_e164 or obj.conversation.contact.phone_number
+            )
+        elif obj.recipient_number:
+            return format_html('<strong>{}</strong>', obj.recipient_number)
+        else:
+            return format_html('<span class="text-muted">-</span>')
+    recipient_display.short_description = 'Recipient'
 
 @admin.register(Attachment)
 class AttachmentAdmin(admin.ModelAdmin):
