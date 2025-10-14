@@ -31,8 +31,8 @@ django-filter==23.5
 phonenumbers==8.13.25
 
 # AI and ML
-transformers==4.36.2
-torch==2.1.2
+# transformers==4.36.2
+# torch==2.1.2
 
 # Billing
 stripe==7.8.0
