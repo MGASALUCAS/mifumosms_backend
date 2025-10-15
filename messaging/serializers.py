@@ -294,6 +294,43 @@ class AISuggestionsSerializer(serializers.Serializer):
 
 
 # =============================================
+# PURCHASE HISTORY SERIALIZERS
+# =============================================
+
+class PurchaseHistorySerializer(serializers.Serializer):
+    """Serializer for purchase history display."""
+    
+    id = serializers.UUIDField(read_only=True)
+    invoice_number = serializers.CharField(read_only=True)
+    package_name = serializers.CharField(read_only=True)
+    package_type = serializers.CharField(read_only=True)
+    credits = serializers.IntegerField(read_only=True)
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    payment_method = serializers.CharField(read_only=True)
+    payment_method_display = serializers.CharField(read_only=True)
+    payment_reference = serializers.CharField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    status_display = serializers.CharField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    completed_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+
+class PurchaseHistorySummarySerializer(serializers.Serializer):
+    """Serializer for purchase history summary statistics."""
+    
+    total_purchases = serializers.IntegerField(read_only=True)
+    total_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    total_credits = serializers.IntegerField(read_only=True)
+    completed_purchases = serializers.IntegerField(read_only=True)
+    pending_purchases = serializers.IntegerField(read_only=True)
+    failed_purchases = serializers.IntegerField(read_only=True)
+    average_purchase_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    last_purchase_date = serializers.DateTimeField(read_only=True, allow_null=True)
+
+
+# =============================================
 # CAMPAIGN SERIALIZERS
 # =============================================
 

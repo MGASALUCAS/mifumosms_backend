@@ -45,6 +45,11 @@ urlpatterns = [
     # Analytics
     path('analytics/overview/', views.analytics_overview, name='analytics-overview'),
 
+    # Purchase History
+    path('purchase-history/', views.purchase_history, name='purchase-history'),
+    path('purchase-history/summary/', views.purchase_history_summary, name='purchase-history-summary'),
+    path('purchase-history/<uuid:purchase_id>/', views.purchase_detail, name='purchase-detail'),
+
     # Dashboard
     path('dashboard/overview/', views_dashboard.dashboard_overview, name='dashboard-overview'),
     path('dashboard/metrics/', views_dashboard.dashboard_metrics, name='dashboard-metrics'),

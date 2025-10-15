@@ -24,7 +24,8 @@ from .serializers import (
     ConversationSerializer, MessageSerializer, MessageCreateSerializer,
     CampaignSerializer, CampaignCreateSerializer,
     FlowSerializer, FlowCreateSerializer,
-    ConversationSummarySerializer, AISuggestionsSerializer
+    ConversationSummarySerializer, AISuggestionsSerializer,
+    PurchaseHistorySerializer, PurchaseHistorySummarySerializer
 )
 from core.permissions import IsTenantMember, IsTenantAdmin
 from core.rate_limits import check_rate_limit, MESSAGE_RATE_LIMITER
@@ -493,3 +494,267 @@ def analytics_overview(request):
             'total_micro': total_cost,
         }
     })
+
+
+# =============================================
+# PURCHASE HISTORY VIEWS
+# =============================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def purchase_history(request):
+    """
+    Get purchase history for the authenticated user.
+    GET /api/messaging/purchase-history/
+    
+    Query Parameters:
+    - status: Filter by purchase status (pending, completed, failed, cancelled, refunded)
+    - start_date: Filter from date (YYYY-MM-DD)
+    - end_date: Filter to date (YYYY-MM-DD)
+    - page: Page number (default: 1)
+    - page_size: Items per page (default: 20)
+    - search: Search in invoice number or package name
+    """
+    try:
+        from billing.models import Purchase
+        from django.core.paginator import Paginator
+        from django.db.models import Q, Count, Sum, Avg
+        from datetime import datetime
+        
+        # Get query parameters
+        status_filter = request.GET.get('status')
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        search = request.GET.get('search', '').strip()
+        page = int(request.GET.get('page', 1))
+        page_size = min(int(request.GET.get('page_size', 20)), 100)  # Max 100 items per page
+        
+        # Build queryset - filter by user
+        queryset = Purchase.objects.filter(user=request.user).select_related('package')
+        
+        # Apply filters
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        if start_date:
+            try:
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__gte=start_dt)
+            except ValueError:
+                return Response({
+                    'success': False,
+                    'message': 'Invalid start_date format. Use YYYY-MM-DD'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if end_date:
+            try:
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__lte=end_dt)
+            except ValueError:
+                return Response({
+                    'success': False,
+                    'message': 'Invalid end_date format. Use YYYY-MM-DD'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if search:
+            queryset = queryset.filter(
+                Q(invoice_number__icontains=search) |
+                Q(package__name__icontains=search)
+            )
+        
+        # Order by creation date (newest first)
+        queryset = queryset.order_by('-created_at')
+        
+        # Pagination
+        paginator = Paginator(queryset, page_size)
+        total_count = paginator.count
+        
+        try:
+            purchases_page = paginator.page(page)
+        except:
+            return Response({
+                'success': False,
+                'message': f'Invalid page number. Available pages: 1-{paginator.num_pages}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Serialize purchase data
+        purchase_data = []
+        for purchase in purchases_page:
+            purchase_data.append({
+                'id': str(purchase.id),
+                'invoice_number': purchase.invoice_number,
+                'package_name': purchase.package.name,
+                'package_type': purchase.package.package_type,
+                'credits': purchase.credits,
+                'amount': float(purchase.amount),
+                'unit_price': float(purchase.unit_price),
+                'payment_method': purchase.payment_method,
+                'payment_method_display': purchase.get_payment_method_display(),
+                'payment_reference': purchase.payment_reference,
+                'status': purchase.status,
+                'status_display': purchase.get_status_display(),
+                'created_at': purchase.created_at.isoformat(),
+                'completed_at': purchase.completed_at.isoformat() if purchase.completed_at else None,
+                'updated_at': purchase.updated_at.isoformat()
+            })
+        
+        return Response({
+            'success': True,
+            'data': {
+                'purchases': purchase_data,
+                'pagination': {
+                    'page': page,
+                    'page_size': page_size,
+                    'total_count': total_count,
+                    'total_pages': paginator.num_pages,
+                    'has_next': purchases_page.has_next(),
+                    'has_previous': purchases_page.has_previous(),
+                    'next_page': purchases_page.next_page_number() if purchases_page.has_next() else None,
+                    'previous_page': purchases_page.previous_page_number() if purchases_page.has_previous() else None
+                }
+            }
+        })
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': 'Failed to retrieve purchase history',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def purchase_history_summary(request):
+    """
+    Get purchase history summary statistics for the authenticated user.
+    GET /api/messaging/purchase-history/summary/
+    
+    Query Parameters:
+    - start_date: Filter from date (YYYY-MM-DD)
+    - end_date: Filter to date (YYYY-MM-DD)
+    """
+    try:
+        from billing.models import Purchase
+        from django.db.models import Count, Sum, Avg, Max
+        from datetime import datetime
+        
+        # Get query parameters
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        
+        # Build queryset - filter by user
+        queryset = Purchase.objects.filter(user=request.user)
+        
+        # Apply date filters
+        if start_date:
+            try:
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__gte=start_dt)
+            except ValueError:
+                return Response({
+                    'success': False,
+                    'message': 'Invalid start_date format. Use YYYY-MM-DD'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if end_date:
+            try:
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__lte=end_dt)
+            except ValueError:
+                return Response({
+                    'success': False,
+                    'message': 'Invalid end_date format. Use YYYY-MM-DD'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Calculate statistics
+        stats = queryset.aggregate(
+            total_purchases=Count('id'),
+            total_amount=Sum('amount'),
+            total_credits=Sum('credits'),
+            average_purchase_amount=Avg('amount'),
+            last_purchase_date=Max('created_at')
+        )
+        
+        # Count by status
+        status_counts = queryset.values('status').annotate(count=Count('id'))
+        status_dict = {item['status']: item['count'] for item in status_counts}
+        
+        summary_data = {
+            'total_purchases': stats['total_purchases'] or 0,
+            'total_amount': float(stats['total_amount'] or 0),
+            'total_credits': stats['total_credits'] or 0,
+            'completed_purchases': status_dict.get('completed', 0),
+            'pending_purchases': status_dict.get('pending', 0),
+            'failed_purchases': status_dict.get('failed', 0),
+            'cancelled_purchases': status_dict.get('cancelled', 0),
+            'refunded_purchases': status_dict.get('refunded', 0),
+            'average_purchase_amount': float(stats['average_purchase_amount'] or 0),
+            'last_purchase_date': stats['last_purchase_date'].isoformat() if stats['last_purchase_date'] else None
+        }
+        
+        return Response({
+            'success': True,
+            'data': summary_data
+        })
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': 'Failed to retrieve purchase history summary',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def purchase_detail(request, purchase_id):
+    """
+    Get detailed information about a specific purchase.
+    GET /api/messaging/purchase-history/{purchase_id}/
+    """
+    try:
+        from billing.models import Purchase
+        from django.shortcuts import get_object_or_404
+        
+        # Get purchase (filter by user for security)
+        purchase = get_object_or_404(Purchase, id=purchase_id, user=request.user)
+        
+        # Serialize purchase data
+        purchase_data = {
+            'id': str(purchase.id),
+            'invoice_number': purchase.invoice_number,
+            'package': {
+                'id': str(purchase.package.id),
+                'name': purchase.package.name,
+                'package_type': purchase.package.package_type,
+                'credits': purchase.package.credits,
+                'price': float(purchase.package.price),
+                'unit_price': float(purchase.package.unit_price),
+                'features': purchase.package.features,
+                'is_popular': purchase.package.is_popular
+            },
+            'credits': purchase.credits,
+            'amount': float(purchase.amount),
+            'unit_price': float(purchase.unit_price),
+            'payment_method': purchase.payment_method,
+            'payment_method_display': purchase.get_payment_method_display(),
+            'payment_reference': purchase.payment_reference,
+            'status': purchase.status,
+            'status_display': purchase.get_status_display(),
+            'created_at': purchase.created_at.isoformat(),
+            'completed_at': purchase.completed_at.isoformat() if purchase.completed_at else None,
+            'updated_at': purchase.updated_at.isoformat()
+        }
+        
+        return Response({
+            'success': True,
+            'data': purchase_data
+        })
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': 'Failed to retrieve purchase details',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
