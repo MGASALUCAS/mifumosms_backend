@@ -1,0 +1,16 @@
+# ZenoPay Payment Gateway Configuration
+# Add these lines to your existing .env file
+
+# ZenoPay API Configuration
+ZENOPAY_API_KEY=your_zenopay_api_key_here
+ZENOPAY_API_TIMEOUT=30
+ZENOPAY_WEBHOOK_SECRET=your_webhook_secret_here
+
+# Base URL for webhooks (update with your actual domain)
+BASE_URL=http://localhost:8000
+
+# Example with real values (replace with your actual values):
+# ZENOPAY_API_KEY=sk_test_1234567890abcdef
+# ZENOPAY_API_TIMEOUT=30
+# ZENOPAY_WEBHOOK_SECRET=whsec_1234567890abcdef
+# BASE_URL=https://yourdomain.com
