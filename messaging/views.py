@@ -47,11 +47,11 @@ def get_tenant_queryset(model_class, user, **filters):
     if not user.is_authenticated:
         return model_class.objects.none()
 
-    if not hasattr(user, 'tenant') or not user.tenant:
-        return model_class.objects.none()
-
     # Check if the model has a tenant field
     if hasattr(model_class, '_meta') and 'tenant' in [field.name for field in model_class._meta.fields]:
+        # Model has tenant field - require tenant
+        if not hasattr(user, 'tenant') or not user.tenant:
+            return model_class.objects.none()
         return model_class.objects.filter(
             created_by=user,
             tenant=user.tenant,
@@ -59,6 +59,7 @@ def get_tenant_queryset(model_class, user, **filters):
         )
     else:
         # For models without tenant field, only filter by created_by
+        # This works for users with or without tenants
         return model_class.objects.filter(
             created_by=user,
             **filters
