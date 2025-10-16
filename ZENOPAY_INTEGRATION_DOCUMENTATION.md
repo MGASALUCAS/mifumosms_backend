@@ -20,6 +20,7 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
 ## Features
 
 ### Core Features
+
 - **Mobile Money Integration**: Seamless integration with Tanzanian mobile money providers (M-Pesa, Tigo Pesa, Airtel Money)
 - **Real-time Progress Tracking**: User-friendly progress indicators with step-by-step status updates
 - **Webhook Support**: Automatic payment status updates via webhooks
@@ -28,6 +29,7 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
 - **Security**: Secure API key authentication and webhook verification
 
 ### User Experience Features
+
 - **Progress Indicators**: Visual progress bars showing payment stages
 - **Status Updates**: Real-time status updates during payment processing
 - **Error Messages**: Clear, actionable error messages
@@ -37,11 +39,13 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
 ## API Endpoints
 
 ### 1. Initiate Payment
+
 **Endpoint**: `POST /api/billing/payments/initiate/`
 
 **Description**: Initiates a new payment transaction with ZenoPay for SMS package purchase.
 
 **Request Body**:
+
 ```json
 {
     "package_id": "uuid",
@@ -52,6 +56,7 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
 ```
 
 **Response** (Success):
+
 ```json
 {
     "success": true,
@@ -81,11 +86,13 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
 ```
 
 ### 2. Check Payment Status
+
 **Endpoint**: `GET /api/billing/payments/transactions/{transaction_id}/status/`
 
 **Description**: Checks the current status of a payment transaction.
 
 **Response**:
+
 ```json
 {
     "success": true,
@@ -113,11 +120,13 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
 ```
 
 ### 3. Get Payment Progress
+
 **Endpoint**: `GET /api/billing/payments/transactions/{transaction_id}/progress/`
 
 **Description**: Gets detailed progress information for user-friendly display.
 
 **Response**:
+
 ```json
 {
     "success": true,
@@ -153,16 +162,19 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
 ```
 
 ### 4. List Payment Transactions
+
 **Endpoint**: `GET /api/billing/payments/transactions/`
 
 **Description**: Lists all payment transactions for the authenticated tenant.
 
 **Query Parameters**:
+
 - `page`: Page number (default: 1)
 - `page_size`: Items per page (default: 20)
 - `status`: Filter by status (pending, processing, completed, failed, cancelled)
 
 **Response**:
+
 ```json
 {
     "count": 10,
@@ -205,11 +217,13 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
 ```
 
 ### 5. Payment Webhook
+
 **Endpoint**: `POST /api/billing/payments/webhook/`
 
 **Description**: Handles webhook notifications from ZenoPay (internal use).
 
 **Request Body** (from ZenoPay):
+
 ```json
 {
     "order_id": "uuid",
@@ -225,6 +239,7 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
 ## Payment Flow
 
 ### 1. Payment Initiation
+
 1. User selects SMS package
 2. User provides payment details (email, name, phone)
 3. System creates payment transaction
@@ -232,6 +247,7 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
 5. User receives payment instructions on mobile device
 
 ### 2. Payment Processing
+
 1. User completes payment on mobile device
 2. ZenoPay processes payment
 3. System receives webhook notification
@@ -239,6 +255,7 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
 5. System adds SMS credits to tenant balance
 
 ### 3. Progress Tracking
+
 The system provides real-time progress updates through 4 main stages:
 
 1. **Payment Initiated** (25%)
@@ -261,6 +278,7 @@ The system provides real-time progress updates through 4 main stages:
 ## Progress Tracking
 
 ### Progress Object Structure
+
 ```json
 {
     "step": 2,
@@ -276,6 +294,7 @@ The system provides real-time progress updates through 4 main stages:
 ```
 
 ### Status Colors and Icons
+
 - **Blue**: Pending/In Progress (`clock`, `sync`)
 - **Green**: Completed (`check`, `check-circle`)
 - **Red**: Failed (`x`, `alert-circle`)
@@ -284,16 +303,19 @@ The system provides real-time progress updates through 4 main stages:
 ## Webhook Integration
 
 ### Webhook URL
-```
+
+```bash
 https://your-domain.com/api/billing/payments/webhook/
 ```
 
 ### Webhook Security
+
 - Verify `x-api-key` header matches your ZenoPay API key
 - Validate webhook payload structure
 - Log all webhook requests for debugging
 
 ### Webhook Processing
+
 1. Receive webhook notification
 2. Validate webhook authenticity
 3. Extract payment status and order ID
@@ -306,6 +328,7 @@ https://your-domain.com/api/billing/payments/webhook/
 ### Common Error Scenarios
 
 #### 1. Invalid Phone Number
+
 ```json
 {
     "success": false,
@@ -314,6 +337,7 @@ https://your-domain.com/api/billing/payments/webhook/
 ```
 
 #### 2. Payment Failed
+
 ```json
 {
     "success": false,
@@ -323,6 +347,7 @@ https://your-domain.com/api/billing/payments/webhook/
 ```
 
 #### 3. Network Error
+
 ```json
 {
     "success": false,
@@ -332,6 +357,7 @@ https://your-domain.com/api/billing/payments/webhook/
 ```
 
 ### Error Recovery
+
 - Automatic retry mechanisms for network errors
 - Clear error messages for user action
 - Fallback options for failed payments
@@ -356,13 +382,13 @@ const initiatePayment = async (packageId, buyerDetails) => {
                 ...buyerDetails
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             // Show progress UI
             showPaymentProgress(data.data);
-            
+
             // Start polling for status updates
             pollPaymentStatus(data.data.transaction_id);
         } else {
@@ -379,10 +405,10 @@ const pollPaymentStatus = (transactionId) => {
         try {
             const response = await fetch(`/api/billing/payments/transactions/${transactionId}/status/`);
             const data = await response.json();
-            
+
             if (data.success) {
                 updateProgressUI(data.data.progress);
-                
+
                 if (data.data.status === 'completed' || data.data.status === 'failed') {
                     clearInterval(interval);
                 }
@@ -398,8 +424,8 @@ const PaymentProgress = ({ progress }) => {
     return (
         <div className="payment-progress">
             <div className="progress-bar">
-                <div 
-                    className="progress-fill" 
+                <div
+                    className="progress-fill"
                     style={{ width: `${progress.percentage}%` }}
                 />
             </div>
@@ -428,6 +454,7 @@ const PaymentProgress = ({ progress }) => {
 ## Configuration
 
 ### Environment Variables
+
 ```bash
 # ZenoPay Configuration
 ZENOPAY_API_KEY=your_zenopay_api_key_here
@@ -439,6 +466,7 @@ BASE_URL=https://your-domain.com
 ```
 
 ### Django Settings
+
 ```python
 # ZenoPay Payment Gateway
 ZENOPAY_API_KEY = config('ZENOPAY_API_KEY', default='')
@@ -449,6 +477,7 @@ ZENOPAY_WEBHOOK_SECRET = config('ZENOPAY_WEBHOOK_SECRET', default='')
 ## Testing
 
 ### Test Payment Flow
+
 1. Use ZenoPay sandbox/test environment
 2. Create test SMS packages
 3. Test payment initiation
@@ -456,6 +485,7 @@ ZENOPAY_WEBHOOK_SECRET = config('ZENOPAY_WEBHOOK_SECRET', default='')
 5. Verify credit addition
 
 ### Test Data
+
 ```json
 {
     "package_id": "test-package-uuid",
@@ -470,21 +500,25 @@ ZENOPAY_WEBHOOK_SECRET = config('ZENOPAY_WEBHOOK_SECRET', default='')
 ### Common Issues
 
 #### 1. Payment Not Initiated
+
 - Check ZenoPay API key configuration
 - Verify network connectivity
 - Check request payload format
 
 #### 2. Webhook Not Received
+
 - Verify webhook URL is accessible
 - Check webhook URL configuration
 - Verify API key in webhook headers
 
 #### 3. Credits Not Added
+
 - Check webhook processing logs
 - Verify transaction status
 - Check tenant balance update logic
 
 ### Debug Logging
+
 Enable debug logging to troubleshoot issues:
 
 ```python
@@ -499,9 +533,10 @@ LOGGING = {
 ```
 
 ### Support Contacts
-- **ZenoPay Support**: support@zenoapi.com
-- **Mifumo Support**: support@mifumo.com
-- **API Documentation**: https://zenoapi.com
+
+- **ZenoPay Support**: [support@zenoapi.com](mailto:support@zenoapi.com)
+- **Mifumo Support**: [support@mifumo.com](mailto:support@mifumo.com)
+- **API Documentation**: [https://zenoapi.com](https://zenoapi.com)
 
 ## Security Considerations
 
@@ -523,6 +558,7 @@ LOGGING = {
 ## Monitoring and Analytics
 
 ### Key Metrics
+
 - Payment success rate
 - Average payment processing time
 - Webhook delivery success rate
@@ -530,6 +566,7 @@ LOGGING = {
 - User conversion rates
 
 ### Alerts
+
 - High error rates
 - Failed webhook deliveries
 - Payment processing delays
