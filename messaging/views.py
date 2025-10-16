@@ -46,15 +46,23 @@ def get_tenant_queryset(model_class, user, **filters):
     """Get a queryset filtered by user and tenant, handling anonymous users."""
     if not user.is_authenticated:
         return model_class.objects.none()
-    
+
     if not hasattr(user, 'tenant') or not user.tenant:
         return model_class.objects.none()
-    
-    return model_class.objects.filter(
-        created_by=user,
-        tenant=user.tenant,
-        **filters
-    )
+
+    # Check if the model has a tenant field
+    if hasattr(model_class, '_meta') and 'tenant' in [field.name for field in model_class._meta.fields]:
+        return model_class.objects.filter(
+            created_by=user,
+            tenant=user.tenant,
+            **filters
+        )
+    else:
+        # For models without tenant field, only filter by created_by
+        return model_class.objects.filter(
+            created_by=user,
+            **filters
+        )
 
 
 class ContactFilterSet(FilterSet):
@@ -93,10 +101,9 @@ class ContactListCreateView(generics.ListCreateAPIView):
         return get_tenant_queryset(Contact, self.request.user)
 
     def perform_create(self, serializer):
-        """Create contact for the current user and tenant."""
+        """Create contact for the current user."""
         serializer.save(
-            created_by=self.request.user,
-            tenant=self.request.user.tenant
+            created_by=self.request.user
         )
 
 
@@ -123,7 +130,7 @@ class ContactBulkImportView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
 
         csv_data = serializer.validated_data['csv_data']
-        
+
         # Validate CSV data is not empty
         if not csv_data or not csv_data.strip():
             return Response({
@@ -132,7 +139,7 @@ class ContactBulkImportView(generics.GenericAPIView):
                 'imported_count': 0,
                 'errors': ['Empty CSV data provided']
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         imported_count = 0
         errors = []
 
@@ -189,8 +196,8 @@ class ContactBulkImportView(generics.GenericAPIView):
 def contact_opt_in(request, contact_id):
     """Opt in a contact."""
     contact = get_object_or_404(
-        Contact, 
-        id=contact_id, 
+        Contact,
+        id=contact_id,
         created_by=request.user,
         tenant=request.user.tenant
     )
@@ -204,19 +211,19 @@ def contact_opt_in(request, contact_id):
 def contact_opt_out(request, contact_id):
     """Opt out a contact."""
     contact = get_object_or_404(
-        Contact, 
-        id=contact_id, 
+        Contact,
+        id=contact_id,
         created_by=request.user,
         tenant=request.user.tenant
     )
-    
+
     # Validate reason is not too long
     reason = request.data.get('reason', '')
     if len(reason) > 500:  # Assuming max length from model
         return Response({
             'error': 'Reason cannot exceed 500 characters'
         }, status=status.HTTP_400_BAD_REQUEST)
-    
+
     contact.opt_out(reason)
 
     return Response({'message': 'Contact opted out successfully'})
@@ -257,8 +264,8 @@ class SegmentDetailView(generics.RetrieveUpdateDestroyAPIView):
 def segment_update_count(request, segment_id):
     """Update segment contact count."""
     segment = get_object_or_404(
-        Segment, 
-        id=segment_id, 
+        Segment,
+        id=segment_id,
         created_by=request.user,
         tenant=request.user.tenant
     )
@@ -320,10 +327,10 @@ class ConversationListCreateView(generics.ListCreateAPIView):
         """Filter conversations by user and tenant."""
         if not self.request.user.is_authenticated:
             return Conversation.objects.none()
-        
+
         if not hasattr(self.request.user, 'tenant') or not self.request.user.tenant:
             return Conversation.objects.none()
-        
+
         return Conversation.objects.filter(
             contact__created_by=self.request.user,
             tenant=self.request.user.tenant
@@ -340,10 +347,10 @@ class ConversationDetailView(generics.RetrieveUpdateDestroyAPIView):
         """Filter conversations by user and tenant."""
         if not self.request.user.is_authenticated:
             return Conversation.objects.none()
-        
+
         if not hasattr(self.request.user, 'tenant') or not self.request.user.tenant:
             return Conversation.objects.none()
-        
+
         return Conversation.objects.filter(
             contact__created_by=self.request.user,
             tenant=self.request.user.tenant
@@ -369,10 +376,10 @@ class MessageListCreateView(generics.ListCreateAPIView):
         """Filter messages by user and tenant."""
         if not self.request.user.is_authenticated:
             return Message.objects.none()
-        
+
         if not hasattr(self.request.user, 'tenant') or not self.request.user.tenant:
             return Message.objects.none()
-        
+
         return Message.objects.filter(
             conversation__contact__created_by=self.request.user,
             tenant=self.request.user.tenant
@@ -382,7 +389,7 @@ class MessageListCreateView(generics.ListCreateAPIView):
         """Create message and trigger sending."""
         # Check rate limits BEFORE creating the message
         check_rate_limit(self.request, MESSAGE_RATE_LIMITER)
-        
+
         # Create message
         message = serializer.save(tenant=self.request.user.tenant)
 
@@ -400,10 +407,10 @@ class MessageDetailView(generics.RetrieveUpdateDestroyAPIView):
         """Filter messages by user and tenant."""
         if not self.request.user.is_authenticated:
             return Message.objects.none()
-        
+
         if not hasattr(self.request.user, 'tenant') or not self.request.user.tenant:
             return Message.objects.none()
-        
+
         return Message.objects.filter(
             conversation__contact__created_by=self.request.user,
             tenant=self.request.user.tenant
@@ -429,10 +436,10 @@ class CampaignListCreateView(generics.ListCreateAPIView):
         """Filter campaigns by user and tenant."""
         if not self.request.user.is_authenticated:
             return Campaign.objects.none()
-        
+
         if not hasattr(self.request.user, 'tenant') or not self.request.user.tenant:
             return Campaign.objects.none()
-        
+
         return Campaign.objects.filter(
             created_by=self.request.user,
             tenant=self.request.user.tenant
@@ -455,8 +462,8 @@ class CampaignDetailView(generics.RetrieveUpdateDestroyAPIView):
 def campaign_start(request, campaign_id):
     """Start a campaign."""
     campaign = get_object_or_404(
-        Campaign, 
-        id=campaign_id, 
+        Campaign,
+        id=campaign_id,
         created_by=request.user,
         tenant=request.user.tenant
     )
@@ -478,8 +485,8 @@ def campaign_start(request, campaign_id):
 def campaign_pause(request, campaign_id):
     """Pause a campaign."""
     campaign = get_object_or_404(
-        Campaign, 
-        id=campaign_id, 
+        Campaign,
+        id=campaign_id,
         created_by=request.user,
         tenant=request.user.tenant
     )
@@ -493,8 +500,8 @@ def campaign_pause(request, campaign_id):
 def campaign_cancel(request, campaign_id):
     """Cancel a campaign."""
     campaign = get_object_or_404(
-        Campaign, 
-        id=campaign_id, 
+        Campaign,
+        id=campaign_id,
         created_by=request.user,
         tenant=request.user.tenant
     )
@@ -539,8 +546,8 @@ class FlowDetailView(generics.RetrieveUpdateDestroyAPIView):
 def flow_activate(request, flow_id):
     """Activate a flow."""
     flow = get_object_or_404(
-        Flow, 
-        id=flow_id, 
+        Flow,
+        id=flow_id,
         created_by=request.user,
         tenant=request.user.tenant
     )
@@ -554,8 +561,8 @@ def flow_activate(request, flow_id):
 def flow_deactivate(request, flow_id):
     """Deactivate a flow."""
     flow = get_object_or_404(
-        Flow, 
-        id=flow_id, 
+        Flow,
+        id=flow_id,
         created_by=request.user,
         tenant=request.user.tenant
     )
@@ -569,8 +576,8 @@ def flow_deactivate(request, flow_id):
 def ai_suggest_reply(request, conversation_id):
     """Get AI suggestions for a conversation."""
     conversation = get_object_or_404(
-        Conversation, 
-        id=conversation_id, 
+        Conversation,
+        id=conversation_id,
         contact__created_by=request.user,
         tenant=request.user.tenant
     )
@@ -586,8 +593,8 @@ def ai_suggest_reply(request, conversation_id):
 def ai_summarize_conversation(request, conversation_id):
     """Get AI summary for a conversation."""
     conversation = get_object_or_404(
-        Conversation, 
-        id=conversation_id, 
+        Conversation,
+        id=conversation_id,
         contact__created_by=request.user,
         tenant=request.user.tenant
     )
@@ -603,7 +610,7 @@ def ai_summarize_conversation(request, conversation_id):
 def analytics_overview(request):
     """Get analytics overview for the user."""
     user = request.user
-    
+
     # Validate user has a tenant
     try:
         validate_user_tenant(user)
@@ -620,19 +627,19 @@ def analytics_overview(request):
     sent_messages = Message.objects.filter(
         conversation__contact__created_by=user,
         tenant=user.tenant,
-        direction='out', 
+        direction='out',
         status__in=['sent', 'delivered', 'read']
     ).count()
     delivered_messages = Message.objects.filter(
         conversation__contact__created_by=user,
         tenant=user.tenant,
-        direction='out', 
+        direction='out',
         status__in=['delivered', 'read']
     ).count()
     read_messages = Message.objects.filter(
         conversation__contact__created_by=user,
         tenant=user.tenant,
-        direction='out', 
+        direction='out',
         status='read'
     ).count()
 
@@ -655,7 +662,7 @@ def analytics_overview(request):
     opted_in_contacts = Contact.objects.filter(
         created_by=user,
         tenant=user.tenant,
-        opt_in_at__isnull=False, 
+        opt_in_at__isnull=False,
         opt_out_at__isnull=True
     ).count()
 
@@ -792,7 +799,7 @@ def purchase_history(request):
     """
     Get purchase history for the authenticated user.
     GET /api/messaging/purchase-history/
-    
+
     Query Parameters:
     - status: Filter by purchase status (pending, completed, failed, cancelled, refunded)
     - start_date: Filter from date (YYYY-MM-DD)
@@ -806,13 +813,13 @@ def purchase_history(request):
         from django.core.paginator import Paginator
         from django.db.models import Q, Count, Sum, Avg
         from datetime import datetime
-        
+
         # Get query parameters with validation
         status_filter = request.GET.get('status')
         start_date = request.GET.get('start_date')
         end_date = request.GET.get('end_date')
         search = request.GET.get('search', '').strip()
-        
+
         # Validate page and page_size
         try:
             page = int(request.GET.get('page', 1))
@@ -822,16 +829,16 @@ def purchase_history(request):
                 'success': False,
                 'message': 'Invalid page or page_size parameter'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         if page < 1:
             return Response({
                 'success': False,
                 'message': 'Page number must be greater than 0'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         # Build queryset - filter by user
         queryset = Purchase.objects.filter(user=request.user).select_related('package')
-        
+
         # Apply filters
         if status_filter:
             # Validate status filter
@@ -842,7 +849,7 @@ def purchase_history(request):
                     'message': f'Invalid status filter. Must be one of: {", ".join(valid_statuses)}'
                 }, status=status.HTTP_400_BAD_REQUEST)
             queryset = queryset.filter(status=status_filter)
-        
+
         if start_date:
             try:
                 start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
@@ -852,7 +859,7 @@ def purchase_history(request):
                     'success': False,
                     'message': 'Invalid start_date format. Use YYYY-MM-DD'
                 }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         if end_date:
             try:
                 end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
@@ -862,20 +869,20 @@ def purchase_history(request):
                     'success': False,
                     'message': 'Invalid end_date format. Use YYYY-MM-DD'
                 }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         if search:
             queryset = queryset.filter(
                 Q(invoice_number__icontains=search) |
                 Q(package__name__icontains=search)
             )
-        
+
         # Order by creation date (newest first)
         queryset = queryset.order_by('-created_at')
-        
+
         # Pagination
         paginator = Paginator(queryset, page_size)
         total_count = paginator.count
-        
+
         try:
             purchases_page = paginator.page(page)
         except:
@@ -883,7 +890,7 @@ def purchase_history(request):
                 'success': False,
                 'message': f'Invalid page number. Available pages: 1-{paginator.num_pages}'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         # Serialize purchase data
         purchase_data = []
         for purchase in purchases_page:
@@ -904,7 +911,7 @@ def purchase_history(request):
                 'completed_at': purchase.completed_at.isoformat() if purchase.completed_at else None,
                 'updated_at': purchase.updated_at.isoformat()
             })
-        
+
         return Response({
             'success': True,
             'data': {
@@ -921,7 +928,7 @@ def purchase_history(request):
                 }
             }
         })
-        
+
     except Exception as e:
         return Response({
             'success': False,
@@ -980,7 +987,7 @@ def purchase_history_summary(request):
     """
     Get purchase history summary statistics for the authenticated user.
     GET /api/messaging/purchase-history/summary/
-    
+
     Query Parameters:
     - start_date: Filter from date (YYYY-MM-DD)
     - end_date: Filter to date (YYYY-MM-DD)
@@ -989,14 +996,14 @@ def purchase_history_summary(request):
         from billing.models import Purchase
         from django.db.models import Count, Sum, Avg, Max
         from datetime import datetime
-        
+
         # Get query parameters
         start_date = request.GET.get('start_date')
         end_date = request.GET.get('end_date')
-        
+
         # Build queryset - filter by user
         queryset = Purchase.objects.filter(user=request.user)
-        
+
         # Apply date filters
         if start_date:
             try:
@@ -1007,7 +1014,7 @@ def purchase_history_summary(request):
                     'success': False,
                     'message': 'Invalid start_date format. Use YYYY-MM-DD'
                 }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         if end_date:
             try:
                 end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
@@ -1017,7 +1024,7 @@ def purchase_history_summary(request):
                     'success': False,
                     'message': 'Invalid end_date format. Use YYYY-MM-DD'
                 }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         # Calculate statistics
         stats = queryset.aggregate(
             total_purchases=Count('id'),
@@ -1026,11 +1033,11 @@ def purchase_history_summary(request):
             average_purchase_amount=Avg('amount'),
             last_purchase_date=Max('created_at')
         )
-        
+
         # Count by status
         status_counts = queryset.values('status').annotate(count=Count('id'))
         status_dict = {item['status']: item['count'] for item in status_counts}
-        
+
         summary_data = {
             'total_purchases': stats['total_purchases'] or 0,
             'total_amount': float(stats['total_amount'] or 0),
@@ -1043,12 +1050,12 @@ def purchase_history_summary(request):
             'average_purchase_amount': float(stats['average_purchase_amount'] or 0),
             'last_purchase_date': stats['last_purchase_date'].isoformat() if stats['last_purchase_date'] else None
         }
-        
+
         return Response({
             'success': True,
             'data': summary_data
         })
-        
+
     except Exception as e:
         return Response({
             'success': False,
@@ -1119,10 +1126,10 @@ def purchase_detail(request, purchase_id):
     try:
         from billing.models import Purchase
         from django.shortcuts import get_object_or_404
-        
+
         # Get purchase (filter by user for security)
         purchase = get_object_or_404(Purchase, id=purchase_id, user=request.user)
-        
+
         # Serialize purchase data
         purchase_data = {
             'id': str(purchase.id),
@@ -1149,12 +1156,12 @@ def purchase_detail(request, purchase_id):
             'completed_at': purchase.completed_at.isoformat() if purchase.completed_at else None,
             'updated_at': purchase.updated_at.isoformat()
         }
-        
+
         return Response({
             'success': True,
             'data': purchase_data
         })
-        
+
     except Exception as e:
         return Response({
             'success': False,

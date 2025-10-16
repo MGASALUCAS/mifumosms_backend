@@ -450,7 +450,7 @@ JAZZMIN_SETTINGS = {
     "order_with_respect_to": ["auth", "accounts", "tenants", "messaging", "billing"],
     "custom_links": {
         "messaging": [{
-            "name": "SMS Dashboard",
+            "name": "SMS Management",
             "url": "/admin/messaging/smsprovider/",
             "icon": "fas fa-sms",
             "permissions": ["messaging.view_smsprovider"]
@@ -477,10 +477,15 @@ JAZZMIN_SETTINGS = {
         "messaging.Message": "fas fa-envelope",
         "messaging.Campaign": "fas fa-bullhorn",
         "messaging.Flow": "fas fa-project-diagram",
-        "messaging.SMSProvider": "fas fa-sms",
-        "messaging.SenderID": "fas fa-id-badge",
+        # SMS Group Icons
+        "messaging.SMSProvider": "fas fa-server",
+        "messaging.SMSSenderID": "fas fa-id-badge",
+        "messaging.SMSMessage": "fas fa-paper-plane",
         "messaging.SMSTemplate": "fas fa-file-text",
-        "messaging.SMSMessage": "fas fa-sms",
+        "messaging.SMSDeliveryReport": "fas fa-chart-line",
+        "messaging.SMSBulkUpload": "fas fa-upload",
+        "messaging.SMSSchedule": "fas fa-clock",
+        "messaging.SenderNameRequest": "fas fa-user-plus",
         "billing.Plan": "fas fa-list-alt",
         "billing.Subscription": "fas fa-credit-card",
         "billing.Invoice": "fas fa-file-invoice",

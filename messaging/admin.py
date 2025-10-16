@@ -12,7 +12,10 @@ from .models import (
     Contact, Segment, Template, Conversation, Message, Attachment,
     Campaign, Flow
 )
-from .models_sms import SenderNameRequest
+from .models_sms import (
+    SenderNameRequest, SMSProvider, SMSSenderID, SMSMessage,
+    SMSTemplate, SMSDeliveryReport, SMSBulkUpload, SMSSchedule
+)
 
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
@@ -472,3 +475,310 @@ class SenderNameRequestAdmin(admin.ModelAdmin):
             messages.error(request, 'Sender name request not found.')
 
         return redirect('admin:messaging_sendernamerequest_changelist')
+
+    def changelist_view(self, request, extra_context=None):
+        """Override changelist view to provide statistics to the template."""
+        # Get the base queryset
+        queryset = self.get_queryset(request)
+
+        # Calculate statistics
+        total_count = queryset.count()
+        pending_count = queryset.filter(status='pending').count()
+        approved_count = queryset.filter(status='approved').count()
+        rejected_count = queryset.filter(status='rejected').count()
+        requires_changes_count = queryset.filter(status='requires_changes').count()
+
+        # Add statistics to extra_context
+        extra_context = extra_context or {}
+        extra_context.update({
+            'pending_count': pending_count,
+            'approved_count': approved_count,
+            'rejected_count': rejected_count,
+            'requires_changes_count': requires_changes_count,
+        })
+
+        return super().changelist_view(request, extra_context=extra_context)
+
+
+# SMS Admin Configurations
+
+@admin.register(SMSProvider)
+class SMSProviderAdmin(admin.ModelAdmin):
+    """Admin interface for SMS providers."""
+
+    list_display = [
+        'name', 'provider_type', 'tenant', 'is_active', 'is_default',
+        'cost_per_sms', 'currency', 'created_at'
+    ]
+    list_filter = [
+        'provider_type', 'is_active', 'is_default', 'currency', 'created_at', 'tenant'
+    ]
+    search_fields = [
+        'name', 'provider_type', 'tenant__name', 'api_key'
+    ]
+    readonly_fields = [
+        'id', 'created_at', 'updated_at'
+    ]
+    list_per_page = 25
+
+    fieldsets = (
+        ('Provider Information', {
+            'fields': ('name', 'provider_type', 'tenant', 'is_active', 'is_default'),
+            'classes': ('wide',)
+        }),
+        ('API Configuration', {
+            'fields': ('api_key', 'secret_key', 'api_url', 'webhook_url'),
+            'classes': ('wide',)
+        }),
+        ('Cost Configuration', {
+            'fields': ('cost_per_sms', 'currency'),
+            'classes': ('wide',)
+        }),
+        ('Settings', {
+            'fields': ('settings',),
+            'classes': ('wide', 'collapse')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'created_by'),
+            'classes': ('wide', 'collapse')
+        }),
+    )
+
+    class Meta:
+        verbose_name = "SMS Provider"
+        verbose_name_plural = "SMS Providers"
+
+
+@admin.register(SMSSenderID)
+class SMSSenderIDAdmin(admin.ModelAdmin):
+    """Admin interface for SMS sender IDs."""
+
+    list_display = [
+        'sender_id', 'tenant', 'provider', 'status_badge', 'created_at'
+    ]
+    list_filter = [
+        'status', 'provider__provider_type', 'created_at', 'tenant'
+    ]
+    search_fields = [
+        'sender_id', 'tenant__name', 'provider__name'
+    ]
+    readonly_fields = [
+        'id', 'created_at', 'updated_at', 'provider_sender_id'
+    ]
+    list_per_page = 25
+
+    fieldsets = (
+        ('Sender ID Information', {
+            'fields': ('sender_id', 'tenant', 'provider', 'sample_content'),
+            'classes': ('wide',)
+        }),
+        ('Status', {
+            'fields': ('status',),
+            'classes': ('wide',)
+        }),
+        ('Provider Data', {
+            'fields': ('provider_sender_id', 'provider_data'),
+            'classes': ('wide', 'collapse')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'created_by'),
+            'classes': ('wide', 'collapse')
+        }),
+    )
+
+    def status_badge(self, obj):
+        """Display status with color-coded badge."""
+        status_colors = {
+            'pending': 'badge-warning',
+            'active': 'badge-success',
+            'inactive': 'badge-secondary',
+            'rejected': 'badge-danger'
+        }
+        color = status_colors.get(obj.status, 'badge-secondary')
+        return format_html(f'<span class="badge {color}">{obj.status.title()}</span>')
+    status_badge.short_description = 'Status'
+
+    class Meta:
+        verbose_name = "SMS Sender ID"
+        verbose_name_plural = "SMS Sender IDs"
+
+
+@admin.register(SMSMessage)
+class SMSMessageAdmin(admin.ModelAdmin):
+    """Admin interface for SMS messages."""
+
+    list_display = [
+        'base_message', 'provider', 'sender_id', 'status_badge', 'cost_amount', 'sent_at'
+    ]
+    list_filter = [
+        'status', 'provider__provider_type', 'sent_at', 'created_at'
+    ]
+    search_fields = [
+        'base_message__text', 'sender_id__sender_id', 'provider__name'
+    ]
+    readonly_fields = [
+        'id', 'created_at', 'updated_at', 'sent_at', 'delivered_at'
+    ]
+    list_per_page = 25
+
+    fieldsets = (
+        ('Message Information', {
+            'fields': ('base_message', 'provider', 'sender_id', 'template'),
+            'classes': ('wide',)
+        }),
+        ('Status & Delivery', {
+            'fields': ('status', 'sent_at', 'delivered_at', 'error_message'),
+            'classes': ('wide',)
+        }),
+        ('Cost Information', {
+            'fields': ('cost_amount', 'cost_currency'),
+            'classes': ('wide',)
+        }),
+        ('Provider Data', {
+            'fields': ('provider_message_id', 'provider_response'),
+            'classes': ('wide', 'collapse')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('wide', 'collapse')
+        }),
+    )
+
+    def status_badge(self, obj):
+        """Display status with color-coded badge."""
+        status_colors = {
+            'queued': 'badge-warning',
+            'sent': 'badge-info',
+            'delivered': 'badge-success',
+            'failed': 'badge-danger',
+            'read': 'badge-success'
+        }
+        color = status_colors.get(obj.status, 'badge-secondary')
+        return format_html(f'<span class="badge {color}">{obj.status.title()}</span>')
+    status_badge.short_description = 'Status'
+
+    class Meta:
+        verbose_name = "SMS Message"
+        verbose_name_plural = "SMS Messages"
+
+
+@admin.register(SMSTemplate)
+class SMSTemplateAdmin(admin.ModelAdmin):
+    """Admin interface for SMS templates."""
+
+    list_display = [
+        'name', 'category', 'tenant', 'is_active', 'created_at'
+    ]
+    list_filter = [
+        'category', 'is_active', 'created_at', 'tenant'
+    ]
+    search_fields = [
+        'name', 'message', 'category', 'tenant__name'
+    ]
+    readonly_fields = [
+        'id', 'created_at', 'updated_at'
+    ]
+    list_per_page = 25
+
+    fieldsets = (
+        ('Template Information', {
+            'fields': ('name', 'category', 'message', 'tenant'),
+            'classes': ('wide',)
+        }),
+        ('Status', {
+            'fields': ('is_active',),
+            'classes': ('wide',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'created_by'),
+            'classes': ('wide', 'collapse')
+        }),
+    )
+
+    class Meta:
+        verbose_name = "SMS Template"
+        verbose_name_plural = "SMS Templates"
+
+
+@admin.register(SMSDeliveryReport)
+class SMSDeliveryReportAdmin(admin.ModelAdmin):
+    """Admin interface for SMS delivery reports."""
+
+    list_display = [
+        'sms_message', 'status', 'dest_addr', 'delivered_at', 'received_at'
+    ]
+    list_filter = [
+        'status', 'delivered_at', 'received_at'
+    ]
+    search_fields = [
+        'sms_message__base_message__text', 'provider_message_id', 'dest_addr'
+    ]
+    readonly_fields = [
+        'id', 'received_at', 'delivered_at'
+    ]
+    list_per_page = 25
+
+
+@admin.register(SMSBulkUpload)
+class SMSBulkUploadAdmin(admin.ModelAdmin):
+    """Admin interface for SMS bulk uploads."""
+
+    list_display = [
+        'file_name', 'tenant', 'status_badge', 'total_rows', 'processed_rows', 'created_at'
+    ]
+    list_filter = [
+        'status', 'created_at', 'tenant'
+    ]
+    search_fields = [
+        'file_name', 'tenant__name'
+    ]
+    readonly_fields = [
+        'id', 'created_at', 'completed_at', 'total_rows', 'processed_rows', 'successful_rows', 'failed_rows'
+    ]
+    list_per_page = 25
+
+    def status_badge(self, obj):
+        """Display status with color-coded badge."""
+        status_colors = {
+            'pending': 'badge-warning',
+            'processing': 'badge-info',
+            'completed': 'badge-success',
+            'failed': 'badge-danger'
+        }
+        color = status_colors.get(obj.status, 'badge-secondary')
+        return format_html(f'<span class="badge {color}">{obj.status.title()}</span>')
+    status_badge.short_description = 'Status'
+
+
+@admin.register(SMSSchedule)
+class SMSScheduleAdmin(admin.ModelAdmin):
+    """Admin interface for SMS schedules."""
+
+    list_display = [
+        'name', 'tenant', 'frequency', 'is_active', 'next_run', 'created_at'
+    ]
+    list_filter = [
+        'frequency', 'is_active', 'created_at', 'tenant'
+    ]
+    search_fields = [
+        'name', 'tenant__name'
+    ]
+    readonly_fields = [
+        'id', 'created_at', 'updated_at', 'next_run', 'last_run'
+    ]
+    list_per_page = 25
+
+    fieldsets = (
+        ('Schedule Information', {
+            'fields': ('name', 'tenant', 'frequency', 'is_active'),
+            'classes': ('wide',)
+        }),
+        ('Timing', {
+            'fields': ('next_run', 'last_run'),
+            'classes': ('wide',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'created_by'),
+            'classes': ('wide', 'collapse')
+        }),
+    )

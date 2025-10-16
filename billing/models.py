@@ -20,7 +20,7 @@ class SMSPackage(models.Model):
         ('enterprise', 'Enterprise'),
         ('custom', 'Custom'),
     ]
-    
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
     package_type = models.CharField(max_length=20, choices=PACKAGE_TYPES)
@@ -32,14 +32,14 @@ class SMSPackage(models.Model):
     features = models.JSONField(default=list, blank=True, help_text="List of features")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'sms_packages'
         ordering = ['price']
-    
+
     def __str__(self):
         return f"{self.name} - {self.credits} credits"
-    
+
     @property
     def savings_percentage(self):
         """Calculate savings compared to standard rate."""
@@ -60,19 +60,19 @@ class SMSBalance(models.Model):
     total_used = models.PositiveIntegerField(default=0)
     last_updated = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'sms_balances'
-    
+
     def __str__(self):
         return f"{self.tenant.name} - {self.credits} credits"
-    
+
     def add_credits(self, amount):
         """Add credits to balance."""
         self.credits += amount
         self.total_purchased += amount
         self.save()
-    
+
     def use_credits(self, amount):
         """Use credits from balance."""
         if self.credits >= amount:
@@ -96,7 +96,7 @@ class PaymentTransaction(models.Model):
         ('expired', 'Expired'),
         ('refunded', 'Refunded'),
     ]
-    
+
     PAYMENT_METHODS = [
         ('zenopay_mobile_money', 'ZenoPay Mobile Money'),
         ('mpesa', 'M-Pesa'),
@@ -105,61 +105,61 @@ class PaymentTransaction(models.Model):
         ('bank_transfer', 'Bank Transfer'),
         ('credit_card', 'Credit Card'),
     ]
-    
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='payment_transactions')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payment_transactions')
-    
+
     # ZenoPay specific fields
     zenopay_order_id = models.CharField(max_length=100, unique=True, help_text="ZenoPay order ID")
     zenopay_reference = models.CharField(max_length=100, blank=True, help_text="ZenoPay reference number")
     zenopay_transid = models.CharField(max_length=100, blank=True, help_text="ZenoPay transaction ID")
     zenopay_channel = models.CharField(max_length=50, blank=True, help_text="Payment channel (e.g., MPESA-TZ)")
     zenopay_msisdn = models.CharField(max_length=20, blank=True, help_text="Customer phone number")
-    
+
     # Transaction details
     order_id = models.CharField(max_length=100, unique=True, help_text="Internal order ID")
     invoice_number = models.CharField(max_length=50, unique=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default='TZS')
-    
+
     # Customer details
     buyer_email = models.EmailField()
     buyer_name = models.CharField(max_length=100)
     buyer_phone = models.CharField(max_length=20)
-    
+
     # Payment details
     payment_method = models.CharField(max_length=30, choices=PAYMENT_METHODS)
     payment_reference = models.CharField(max_length=100, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    
+
     # Webhook and callback
     webhook_url = models.URLField(blank=True)
     webhook_received = models.BooleanField(default=False)
     webhook_data = models.JSONField(default=dict, blank=True)
-    
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     failed_at = models.DateTimeField(null=True, blank=True)
-    
+
     # Additional metadata
     metadata = models.JSONField(default=dict, blank=True)
     error_message = models.TextField(blank=True)
-    
+
     class Meta:
         db_table = 'payment_transactions'
         ordering = ['-created_at']
-    
+
     def __str__(self):
         return f"Payment {self.order_id} - {self.amount} {self.currency}"
-    
+
     def mark_as_processing(self):
         """Mark transaction as processing."""
         self.status = 'processing'
         self.save()
-    
+
     def mark_as_completed(self, zenopay_data=None):
         """Mark transaction as completed."""
         self.status = 'completed'
@@ -168,7 +168,7 @@ class PaymentTransaction(models.Model):
             self.webhook_data = zenopay_data
             self.webhook_received = True
         self.save()
-    
+
     def mark_as_failed(self, error_message=None):
         """Mark transaction as failed."""
         self.status = 'failed'
@@ -176,15 +176,16 @@ class PaymentTransaction(models.Model):
         if error_message:
             self.error_message = error_message
         self.save()
-    
+
     def mark_as_cancelled(self):
         """Mark transaction as cancelled."""
         self.status = 'cancelled'
         self.save()
-    
+
     def mark_as_expired(self, error_message=None):
         """Mark transaction as expired."""
         self.status = 'expired'
+        self.failed_at = timezone.now()
         if error_message:
             self.error_message = error_message
         self.save()
@@ -202,7 +203,7 @@ class Purchase(models.Model):
         ('expired', 'Expired'),
         ('refunded', 'Refunded'),
     ]
-    
+
     PAYMENT_METHODS = [
         ('zenopay_mobile_money', 'ZenoPay Mobile Money'),
         ('mpesa', 'M-Pesa'),
@@ -211,68 +212,68 @@ class Purchase(models.Model):
         ('bank_transfer', 'Bank Transfer'),
         ('credit_card', 'Credit Card'),
     ]
-    
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='purchases')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='purchases')
     package = models.ForeignKey(SMSPackage, on_delete=models.CASCADE, related_name='purchases')
-    
+
     # Link to payment transaction
     payment_transaction = models.OneToOneField(
-        PaymentTransaction, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        PaymentTransaction,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         related_name='purchase'
     )
-    
+
     # Transaction details
     invoice_number = models.CharField(max_length=50, unique=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     credits = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
-    
+
     # Payment details
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS)
     payment_reference = models.CharField(max_length=100, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'sms_purchases'
         ordering = ['-created_at']
-    
+
     def __str__(self):
         return f"Purchase {self.invoice_number} - {self.credits} credits"
-    
+
     def complete_purchase(self):
         """Mark purchase as completed and add credits to balance."""
         if self.status == 'pending' or self.status == 'processing':
             self.status = 'completed'
             self.completed_at = timezone.now()
             self.save()
-            
+
             # Add credits to tenant balance
             balance, created = SMSBalance.objects.get_or_create(tenant=self.tenant)
             balance.add_credits(self.credits)
-            
+
             return True
         return False
-    
+
     def mark_as_processing(self):
         """Mark purchase as processing."""
         self.status = 'processing'
         self.save()
-    
+
     def mark_as_failed(self):
         """Mark purchase as failed."""
         self.status = 'failed'
         self.save()
-    
+
     def mark_as_expired(self):
         """Mark purchase as expired."""
         self.status = 'expired'
@@ -290,11 +291,11 @@ class UsageRecord(models.Model):
     credits_used = models.PositiveIntegerField(default=1)
     cost = models.DecimalField(max_digits=10, decimal_places=2, default=25.00)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'sms_usage_records'
         ordering = ['-created_at']
-    
+
     def __str__(self):
         return f"Usage {self.tenant.name} - {self.credits_used} credits"
 
@@ -309,7 +310,7 @@ class BillingPlan(models.Model):
         ('professional', 'Professional'),
         ('enterprise', 'Enterprise'),
     ]
-    
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
     plan_type = models.CharField(max_length=20, choices=PLAN_TYPES)
@@ -317,22 +318,22 @@ class BillingPlan(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default='TZS')
     billing_cycle = models.CharField(max_length=10, choices=[('monthly', 'Monthly'), ('yearly', 'Yearly')])
-    
+
     # Limits
     max_contacts = models.PositiveIntegerField(null=True, blank=True)
     max_campaigns = models.PositiveIntegerField(null=True, blank=True)
     max_sms_per_month = models.PositiveIntegerField(null=True, blank=True)
-    
+
     # Features
     features = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'billing_plans'
         ordering = ['price']
-    
+
     def __str__(self):
         return f"{self.name} - {self.price} {self.currency}/{self.billing_cycle}"
 
@@ -347,32 +348,32 @@ class Subscription(models.Model):
         ('past_due', 'Past Due'),
         ('suspended', 'Suspended'),
     ]
-    
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.OneToOneField('tenants.Tenant', on_delete=models.CASCADE, related_name='subscription')
     plan = models.ForeignKey(BillingPlan, on_delete=models.CASCADE, related_name='subscriptions')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
-    
+
     # Billing periods
     current_period_start = models.DateTimeField()
     current_period_end = models.DateTimeField()
     cancel_at_period_end = models.BooleanField(default=False)
-    
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'subscriptions'
-    
+
     def __str__(self):
         return f"{self.tenant.name} - {self.plan.name}"
-    
+
     @property
     def is_active(self):
         """Check if subscription is currently active."""
         now = timezone.now()
         return (
-            self.status == 'active' and 
+            self.status == 'active' and
             self.current_period_start <= now <= self.current_period_end
         )

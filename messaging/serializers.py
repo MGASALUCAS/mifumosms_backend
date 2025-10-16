@@ -40,13 +40,20 @@ class ContactCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate_phone_e164(self, value):
-        """Validate phone number format."""
+        """Validate phone number format and uniqueness per user."""
         import phonenumbers
         try:
             parsed = phonenumbers.parse(value, None)
             if not phonenumbers.is_valid_number(parsed):
                 raise serializers.ValidationError("Invalid phone number format.")
-            return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+            formatted_phone = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+
+            # Check for duplicate phone number within the same user
+            user = self.context['request'].user
+            if Contact.objects.filter(created_by=user, phone_e164=formatted_phone).exists():
+                raise serializers.ValidationError("A contact with this phone number already exists in your contact list.")
+
+            return formatted_phone
         except phonenumbers.NumberParseException:
             raise serializers.ValidationError("Invalid phone number format.")
 
@@ -299,7 +306,7 @@ class AISuggestionsSerializer(serializers.Serializer):
 
 class PurchaseHistorySerializer(serializers.Serializer):
     """Serializer for purchase history display."""
-    
+
     id = serializers.UUIDField(read_only=True)
     invoice_number = serializers.CharField(read_only=True)
     package_name = serializers.CharField(read_only=True)
@@ -319,7 +326,7 @@ class PurchaseHistorySerializer(serializers.Serializer):
 
 class PurchaseHistorySummarySerializer(serializers.Serializer):
     """Serializer for purchase history summary statistics."""
-    
+
     total_purchases = serializers.IntegerField(read_only=True)
     total_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     total_credits = serializers.IntegerField(read_only=True)

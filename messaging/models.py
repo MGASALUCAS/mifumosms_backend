@@ -24,7 +24,7 @@ class Contact(models.Model):
 
     # Basic information
     name = models.CharField(max_length=255)
-    phone_e164 = models.CharField(max_length=20, unique=True)  # E.164 format
+    phone_e164 = models.CharField(max_length=20)  # E.164 format - unique per user
     email = models.EmailField(blank=True)
 
     # Additional attributes (JSON field for flexibility)
@@ -49,6 +49,7 @@ class Contact(models.Model):
     class Meta:
         db_table = 'contacts'
         ordering = ['-created_at']
+        unique_together = [['created_by', 'phone_e164']]
 
     def __str__(self):
         return f"{self.name} ({self.phone_e164})"
