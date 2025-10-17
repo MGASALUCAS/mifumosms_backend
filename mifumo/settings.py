@@ -18,7 +18,7 @@ DEBUG = config('DJANGO_DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config(
     'DJANGO_ALLOWED_HOSTS',
-    default='.localhost,.mifumo.local,127.0.0.1,localhost,104.131.116.55,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev'
+    default='.localhost,.mifumo.local,127.0.0.1,localhost,104.131.116.55,196.249.97.239,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev'
 ).split(',')
 
 SITE_ID = 1
@@ -282,22 +282,31 @@ CSRF_TRUSTED_ORIGINS = [
     # add your server IP (HTTP) and the exact port you are using
     'http://104.131.116.55',
     'http://104.131.116.55:8000',
+    # add production server IP
+    'http://196.249.97.239',
+    'http://196.249.97.239:8000',
+    'https://196.249.97.239',
+    'https://196.249.97.239:8000',
     # add any real domains you use (https), e.g. ngrok:
     'https://ileana-unsupposed-nonmortally.ngrok-free.dev',
 ]
 
 
 # Session / CSRF cookies
-SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=not DEBUG, cast=bool)
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)  # Set to False for HTTP in production
 SESSION_COOKIE_HTTPONLY = config('SESSION_COOKIE_HTTPONLY', default=True, cast=bool)
 SESSION_COOKIE_AGE = config('SESSION_COOKIE_AGE', default=86400, cast=int)
+SESSION_COOKIE_SAMESITE = 'Lax'
 
-CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=not DEBUG, cast=bool)
-CSRF_COOKIE_HTTPONLY = config('CSRF_COOKIE_HTTPONLY', default=True, cast=bool)
-
-# CSRF settings for API endpoints
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)  # Set to False for HTTP in production
+CSRF_COOKIE_HTTPONLY = config('CSRF_COOKIE_HTTPONLY', default=False, cast=bool)  # Set to False to allow JavaScript access
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_USE_SESSIONS = False
+
+# Additional CSRF settings for better compatibility
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+CSRF_COOKIE_DOMAIN = None  # Allow cookies for all domains
 
 # =============================================================================
 # CELERY
