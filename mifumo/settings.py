@@ -108,13 +108,16 @@ WSGI_APPLICATION = 'mifumo.wsgi.application'
 
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'mifumosms',
-        'USER': 'mifumoSuperSms',
-        'PASSWORD': 'Hero123\r',
-        'HOST': 'localhost',
-        'PORT': '',
+    "default": dj_database_url.config(
+        default=None,  # use if DATABASE_URL is set
+        conn_max_age=600,
+    ) or {
+        "ENGINE": "django.db.backends.postgresql_psycopg2",
+        "NAME": config("DB_NAME", default="mifumosms"),
+        "USER": config("DB_USER", default="mifumoSuperSms"),
+        "PASSWORD": config("DB_PASSWORD", default="mifumoSuperSms123Another"),  # expects literal \r if you escape it in .env
+        "HOST": config("DB_HOST", default="localhost"),
+        "PORT": config("DB_PORT", default="5432"),
     }
 }
 
