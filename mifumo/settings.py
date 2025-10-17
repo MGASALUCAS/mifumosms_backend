@@ -18,7 +18,7 @@ DEBUG = config('DJANGO_DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config(
     'DJANGO_ALLOWED_HOSTS',
-    default='.localhost,.mifumo.local,127.0.0.1,localhost,104.131.116.55,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev'
+    default='.localhost,.mifumo.local,127.0.0.1,localhost,104.131.116.55,196.249.97.239,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev,testserver'
 ).split(',')
 
 SITE_ID = 1

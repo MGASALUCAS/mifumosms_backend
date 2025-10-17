@@ -72,8 +72,16 @@ def test_beem_connection():
     try:
         from messaging.services.sms_service import BeemSMSService
         
+        # Get provider for Beem service
+        tenant = Tenant.objects.filter(subdomain='default').first()
+        provider = SMSProvider.objects.filter(tenant=tenant, is_active=True).first()
+        
+        if not provider:
+            print("❌ No SMS provider found for Beem test")
+            return False
+        
         # Initialize Beem service
-        beem_service = BeemSMSService()
+        beem_service = BeemSMSService(provider)
         
         # Test balance check
         print("💰 Checking Beem balance...")
@@ -108,8 +116,8 @@ def test_sms_sending():
         # Create a test contact
         test_phone = "+255614853618"  # Replace with a real test number
         contact, created = Contact.objects.get_or_create(
-            tenant=tenant,
-            phone_number=test_phone,
+            phone_e164=test_phone,
+            created_by=User.objects.filter(is_superuser=True).first(),
             defaults={
                 'name': 'Test Contact',
                 'email': 'test@example.com',
@@ -117,9 +125,9 @@ def test_sms_sending():
         )
         
         if created:
-            print(f"✅ Created test contact: {contact.name} ({contact.phone_number})")
+            print(f"✅ Created test contact: {contact.name} ({contact.phone_e164})")
         else:
-            print(f"ℹ️  Using existing contact: {contact.name} ({contact.phone_number})")
+            print(f"ℹ️  Using existing contact: {contact.name} ({contact.phone_e164})")
         
         # Create a test message
         message_text = "Hello from Mifumo WMS! This is a test message. Reply STOP to opt out."
@@ -150,15 +158,13 @@ def test_sms_sending():
         print(f"✅ Created SMS message: {sms_message.id}")
         
         # Test SMS service
-        sms_service = SMSService()
+        sms_service = SMSService(tenant_id=str(tenant.id))
         
         print("🚀 Sending SMS...")
         send_result = sms_service.send_sms(
-            tenant=tenant,
-            recipient_number=test_phone,
+            to=test_phone,
             message=message_text,
-            sender_id=sender_id.sender_id,
-            provider=provider
+            sender_id=sender_id.sender_id
         )
         
         if send_result.get('success'):

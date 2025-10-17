@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Quick SMS Test
-Simple test to send one SMS message
+Simple SMS Test - Fixed Version
+This script tests SMS sending with correct method signatures
 """
 
 import os
@@ -17,8 +17,8 @@ from messaging.models_sms import SMSProvider, SMSSenderID
 from messaging.services.sms_service import SMSService
 
 def main():
-    print("📱 Quick SMS Test")
-    print("=" * 30)
+    print("📱 Simple SMS Test - Fixed Version")
+    print("=" * 40)
     
     # Get tenant and provider
     tenant = Tenant.objects.filter(subdomain='default').first()
@@ -40,27 +40,31 @@ def main():
     print(f"✅ Provider: {provider.name}")
     print(f"✅ Sender ID: {sender_id.sender_id}")
     
-    # Test phone number (replace with real number)
-    test_phone = "+255614853618"  # Change this to a real number
+    # Test phone number
+    test_phone = "+255614853618"
     message = "Hello from Mifumo WMS! This is a test message."
     
     print(f"\n📤 Sending SMS to: {test_phone}")
     print(f"📝 Message: {message}")
     
-    # Send SMS
-    sms_service = SMSService(tenant_id=str(tenant.id))
-    result = sms_service.send_sms(
-        to=test_phone,
-        message=message,
-        sender_id=sender_id.sender_id
-    )
-    
-    if result.get('success'):
-        print("✅ SMS sent successfully!")
-        print(f"   Message ID: {result.get('message_id', 'N/A')}")
-        print(f"   Cost: {result.get('cost', 'N/A')}")
-    else:
-        print(f"❌ SMS failed: {result.get('error', 'Unknown error')}")
+    try:
+        # Send SMS with correct method signature
+        sms_service = SMSService(tenant_id=str(tenant.id))
+        result = sms_service.send_sms(
+            to=test_phone,
+            message=message,
+            sender_id=sender_id.sender_id
+        )
+        
+        if result.get('success'):
+            print("✅ SMS sent successfully!")
+            print(f"   Message ID: {result.get('message_id', 'N/A')}")
+            print(f"   Cost: {result.get('cost', 'N/A')}")
+        else:
+            print(f"❌ SMS failed: {result.get('error', 'Unknown error')}")
+            
+    except Exception as e:
+        print(f"❌ SMS sending failed with exception: {e}")
 
 if __name__ == "__main__":
     main()
