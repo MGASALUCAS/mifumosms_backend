@@ -274,10 +274,18 @@ CORS_EXPOSE_HEADERS = [
 ]
 
 # Useful CSRF trusted origins (must include scheme)
+# ---- CSRF trusted origins (must include scheme; add non-standard port too) ----
 CSRF_TRUSTED_ORIGINS = [
-    origin for origin in CORS_ALLOWED_ORIGINS
-    if origin.startswith('http://') or origin.startswith('https://')
+    # keep anything you already trust via CORS:
+    *[origin for origin in CORS_ALLOWED_ORIGINS
+      if origin.startswith('http://') or origin.startswith('https://')],
+    # add your server IP (HTTP) and the exact port you are using
+    'http://104.131.116.55',
+    'http://104.131.116.55:8000',
+    # add any real domains you use (https), e.g. ngrok:
+    'https://ileana-unsupposed-nonmortally.ngrok-free.dev',
 ]
+
 
 # Session / CSRF cookies
 SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=not DEBUG, cast=bool)
