@@ -113,9 +113,9 @@ DATABASES = {
         conn_max_age=600,
     ) or {
         "ENGINE": "django.db.backends.postgresql_psycopg2",
-        "NAME": config("DB_NAME", default="mifumosms"),
-        "USER": config("DB_USER", default="mifumoSuperSms"),
-        "PASSWORD": config("DB_PASSWORD", default="mifumoSuperSms123Another"),  # expects literal \r if you escape it in .env
+        "NAME": config("DB_NAME", default="my_name"),
+        "USER": config("DB_USER", default="my_name"),
+        "PASSWORD": config("DB_PASSWORD", default="My123db"),  # expects literal \r if you escape it in .env
         "HOST": config("DB_HOST", default="localhost"),
         "PORT": config("DB_PORT", default="5432"),
     }
