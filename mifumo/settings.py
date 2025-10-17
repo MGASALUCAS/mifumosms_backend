@@ -299,12 +299,14 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # Session / CSRF cookies
-SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=not DEBUG, cast=bool)
+# For HTTP servers, these must be False (even in production if using HTTP)
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
 SESSION_COOKIE_HTTPONLY = config('SESSION_COOKIE_HTTPONLY', default=True, cast=bool)
 SESSION_COOKIE_AGE = config('SESSION_COOKIE_AGE', default=86400, cast=int)
+SESSION_COOKIE_SAMESITE = 'Lax'
 
-CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=not DEBUG, cast=bool)
-CSRF_COOKIE_HTTPONLY = config('CSRF_COOKIE_HTTPONLY', default=True, cast=bool)
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
+CSRF_COOKIE_HTTPONLY = config('CSRF_COOKIE_HTTPONLY', default=False, cast=bool)
 
 # CSRF settings for API endpoints
 CSRF_COOKIE_SAMESITE = 'Lax'
