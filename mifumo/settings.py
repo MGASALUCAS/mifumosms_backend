@@ -107,19 +107,47 @@ WSGI_APPLICATION = 'mifumo.wsgi.application'
 # }
 
 
-DATABASES = {
-    "default": dj_database_url.config(
-        default=None,  # use if DATABASE_URL is set
-        conn_max_age=600,
-    ) or {
-        "ENGINE": "django.db.backends.postgresql_psycopg2",
-        "NAME": config("DB_NAME", default="my_name"),
-        "USER": config("DB_USER", default="my_name"),
-        "PASSWORD": config("DB_PASSWORD", default="My123db"),  # expects literal \r if you escape it in .env
-        "HOST": config("DB_HOST", default="localhost"),
-        "PORT": config("DB_PORT", default="5432"),
+# =============================================================================
+# DATABASE (from .env only)
+# =============================================================================
+import warnings
+
+# Prefer a single DATABASE_URL; otherwise read individual keys from .env.
+DB_URL = config('DATABASE_URL', default='')
+if DB_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(DB_URL, conn_max_age=600, ssl_require=False),
     }
-}
+else:
+    # Fall back to discrete env vars (still from .env). No hard-coded defaults.
+    DB_NAME = config('DB_NAME')
+    DB_USER = config('DB_USER')
+    DB_PASSWORD = config('DB_PASSWORD')
+    DB_HOST = config('DB_HOST', default='127.0.0.1')  # prefer IPv4
+    DB_PORT = config('DB_PORT', default='5432')
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': DB_NAME,
+            'USER': DB_USER,
+            'PASSWORD': DB_PASSWORD,
+            'HOST': DB_HOST,
+            'PORT': DB_PORT,
+            # Optional pool-ish keepalive
+            'CONN_MAX_AGE': 600,
+        }
+    }
+
+# Helpful warning if nothing was provided
+if not DB_URL and not all(
+    k in os.environ for k in ['DB_NAME', 'DB_USER', 'DB_PASSWORD']
+):
+    warnings.warn(
+        "No DATABASE_URL and missing one of DB_NAME/DB_USER/DB_PASSWORD in environment. "
+        "Set them in your .env before running migrations."
+    )
+
 
 # =============================================================================
 # AUTH / USERS
