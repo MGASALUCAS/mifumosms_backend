@@ -58,11 +58,12 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 if not User.objects.filter(is_superuser=True).exists():
     User.objects.create_superuser(
-        username='admin',
         email='admin@mifumo.com',
-        password='admin123'  # Change this password!
+        password='admin123',  # Change this password!
+        first_name='Admin',
+        last_name='User'
     )
-    print("✅ Superuser created: admin/admin123")
+    print("✅ Superuser created: admin@mifumo.com/admin123")
 else:
     print("ℹ️  Superuser already exists")
 EOF
@@ -86,4 +87,4 @@ echo ""
 echo "Next steps:"
 echo "1. Restart your Django server"
 echo "2. Access http://196.249.97.239:8000/admin/login/"
-echo "3. Login with admin/admin123 (change password immediately!)"
+echo "3. Login with admin@mifumo.com/admin123 (change password immediately!)"

@@ -103,9 +103,13 @@ def create_superuser():
     try:
         if not User.objects.filter(is_superuser=True).exists():
             print("Creating superuser...")
-            call_command('createsuperuser', interactive=False, 
-                        username='admin', email='admin@mifumo.com')
-            print("✅ Superuser created successfully")
+            User.objects.create_superuser(
+                email='admin@mifumo.com',
+                password='admin123',
+                first_name='Admin',
+                last_name='User'
+            )
+            print("✅ Superuser created: admin@mifumo.com/admin123")
         else:
             print("ℹ️  Superuser already exists")
         return True
