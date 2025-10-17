@@ -8,8 +8,8 @@
 # ENVIRONMENT CONFIGURATION
 # =============================================================================
 # NEVER commit environment files with real secrets
-# .env
-# .env.local
+ .env
+ .env.local
 # .env.development
 # .env.staging
 # .env.production

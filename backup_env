@@ -1,0 +1,138 @@
+# =============================================================================
+# MIFUMO WMS - ENVIRONMENT CONFIGURATION
+# =============================================================================
+# Copy this file to .env and fill in your actual values
+# NEVER commit the .env file to version control
+# =============================================================================
+
+# =============================================================================
+# DJANGO CORE SETTINGS
+# =============================================================================
+# Django secret key - Generate a new one for production
+DJANGO_SECRET_KEY=django-insecure-change-me-in-production-use-strong-random-key
+
+# Debug mode - Set to False in production
+DJANGO_DEBUG=False
+
+# Allowed hosts - Comma-separated list of allowed hosts
+DJANGO_ALLOWED_HOSTS=.localhost,.mifumo.local,127.0.0.1,localhost,*.mifumo.com,*.ngrok-free.dev,ileana-unsupposed-nonmortally.ngrok-free.dev,104.131.116.55
+
+# =============================================================================
+# DATABASE CONFIGURATION
+# =============================================================================
+# Database URL - Use PostgreSQL in production
+ DATABASE_URL=postgres://my_name:My123db@localhost:5432/my_name
+# DATABASE_URL=sqlite:///db.sqlite3
+
+DB_NAME=my_name
+DB_USER=my_name
+DB_PASSWORD=My123db
+DB_HOST=localhost
+DB_PORT=5432
+
+
+# =============================================================================
+# REDIS CONFIGURATION
+# =============================================================================
+# Redis URL for Celery and caching
+REDIS_URL=redis://localhost:6379/0
+
+# =============================================================================
+# WHATSAPP BUSINESS CLOUD API
+# =============================================================================
+# WhatsApp Business Cloud API credentials
+WA_PHONE_NUMBER_ID=your-whatsapp-phone-number-id
+WA_TOKEN=your-whatsapp-access-token
+WA_VERIFY_TOKEN=your-whatsapp-verify-token
+WA_API_BASE=https://graph.facebook.com/v20.0
+
+# =============================================================================
+# SMS PROVIDERS CONFIGURATION
+# =============================================================================
+# Beem Africa SMS (Primary Provider)
+BEEM_API_KEY=62f8c3a2cb510335
+BEEM_SECRET_KEY="YmM4YWMyNjk0NzNlYTE2ZTZmNGE1MDFjZDBjNjE1YjAyMDJhMjJlY2I2MWEwNDIwNTkwMzBhYmMwNzBiMDU4NQ=="
+BEEM_DEFAULT_SENDER_ID=Taarifa-SMS
+BEEM_API_TIMEOUT=30
+BEEM_API_BASE_URL=https://apisms.beem.africa/v1
+BEEM_SEND_URL=https://apisms.beem.africa/v1/send
+BEEM_BALANCE_URL=https://apisms.beem.africa/public/v1/vendors/balance
+BEEM_DELIVERY_URL=https://dlrapi.beem.africa/public/v1/delivery-reports
+BEEM_SENDER_URL=https://apisms.beem.africa/public/v1/sender-names
+BEEM_TEMPLATE_URL=https://apisms.beem.africa/public/v1/sms-templates
+
+# ZenoPay Payment Gateway Configuration
+ZENOPAY_API_KEY=LBuyNIp15jYrozKw5En9FdgNf4ICk_nkAIkD3qOkUobiXsigO4nO17ofRtq00oGSlFKiFVXP0TNAXIQUMlKB1g
+ZENOPAY_API_TIMEOUT=30
+ZENOPAY_WEBHOOK_SECRET=ICk_nkAIkD3qOkUobiXsigO4nO17ofRtq00oGSlFKiFVXP0TNAXIQUMlKB1g
+BASE_URL=https://ileana-unsupposed-nonmortally.ngrok-free.dev
+
+# Twilio SMS (Optional Secondary Provider)
+TWILIO_ACCOUNT_SID=your-twilio-account-sid
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_PHONE_NUMBER=your-twilio-phone-number
+
+# =============================================================================
+# AI SERVICES CONFIGURATION
+# =============================================================================
+# Hugging Face AI Integration
+HF_API_URL=https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3.1-8B-Instruct
+HF_API_KEY=your-huggingface-api-key
+
+# =============================================================================
+# BILLING & PAYMENT CONFIGURATION
+# =============================================================================
+# Stripe Payment Processing
+STRIPE_SECRET_KEY=sk_test_your-stripe-secret-key
+STRIPE_PUBLISHABLE_KEY=pk_test_your-stripe-publishable-key
+STRIPE_WEBHOOK_SECRET=whsec_your-stripe-webhook-secret
+
+# =============================================================================
+# EMAIL CONFIGURATION
+# =============================================================================
+# SMTP Email Settings
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=your-app-password
+EMAIL_FROM_NAME=Mifumo WMS
+EMAIL_FROM_ADDRESS=noreply@mifumo.com
+
+# =============================================================================
+# SECURITY CONFIGURATION
+# =============================================================================
+# CORS Settings
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,https://app.mifumo.com
+CORS_ALLOW_CREDENTIALS=True
+
+# =============================================================================
+# MONITORING & LOGGING
+# =============================================================================
+# Sentry Error Tracking
+SENTRY_DSN=
+
+# =============================================================================
+# WEBHOOK CONFIGURATION
+# =============================================================================
+# Webhook secrets for external services
+WEBHOOK_SECRET_WHATSAPP=your-whatsapp-webhook-secret
+WEBHOOK_SECRET_STRIPE=your-stripe-webhook-secret
+
+# =============================================================================
+# BUSINESS CONFIGURATION
+# =============================================================================
+# Business settings
+COMPANY_NAME=Mifumo Labs
+COMPANY_EMAIL=hello@mifumo.com
+COMPANY_PHONE=+255700000000
+
+# =============================================================================
+# FEATURE FLAGS
+# =============================================================================
+# Enable/disable features
+ENABLE_AI_FEATURES=True
+ENABLE_SMS_FEATURES=True
+ENABLE_WHATSAPP_FEATURES=True
+ENABLE_BILLING_FEATURES=True
+D
