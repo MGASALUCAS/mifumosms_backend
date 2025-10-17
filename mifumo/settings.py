@@ -18,7 +18,7 @@ DEBUG = config('DJANGO_DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config(
     'DJANGO_ALLOWED_HOSTS',
-    default='.localhost,.mifumo.local,127.0.0.1,localhost,104.131.116.55,196.249.97.239,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev'
+    default='.localhost,.mifumo.local,127.0.0.1,localhost,104.131.116.55,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev'
 ).split(',')
 
 SITE_ID = 1
@@ -100,53 +100,53 @@ WSGI_APPLICATION = 'mifumo.wsgi.application'
 # =============================================================================
 # DATABASE
 # =============================================================================
-# DATABASES = {
-#      'default': dj_database_url.config(
-#          default=config('DATABASE_URL', default='sqlite:///db.sqlite3')
-#      )
-#  }
+DATABASES = {
+     'default': dj_database_url.config(
+         default=config('DATABASE_URL', default='sqlite:///db.sqlite3')
+     )
+ }
 
 
 # =============================================================================
 # DATABASE (from .env only)
 # =============================================================================
-import warnings
+# import warnings
 
-# Prefer a single DATABASE_URL; otherwise read individual keys from .env.
-DB_URL = config('DATABASE_URL', default='')
-if DB_URL:
-    DATABASES = {
-        'default': dj_database_url.parse(DB_URL, conn_max_age=600, ssl_require=False),
-    }
-else:
-    # Fall back to discrete env vars (still from .env). No hard-coded defaults.
-    DB_NAME = config('DB_NAME')
-    DB_USER = config('DB_USER')
-    DB_PASSWORD = config('DB_PASSWORD')
-    DB_HOST = config('DB_HOST', default='127.0.0.1')  # prefer IPv4
-    DB_PORT = config('DB_PORT', default='5432')
+# # Prefer a single DATABASE_URL; otherwise read individual keys from .env.
+# DB_URL = config('DATABASE_URL', default='')
+# if DB_URL:
+#     DATABASES = {
+#         'default': dj_database_url.parse(DB_URL, conn_max_age=600, ssl_require=False),
+#     }
+# else:
+#     # Fall back to discrete env vars (still from .env). No hard-coded defaults.
+#     DB_NAME = config('DB_NAME')
+#     DB_USER = config('DB_USER')
+#     DB_PASSWORD = config('DB_PASSWORD')
+#     DB_HOST = config('DB_HOST', default='127.0.0.1')  # prefer IPv4
+#     DB_PORT = config('DB_PORT', default='5432')
 
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql_psycopg2',
-            'NAME': DB_NAME,
-            'USER': DB_USER,
-            'PASSWORD': DB_PASSWORD,
-            'HOST': DB_HOST,
-            'PORT': DB_PORT,
-            # Optional pool-ish keepalive
-            'CONN_MAX_AGE': 600,
-        }
-    }
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': 'django.db.backends.postgresql_psycopg2',
+#             'NAME': DB_NAME,
+#             'USER': DB_USER,
+#             'PASSWORD': DB_PASSWORD,
+#             'HOST': DB_HOST,
+#             'PORT': DB_PORT,
+#             # Optional pool-ish keepalive
+#             'CONN_MAX_AGE': 600,
+#         }
+#     }
 
-# Helpful warning if nothing was provided
-if not DB_URL and not all(
-    k in os.environ for k in ['DB_NAME', 'DB_USER', 'DB_PASSWORD']
-):
-    warnings.warn(
-        "No DATABASE_URL and missing one of DB_NAME/DB_USER/DB_PASSWORD in environment. "
-        "Set them in your .env before running migrations."
-    )
+# # Helpful warning if nothing was provided
+# if not DB_URL and not all(
+#     k in os.environ for k in ['DB_NAME', 'DB_USER', 'DB_PASSWORD']
+# ):
+#     warnings.warn(
+#         "No DATABASE_URL and missing one of DB_NAME/DB_USER/DB_PASSWORD in environment. "
+#         "Set them in your .env before running migrations."
+#     )
 
 
 # =============================================================================
@@ -192,7 +192,15 @@ USE_TZ = True
 # =============================================================================
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+
+# Use different static file storage based on environment
+if DEBUG:
+    # Local development - use default Django static file serving
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+else:
+    # Production - use whitenoise for compressed static files
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+
 STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
 
 MEDIA_URL = '/media/'
@@ -274,39 +282,22 @@ CORS_EXPOSE_HEADERS = [
 ]
 
 # Useful CSRF trusted origins (must include scheme)
-# ---- CSRF trusted origins (must include scheme; add non-standard port too) ----
 CSRF_TRUSTED_ORIGINS = [
-    # keep anything you already trust via CORS:
-    *[origin for origin in CORS_ALLOWED_ORIGINS
-      if origin.startswith('http://') or origin.startswith('https://')],
-    # add your server IP (HTTP) and the exact port you are using
-    'http://104.131.116.55',
-    'http://104.131.116.55:8000',
-    # add production server IP
-    'http://196.249.97.239',
-    'http://196.249.97.239:8000',
-    'https://196.249.97.239',
-    'https://196.249.97.239:8000',
-    # add any real domains you use (https), e.g. ngrok:
-    'https://ileana-unsupposed-nonmortally.ngrok-free.dev',
+    origin for origin in CORS_ALLOWED_ORIGINS
+    if origin.startswith('http://') or origin.startswith('https://')
 ]
 
-
 # Session / CSRF cookies
-SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)  # Set to False for HTTP in production
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=not DEBUG, cast=bool)
 SESSION_COOKIE_HTTPONLY = config('SESSION_COOKIE_HTTPONLY', default=True, cast=bool)
 SESSION_COOKIE_AGE = config('SESSION_COOKIE_AGE', default=86400, cast=int)
-SESSION_COOKIE_SAMESITE = 'Lax'
 
-CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)  # Set to False for HTTP in production
-CSRF_COOKIE_HTTPONLY = config('CSRF_COOKIE_HTTPONLY', default=False, cast=bool)  # Set to False to allow JavaScript access
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=not DEBUG, cast=bool)
+CSRF_COOKIE_HTTPONLY = config('CSRF_COOKIE_HTTPONLY', default=True, cast=bool)
+
+# CSRF settings for API endpoints
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_USE_SESSIONS = False
-
-# Additional CSRF settings for better compatibility
-CSRF_COOKIE_NAME = 'csrftoken'
-CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
-CSRF_COOKIE_DOMAIN = None  # Allow cookies for all domains
 
 # =============================================================================
 # CELERY
