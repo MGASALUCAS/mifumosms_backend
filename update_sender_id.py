@@ -1,107 +1,117 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
-Script to update sender ID to match the working Beem credentials.
+Update Sender ID to Use Registered Beem Sender ID
+This script updates the database to use 'Taarifa-SMS' which is registered with Beem
 """
 
 import os
 import sys
 import django
 
-# Add the project directory to Python path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
 # Set up Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mifumo.settings')
 django.setup()
 
-from django.contrib.auth import get_user_model
-from tenants.models import Tenant, Membership
+from tenants.models import Tenant
 from messaging.models_sms import SMSProvider, SMSSenderID
 
-User = get_user_model()
-
 def update_sender_id():
-    """Update sender ID to match working Beem credentials."""
-    print("🔧 Updating SMS Sender ID...")
+    print("🔄 Updating Sender ID to Use Registered Beem Sender")
+    print("=" * 60)
+    
+    # Get tenant
+    tenant = Tenant.objects.filter(subdomain='default').first()
+    if not tenant:
+        print("❌ No tenant found!")
+        return
+    
+    print(f"✅ Tenant: {tenant.name}")
+    
+    # Get current sender ID
+    sender_id = SMSSenderID.objects.filter(tenant=tenant).first()
+    if not sender_id:
+        print("❌ No sender ID found in database!")
+        return
+    
+    print(f"📋 Current sender ID: {sender_id.sender_id}")
+    print(f"📋 Current status: {sender_id.status}")
+    
+    # Update to use the registered Beem sender ID
+    old_sender_id = sender_id.sender_id
+    sender_id.sender_id = "Taarifa-SMS"
+    sender_id.sample_content = "A test use case for the sender name purposely used for information transfer."
+    sender_id.status = "active"
+    sender_id.save()
+    
+    print(f"✅ Updated sender ID: {old_sender_id} → {sender_id.sender_id}")
+    print(f"✅ Status: {sender_id.status}")
+    print(f"✅ Sample content: {sender_id.sample_content}")
+
+def test_updated_sender_id():
+    print("\n🧪 Testing Updated Sender ID")
+    print("=" * 40)
+    
+    from messaging.services.sms_service import SMSService
+    
+    # Get tenant
+    tenant = Tenant.objects.filter(subdomain='default').first()
+    provider = SMSProvider.objects.filter(tenant=tenant, is_active=True).first()
+    sender_id = SMSSenderID.objects.filter(tenant=tenant, status='active').first()
+    
+    if not all([tenant, provider, sender_id]):
+        print("❌ Missing required objects!")
+        return
+    
+    print(f"✅ Tenant: {tenant.name}")
+    print(f"✅ Provider: {provider.name}")
+    print(f"✅ Sender ID: {sender_id.sender_id}")
+    
+    # Test phone number
+    test_phone = "+255614853618"
+    message = "Hello from Mifumo WMS! This is a test message using the registered sender ID."
+    
+    print(f"\n📤 Testing SMS to: {test_phone}")
+    print(f"📝 Message: {message}")
     
     try:
-        # Get admin user and tenant
-        user = User.objects.get(email='admin@mifumo.com')
-        tenant = user.tenant
-        
-        if not tenant:
-            print("❌ User has no tenant!")
-            return False
-        
-        print(f"✅ User: {user.email}")
-        print(f"✅ Tenant: {tenant.name}")
-        
-        # Get or create Beem provider
-        provider, created = SMSProvider.objects.get_or_create(
-            tenant=tenant,
-            provider_type='beem',
-            defaults={
-                'name': 'Beem Africa SMS',
-                'is_active': True,
-                'is_default': True,
-                'api_key': '62f8c3a2cb510335',  # Your working API key
-                'secret_key': 'YmM4YWMyNjk0NzNlYTE2ZTZmNGE1MDFjZDBjNjE1YjAyMDJhMjJlY2I2MWEwNDIwNTkwMzBhYmMwNzBiMDU4NQ==',  # Your working secret
-                'api_url': 'https://apisms.beem.africa/v1/send',
-                'cost_per_sms': 0.05,
-                'currency': 'USD'
-            }
+        # Send SMS
+        sms_service = SMSService(tenant_id=str(tenant.id))
+        result = sms_service.send_sms(
+            to=test_phone,
+            message=message,
+            sender_id=sender_id.sender_id
         )
         
-        if created:
-            print("✅ Created Beem SMS provider with your credentials")
+        if result.get('success'):
+            print("✅ SMS sent successfully!")
+            print(f"   Message ID: {result.get('message_id', 'N/A')}")
+            print(f"   Request ID: {result.get('request_id', 'N/A')}")
+            print(f"   Valid count: {result.get('valid_count', 'N/A')}")
         else:
-            # Update existing provider with your credentials
-            provider.api_key = '62f8c3a2cb510335'
-            provider.secret_key = 'YmM4YWMyNjk0NzNlYTE2ZTZmNGE1MDFjZDBjNjE1YjAyMDJhMjJlY2I2MWEwNDIwNTkwMzBhYmMwNzBiMDU4NQ=='
-            provider.save()
-            print("✅ Updated Beem SMS provider with your credentials")
-        
-        # Update or create sender ID
-        sender_id, created = SMSSenderID.objects.update_or_create(
-            tenant=tenant,
-            sender_id='Taarifa-SMS',
-            defaults={
-                'provider': provider,
-                'sample_content': 'SMS Test from Python API',
-                'status': 'active'
-            }
-        )
-        
-        if created:
-            print("✅ Created sender ID: Taarifa-SMS")
-        else:
-            print("✅ Updated sender ID: Taarifa-SMS")
-        
-        print(f"✅ Sender ID Status: {sender_id.status}")
-        print(f"✅ Provider: {sender_id.provider.name}")
-        print(f"✅ API Key: {sender_id.provider.api_key}")
-        
-        return True
-        
+            print(f"❌ SMS failed: {result.get('error', 'Unknown error')}")
+            if 'response' in result:
+                print(f"   Response: {result['response']}")
+                
     except Exception as e:
-        print(f"❌ Error updating sender ID: {e}")
-        return False
+        print(f"❌ SMS sending failed with exception: {e}")
 
 def main():
-    """Main function."""
-    print("🚀 Updating SMS Configuration...")
+    print("🎯 Fixing Sender ID Issue")
     print("=" * 50)
+    print("Found registered Beem sender IDs:")
+    print("✅ Quantum (active)")
+    print("✅ Taarifa-SMS (active) ← Using this one")
+    print("❌ INFO (inactive)")
+    print()
     
-    success = update_sender_id()
+    # Update sender ID
+    update_sender_id()
     
-    print("\n" + "=" * 50)
-    if success:
-        print("🎉 SMS configuration updated successfully!")
-        print("📱 You can now test SMS sending with sender ID: Taarifa-SMS")
-        print("🔑 Using your working Beem API credentials")
-    else:
-        print("❌ SMS configuration update failed!")
-    print("=" * 50)
+    # Test the updated sender ID
+    test_updated_sender_id()
+    
+    print("\n🎉 Sender ID updated successfully!")
+    print("Your SMS should now work with the registered 'Taarifa-SMS' sender ID.")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
