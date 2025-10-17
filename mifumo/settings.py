@@ -18,7 +18,7 @@ DEBUG = config('DJANGO_DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config(
     'DJANGO_ALLOWED_HOSTS',
-    default='.localhost,.mifumo.local,127.0.0.1,localhost,104.131.116.55'
+    default='.localhost,.mifumo.local,127.0.0.1,localhost,104.131.116.55,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev'
 ).split(',')
 
 SITE_ID = 1
@@ -100,10 +100,22 @@ WSGI_APPLICATION = 'mifumo.wsgi.application'
 # =============================================================================
 # DATABASE
 # =============================================================================
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         default=config('DATABASE_URL', default='sqlite:///db.sqlite3')
+#     )
+# }
+
+
 DATABASES = {
-    'default': dj_database_url.config(
-        default=config('DATABASE_URL', default='sqlite:///db.sqlite3')
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'mifumosms',
+        'USER': 'mifumoSuperSms',
+        'PASSWORD': 'Hero123\r',
+        'HOST': 'localhost',
+        'PORT': '',
+    }
 }
 
 # =============================================================================

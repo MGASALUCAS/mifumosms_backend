@@ -118,6 +118,7 @@ def initiate_payment(request):
         buyer_email = request.data.get('buyer_email')
         buyer_name = request.data.get('buyer_name')
         buyer_phone = request.data.get('buyer_phone')
+        mobile_money_provider = request.data.get('mobile_money_provider', 'vodacom')
 
         if not all([package_id, buyer_email, buyer_name, buyer_phone]):
             return Response({
@@ -125,7 +126,38 @@ def initiate_payment(request):
                 'message': 'Missing required fields: package_id, buyer_email, buyer_name, buyer_phone'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        package = get_object_or_404(SMSPackage, id=package_id, is_active=True)
+        # Validate mobile money provider
+        valid_providers = ['vodacom', 'halotel', 'tigo', 'airtel']
+        if mobile_money_provider not in valid_providers:
+            return Response({
+                'success': False,
+                'message': f'Invalid mobile money provider. Choose from: {", ".join(valid_providers)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate phone number format (07 or 06)
+        if not buyer_phone.startswith(('07', '06')):
+            return Response({
+                'success': False,
+                'message': 'Invalid phone number. Must be a Tanzanian mobile number starting with 07 or 06 (e.g., 0744963858)'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate package_id format
+        try:
+            # Try to convert to UUID to validate format
+            uuid.UUID(package_id)
+        except (ValueError, TypeError):
+            return Response({
+                'success': False,
+                'message': f'Invalid package ID format: {package_id}. Please select a valid package.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            package = SMSPackage.objects.get(id=package_id, is_active=True)
+        except SMSPackage.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': f'Package not found or inactive. Please select a valid package.'
+            }, status=status.HTTP_404_NOT_FOUND)
 
         with transaction.atomic():
             internal_order_id = f"MIFUMO-{timezone.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
@@ -150,6 +182,7 @@ def initiate_payment(request):
                 buyer_name=buyer_name,
                 buyer_phone=buyer_phone,
                 payment_method='zenopay_mobile_money',
+                mobile_money_provider=mobile_money_provider,
                 webhook_url=webhook_url
             )
 

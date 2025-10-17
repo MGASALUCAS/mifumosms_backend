@@ -131,6 +131,17 @@ class PaymentTransaction(models.Model):
     # Payment details
     payment_method = models.CharField(max_length=30, choices=PAYMENT_METHODS)
     payment_reference = models.CharField(max_length=100, blank=True)
+    mobile_money_provider = models.CharField(
+        max_length=20,
+        choices=[
+            ('vodacom', 'Vodacom M-Pesa'),
+            ('halotel', 'Halotel'),
+            ('tigo', 'Tigo Pesa'),
+            ('airtel', 'Airtel Money')
+        ],
+        blank=True,
+        help_text='Mobile money provider for payment'
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
 
     # Webhook and callback

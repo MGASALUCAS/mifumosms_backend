@@ -53,7 +53,7 @@ class ZenoPayService:
             
         return phone
     
-    def create_payment(self, order_id, buyer_email, buyer_name, buyer_phone, amount, webhook_url=None):
+    def create_payment(self, order_id, buyer_email, buyer_name, buyer_phone, amount, webhook_url=None, mobile_money_provider='vodacom'):
         """
         Create a payment request with ZenoPay.
         
@@ -64,6 +64,7 @@ class ZenoPayService:
             buyer_phone (str): Customer phone number
             amount (Decimal): Amount in TZS
             webhook_url (str, optional): Webhook URL for status updates
+            mobile_money_provider (str): Mobile money provider (vodacom, halotel, tigo, airtel)
             
         Returns:
             dict: ZenoPay API response
@@ -78,7 +79,8 @@ class ZenoPayService:
                 'buyer_email': buyer_email,
                 'buyer_name': buyer_name,
                 'buyer_phone': formatted_phone,
-                'amount': int(amount)  # ZenoPay expects integer amount
+                'amount': int(amount),  # ZenoPay expects integer amount
+                'mobile_money_provider': mobile_money_provider
             }
             
             # Add webhook URL if provided

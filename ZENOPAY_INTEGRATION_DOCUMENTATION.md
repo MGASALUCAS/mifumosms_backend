@@ -51,9 +51,18 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
     "package_id": "uuid",
     "buyer_email": "user@example.com",
     "buyer_name": "John Doe",
-    "buyer_phone": "0744963858"
+    "buyer_phone": "0744963858",
+    "mobile_money_provider": "vodacom"
 }
 ```
+
+**Request Parameters**:
+- `package_id` (required): UUID of the SMS package to purchase
+- `buyer_email` (required): Customer email address
+- `buyer_name` (required): Customer full name
+- `buyer_phone` (required): Customer phone number in Tanzanian format
+- `mobile_money_provider` (optional): Mobile money provider (default: "vodacom")
+  - Valid options: `vodacom`, `halotel`, `tigo`, `airtel`
 
 **Response** (Success):
 
@@ -188,12 +197,14 @@ This document provides comprehensive documentation for the ZenoPay Mobile Money 
             "invoice_number": "INV-20241201-ABC12345",
             "amount": 1000.00,
             "currency": "TZS",
-            "buyer_email": "user@example.com",
-            "buyer_name": "John Doe",
-            "buyer_phone": "0744963858",
-            "payment_method": "zenopay_mobile_money",
-            "payment_method_display": "ZenoPay Mobile Money",
-            "status": "completed",
+        "buyer_email": "user@example.com",
+        "buyer_name": "John Doe",
+        "buyer_phone": "0744963858",
+        "payment_method": "zenopay_mobile_money",
+        "payment_method_display": "ZenoPay Mobile Money",
+        "mobile_money_provider": "vodacom",
+        "mobile_money_provider_display": "Vodacom M-Pesa",
+        "status": "completed",
             "status_display": "Completed",
             "zenopay_reference": "0936183435",
             "zenopay_transid": "CEJ3I3SETSN",
@@ -365,90 +376,397 @@ https://your-domain.com/api/billing/payments/webhook/
 
 ## Frontend Integration
 
-### React/JavaScript Example
+### Simple JavaScript Integration
+
+#### 1. Initiate Payment
 
 ```javascript
-// Initiate payment
-const initiatePayment = async (packageId, buyerDetails) => {
-    try {
-        const response = await fetch('/api/billing/payments/initiate/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                package_id: packageId,
-                ...buyerDetails
-            })
+// POST /api/billing/payments/initiate/
+const response = await fetch('/api/billing/payments/initiate/', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+        package_id: 'package-uuid',
+        buyer_name: 'John Doe',
+        buyer_email: 'john@example.com',
+        buyer_phone: '0744963858',
+        mobile_money_provider: 'vodacom'
+    })
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Payment initiated successfully. Please complete payment on your mobile device.",
+    "data": {
+        "transaction_id": "uuid",
+        "order_id": "MIFUMO-20241201-ABC12345",
+        "amount": 1000.00,
+        "status": "pending",
+        "progress": {
+            "step": 1,
+            "total_steps": 4,
+            "current_step": "Payment Initiated",
+            "percentage": 25,
+            "status_color": "blue"
+        }
+    }
+}
+```
+
+#### 2. Check Payment Status
+
+```javascript
+// GET /api/billing/payments/transactions/{transaction_id}/status/
+const checkStatus = async (transactionId) => {
+    const response = await fetch(`/api/billing/payments/transactions/${transactionId}/status/`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    
+    const data = await response.json();
+    return data;
+};
+
+// Poll every 5 seconds
+const pollPayment = (transactionId) => {
+    const interval = setInterval(async () => {
+        const data = await checkStatus(transactionId);
+        
+        if (data.success) {
+            updateProgressUI(data.data.progress);
+            
+            if (data.data.status === 'completed' || data.data.status === 'failed') {
+                clearInterval(interval);
+            }
+        }
+    }, 5000);
+};
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "transaction_id": "uuid",
+        "status": "completed",
+        "payment_status": "SUCCESS",
+        "amount": 1000.00,
+        "progress": {
+            "step": 4,
+            "total_steps": 4,
+            "current_step": "Payment Completed",
+            "percentage": 100,
+            "status_color": "green"
+        }
+    }
+}
+```
+
+#### 3. Complete Example
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ZenoPay Payment</title>
+</head>
+<body>
+    <form id="paymentForm">
+        <input type="text" id="buyerName" placeholder="Full Name" required>
+        <input type="email" id="buyerEmail" placeholder="Email" required>
+        <input type="tel" id="buyerPhone" placeholder="0744963858" required>
+        <select id="mobileProvider">
+            <option value="vodacom">Vodacom M-Pesa</option>
+            <option value="halotel">Halotel</option>
+            <option value="tigo">Tigo Pesa</option>
+            <option value="airtel">Airtel Money</option>
+        </select>
+        <button type="submit">Pay with Mobile Money</button>
+    </form>
+    
+    <div id="progress" style="display:none;">
+        <div id="progressBar" style="width: 0%; height: 20px; background: blue;"></div>
+        <div id="statusText">Processing...</div>
+    </div>
+
+    <script>
+        const token = 'your-auth-token';
+        let currentTransactionId = null;
+
+        document.getElementById('paymentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                package_id: 'your-package-id',
+                buyer_name: document.getElementById('buyerName').value,
+                buyer_email: document.getElementById('buyerEmail').value,
+                buyer_phone: document.getElementById('buyerPhone').value,
+                mobile_money_provider: document.getElementById('mobileProvider').value || 'vodacom'
+            };
+
+            try {
+                const response = await fetch('/api/billing/payments/initiate/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentTransactionId = data.data.transaction_id;
+                    showProgress(data.data.progress);
+                    startPolling();
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                alert('Payment failed. Please try again.');
+            }
         });
 
-        const data = await response.json();
-
-        if (data.success) {
-            // Show progress UI
-            showPaymentProgress(data.data);
-
-            // Start polling for status updates
-            pollPaymentStatus(data.data.transaction_id);
-        } else {
-            showError(data.message);
+        function showProgress(progress) {
+            document.getElementById('progress').style.display = 'block';
+            updateProgress(progress);
         }
-    } catch (error) {
-        showError('Failed to initiate payment');
-    }
-};
 
-// Poll payment status
-const pollPaymentStatus = (transactionId) => {
-    const interval = setInterval(async () => {
-        try {
-            const response = await fetch(`/api/billing/payments/transactions/${transactionId}/status/`);
-            const data = await response.json();
+        function updateProgress(progress) {
+            document.getElementById('progressBar').style.width = progress.percentage + '%';
+            document.getElementById('statusText').textContent = progress.current_step;
+        }
 
-            if (data.success) {
-                updateProgressUI(data.data.progress);
+        function startPolling() {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/billing/payments/transactions/${currentTransactionId}/status/`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
 
-                if (data.data.status === 'completed' || data.data.status === 'failed') {
-                    clearInterval(interval);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        updateProgress(data.data.progress);
+                        
+                        if (data.data.status === 'completed') {
+                            clearInterval(interval);
+                            alert('Payment completed successfully!');
+                        } else if (data.data.status === 'failed') {
+                            clearInterval(interval);
+                            alert('Payment failed. Please try again.');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Status check failed:', error);
                 }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
+```
+
+### React Integration
+
+```jsx
+import React, { useState } from 'react';
+
+const ZenoPayPayment = ({ authToken }) => {
+    const [isLoading, setIsLoading] = useState(false);
+    const [progress, setProgress] = useState(null);
+    const [transactionId, setTransactionId] = useState(null);
+
+    const initiatePayment = async (formData) => {
+        setIsLoading(true);
+        
+        try {
+            const response = await fetch('/api/billing/payments/initiate/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                setTransactionId(data.data.transaction_id);
+                setProgress(data.data.progress);
+                startPolling(data.data.transaction_id);
+            } else {
+                alert(data.message);
             }
         } catch (error) {
-            console.error('Status check failed:', error);
+            alert('Payment failed. Please try again.');
+        } finally {
+            setIsLoading(false);
         }
-    }, 5000); // Check every 5 seconds
-};
+    };
 
-// Progress UI component
-const PaymentProgress = ({ progress }) => {
+    const startPolling = (txId) => {
+        const interval = setInterval(async () => {
+            try {
+                const response = await fetch(`/api/billing/payments/transactions/${txId}/status/`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    setProgress(data.data.progress);
+                    
+                    if (data.data.status === 'completed' || data.data.status === 'failed') {
+                        clearInterval(interval);
+                    }
+                }
+            } catch (error) {
+                console.error('Status check failed:', error);
+            }
+        }, 5000);
+    };
+
     return (
-        <div className="payment-progress">
-            <div className="progress-bar">
-                <div
-                    className="progress-fill"
-                    style={{ width: `${progress.percentage}%` }}
-                />
-            </div>
-            <div className="progress-steps">
-                {progress.completed_steps.map((step, index) => (
-                    <div key={index} className="step completed">
-                        <i className={`icon ${progress.status_icon}`} />
-                        {step}
+        <div>
+            {!progress ? (
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    initiatePayment({
+                        package_id: 'your-package-id',
+                        buyer_name: formData.get('name'),
+                        buyer_email: formData.get('email'),
+                        buyer_phone: formData.get('phone'),
+                        mobile_money_provider: formData.get('mobile_provider') || 'vodacom'
+                    });
+                }}>
+                    <input name="name" placeholder="Full Name" required />
+                    <input name="email" type="email" placeholder="Email" required />
+                    <input name="phone" type="tel" placeholder="0744963858" required />
+                    <select name="mobile_provider" defaultValue="vodacom">
+                        <option value="vodacom">Vodacom M-Pesa</option>
+                        <option value="halotel">Halotel</option>
+                        <option value="tigo">Tigo Pesa</option>
+                        <option value="airtel">Airtel Money</option>
+                    </select>
+                    <button type="submit" disabled={isLoading}>
+                        {isLoading ? 'Processing...' : 'Pay with Mobile Money'}
+                    </button>
+                </form>
+            ) : (
+                <div>
+                    <div style={{ width: '100%', height: '20px', background: '#eee' }}>
+                        <div style={{ 
+                            width: `${progress.percentage}%`, 
+                            height: '100%', 
+                            background: 'blue' 
+                        }} />
                     </div>
-                ))}
-                <div className={`step current ${progress.status_color}`}>
-                    <i className={`icon ${progress.status_icon}`} />
-                    {progress.current_step}
+                    <p>{progress.current_step}</p>
                 </div>
-                {progress.remaining_steps.map((step, index) => (
-                    <div key={index} className="step pending">
-                        {step}
-                    </div>
-                ))}
-            </div>
+            )}
         </div>
     );
 };
+
+export default ZenoPayPayment;
+```
+
+### Key Points
+
+1. **Authentication**: Include `Authorization: Bearer ${token}` header
+2. **Phone Format**: Use Tanzanian format (07XXXXXXXX or 2557XXXXXXXX)
+3. **Mobile Money Provider**: Choose from vodacom, halotel, tigo, airtel (default: vodacom)
+4. **Polling**: Check status every 5 seconds until completed/failed
+5. **Progress**: Show visual progress bar and current step
+6. **Error Handling**: Display user-friendly error messages
+7. **Package ID**: Must be a valid UUID from available packages
+
+### Error Handling
+
+#### Common Error Responses
+
+**Invalid Package ID:**
+```json
+{
+    "success": false,
+    "message": "Invalid package ID format: custom. Please select a valid package."
+}
+```
+
+**Package Not Found:**
+```json
+{
+    "success": false,
+    "message": "Package not found or inactive. Please select a valid package."
+}
+```
+
+**Missing Fields:**
+```json
+{
+    "success": false,
+    "message": "Missing required fields: package_id, buyer_email, buyer_name, buyer_phone"
+}
+```
+
+**Invalid Mobile Money Provider:**
+```json
+{
+    "success": false,
+    "message": "Invalid mobile money provider. Choose from: vodacom, halotel, tigo, airtel"
+}
+```
+
+#### Getting Available Packages
+
+```javascript
+// GET /api/billing/sms/packages/
+const response = await fetch('/api/billing/sms/packages/', {
+    headers: {
+        'Authorization': `Bearer ${token}`
+    }
+});
+
+const data = await response.json();
+console.log('Available packages:', data.results);
+```
+
+**Response:**
+```json
+{
+    "count": 4,
+    "results": [
+        {
+            "id": "3e0d5e81-e373-4248-846c-44b90f38c3ba",
+            "name": "Lite",
+            "package_type": "lite",
+            "credits": 5000,
+            "price": "150000.00",
+            "unit_price": "30.00",
+            "is_popular": false,
+            "is_active": true
+        }
+    ]
+}
 ```
 
 ## Configuration
@@ -491,7 +809,8 @@ ZENOPAY_WEBHOOK_SECRET = config('ZENOPAY_WEBHOOK_SECRET', default='')
     "package_id": "test-package-uuid",
     "buyer_email": "test@example.com",
     "buyer_name": "Test User",
-    "buyer_phone": "0744963858"
+    "buyer_phone": "0744963858",
+    "mobile_money_provider": "vodacom"
 }
 ```
 
