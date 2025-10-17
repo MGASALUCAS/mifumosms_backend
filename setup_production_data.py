@@ -21,7 +21,7 @@ django.setup()
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
 from django.utils import timezone
-from tenants.models import Tenant, Membership
+from tenants.models import Tenant, Membership, Domain
 from messaging.models_sms import SMSProvider, SMSSenderID, SMSTemplate
 from accounts.models import UserProfile
 
@@ -54,6 +54,29 @@ def create_default_tenant():
         return tenant
     except Exception as e:
         print(f"❌ Failed to create default tenant: {e}")
+        return None
+
+def create_tenant_domain(tenant):
+    """Create domain mapping for tenant"""
+    print("🌐 Creating tenant domain...")
+    try:
+        domain, created = Domain.objects.get_or_create(
+            domain='104.131.116.55:8000',
+            defaults={
+                'tenant': tenant,
+                'is_primary': True,
+                'verified': True,
+            }
+        )
+        
+        if created:
+            print(f"✅ Created domain: {domain.domain}")
+        else:
+            print(f"ℹ️  Domain already exists: {domain.domain}")
+        
+        return domain
+    except Exception as e:
+        print(f"❌ Failed to create domain: {e}")
         return None
 
 def create_sms_provider(tenant):
@@ -250,6 +273,9 @@ def main():
         print("❌ Cannot proceed without tenant")
         return
     
+    # Create tenant domain
+    create_tenant_domain(tenant)
+    
     # Create SMS provider
     provider = create_sms_provider(tenant)
     if not provider:
@@ -272,6 +298,7 @@ def main():
     print("🎉 Production data setup completed!")
     print("\nYou should now see:")
     print("✅ Tenants in admin panel")
+    print("✅ Domains in admin panel")
     print("✅ SMS Providers in admin panel")
     print("✅ SMS Sender IDs in admin panel")
     print("✅ SMS Templates in admin panel")

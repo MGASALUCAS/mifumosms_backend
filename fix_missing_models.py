@@ -13,7 +13,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mifumo.settings')
 django.setup()
 
 from django.contrib.auth import get_user_model
-from tenants.models import Tenant, Membership
+from tenants.models import Tenant, Membership, Domain
 from messaging.models_sms import SMSProvider, SMSSenderID
 from accounts.models import UserProfile
 from django.utils import timezone
@@ -44,6 +44,18 @@ def main():
         }
     )
     print(f"✅ Tenant: {tenant.name}")
+    
+    # Create domain for tenant
+    print("🌐 Creating domain...")
+    domain, created = Domain.objects.get_or_create(
+        domain='104.131.116.55:8000',
+        defaults={
+            'tenant': tenant,
+            'is_primary': True,
+            'verified': True,
+        }
+    )
+    print(f"✅ Domain: {domain.domain}")
     
     # Create SMS provider
     print("📱 Creating SMS provider...")
