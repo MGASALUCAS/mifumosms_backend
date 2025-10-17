@@ -192,7 +192,7 @@ USE_TZ = True
 # =============================================================================
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
 
 MEDIA_URL = '/media/'
@@ -236,6 +236,43 @@ CORS_ALLOWED_ORIGINS = config(
 CORS_ALLOW_CREDENTIALS = config('CORS_ALLOW_CREDENTIALS', default=True, cast=bool)
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # convenience for dev
 
+# Additional CORS settings for better compatibility
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_PREFLIGHT_MAX_AGE = 86400
+
+# Additional CORS settings for API endpoints
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
+]
+
+# Expose additional headers
+CORS_EXPOSE_HEADERS = [
+    'content-type',
+    'x-csrftoken',
+    'authorization',
+]
+
 # Useful CSRF trusted origins (must include scheme)
 CSRF_TRUSTED_ORIGINS = [
     origin for origin in CORS_ALLOWED_ORIGINS
@@ -249,6 +286,10 @@ SESSION_COOKIE_AGE = config('SESSION_COOKIE_AGE', default=86400, cast=int)
 
 CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=not DEBUG, cast=bool)
 CSRF_COOKIE_HTTPONLY = config('CSRF_COOKIE_HTTPONLY', default=True, cast=bool)
+
+# CSRF settings for API endpoints
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_USE_SESSIONS = False
 
 # =============================================================================
 # CELERY
@@ -473,18 +514,18 @@ JAZZMIN_SETTINGS = {
     "site_icon": None,
     "welcome_sign": "Welcome to Mifumo WMS Admin Panel",
     "copyright": "Mifumo Labs",
-    "search_model": ["auth.User", "accounts.User", "tenants.Tenant"],
+    "search_model": ["accounts.User", "tenants.Tenant"],
     "user_avatar": None,
     "topmenu_links": [
-        {"name": "Home", "url": "admin:index", "permissions": ["auth.view_user"]},
+        {"name": "Home", "url": "admin:index", "permissions": ["accounts.view_user"]},
         {"name": "API Docs", "url": "/swagger/", "new_window": True},
-        {"model": "auth.User"},
+        {"model": "accounts.User"},
         {"app": "messaging"},
     ],
     "usermenu_links": [
         {"name": "API Documentation", "url": "/swagger/", "new_window": True},
         {"name": "Support", "url": "https://github.com/mifumolabs/mifumoWMS", "new_window": True},
-        {"model": "auth.user"}
+        {"model": "accounts.user"}
     ],
     "show_sidebar": True,
     "navigation_expanded": True,
@@ -507,7 +548,7 @@ JAZZMIN_SETTINGS = {
     },
     "icons": {
         "auth": "fas fa-users-cog",
-        "auth.user": "fas fa-user",
+        "accounts.user": "fas fa-user",
         "auth.Group": "fas fa-users",
         "accounts.User": "fas fa-user-tie",
         "accounts.UserProfile": "fas fa-id-card",
@@ -542,7 +583,7 @@ JAZZMIN_SETTINGS = {
     "use_google_fonts_cdn": True,
     "show_ui_builder": True,
     "changeform_format": "horizontal_tabs",
-    "changeform_format_overrides": {"auth.user": "collapsible", "auth.group": "vertical_tabs"},
+    "changeform_format_overrides": {"accounts.user": "collapsible", "auth.group": "vertical_tabs"},
     "language_chooser": False,
 }
 
