@@ -192,7 +192,7 @@ USE_TZ = True
 # =============================================================================
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
 
 MEDIA_URL = '/media/'
@@ -473,18 +473,18 @@ JAZZMIN_SETTINGS = {
     "site_icon": None,
     "welcome_sign": "Welcome to Mifumo WMS Admin Panel",
     "copyright": "Mifumo Labs",
-    "search_model": ["auth.User", "accounts.User", "tenants.Tenant"],
+    "search_model": ["accounts.User", "tenants.Tenant"],
     "user_avatar": None,
     "topmenu_links": [
-        {"name": "Home", "url": "admin:index", "permissions": ["auth.view_user"]},
+        {"name": "Home", "url": "admin:index", "permissions": ["accounts.view_user"]},
         {"name": "API Docs", "url": "/swagger/", "new_window": True},
-        {"model": "auth.User"},
+        {"model": "accounts.User"},
         {"app": "messaging"},
     ],
     "usermenu_links": [
         {"name": "API Documentation", "url": "/swagger/", "new_window": True},
         {"name": "Support", "url": "https://github.com/mifumolabs/mifumoWMS", "new_window": True},
-        {"model": "auth.user"}
+        {"model": "accounts.user"}
     ],
     "show_sidebar": True,
     "navigation_expanded": True,
@@ -507,7 +507,7 @@ JAZZMIN_SETTINGS = {
     },
     "icons": {
         "auth": "fas fa-users-cog",
-        "auth.user": "fas fa-user",
+        "accounts.user": "fas fa-user",
         "auth.Group": "fas fa-users",
         "accounts.User": "fas fa-user-tie",
         "accounts.UserProfile": "fas fa-id-card",
@@ -542,7 +542,7 @@ JAZZMIN_SETTINGS = {
     "use_google_fonts_cdn": True,
     "show_ui_builder": True,
     "changeform_format": "horizontal_tabs",
-    "changeform_format_overrides": {"auth.user": "collapsible", "auth.group": "vertical_tabs"},
+    "changeform_format_overrides": {"accounts.user": "collapsible", "auth.group": "vertical_tabs"},
     "language_chooser": False,
 }
 
