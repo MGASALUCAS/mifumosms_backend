@@ -33,4 +33,7 @@ urlpatterns = [
     path('payments/transactions/<uuid:transaction_id>/progress/', views_payment.payment_progress, name='payment-progress'),
     path('payments/transactions/<uuid:transaction_id>/cancel/', views_payment.cancel_payment, name='payment-cancel'),
     path('payments/webhook/', views_payment.payment_webhook, name='payment-webhook'),
+    
+    # Mobile money providers endpoint
+    path('payments/providers/', views_payment.get_mobile_money_providers_endpoint, name='payment-providers'),
 ]

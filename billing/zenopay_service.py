@@ -37,21 +37,30 @@ class ZenoPayService:
     def _validate_phone_number(self, phone):
         """
         Validate and format Tanzanian phone number.
-        Expected format: 07XXXXXXXX
+        Expected format: 07XXXXXXXX (as per ZenoPay docs)
         """
         # Remove any non-digit characters
         phone = ''.join(filter(str.isdigit, phone))
         
-        # Add country code if missing
+        # Handle different input formats
         if phone.startswith('07'):
-            phone = '255' + phone[1:]
+            # Already in correct format
+            return phone
+        elif phone.startswith('06'):
+            # Halotel numbers (06 prefix) - keep as is
+            return phone
         elif phone.startswith('255'):
-            pass
+            # Convert from international format to local
+            if phone[3:5] in ['07', '06']:
+                return '0' + phone[3:]
+            else:
+                return '0' + phone[3:]
         else:
-            # Assume it's missing the 07 prefix
-            phone = '2557' + phone
-            
-        return phone
+            # Assume it's missing the prefix
+            if len(phone) == 9:
+                return '0' + phone
+            else:
+                return '07' + phone
     
     def create_payment(self, order_id, buyer_email, buyer_name, buyer_phone, amount, webhook_url=None, mobile_money_provider='vodacom'):
         """
@@ -61,7 +70,7 @@ class ZenoPayService:
             order_id (str): Unique order identifier
             buyer_email (str): Customer email
             buyer_name (str): Customer name
-            buyer_phone (str): Customer phone number
+            buyer_phone (str): Customer phone number (format: 07XXXXXXXX)
             amount (Decimal): Amount in TZS
             webhook_url (str, optional): Webhook URL for status updates
             mobile_money_provider (str): Mobile money provider (vodacom, halotel, tigo, airtel)
@@ -70,24 +79,23 @@ class ZenoPayService:
             dict: ZenoPay API response
         """
         try:
-            # Validate and format phone number
+            # Validate and format phone number to 07XXXXXXXX format
             formatted_phone = self._validate_phone_number(buyer_phone)
             
-            # Prepare payload
+            # Prepare payload according to ZenoPay documentation
             payload = {
                 'order_id': order_id,
                 'buyer_email': buyer_email,
                 'buyer_name': buyer_name,
                 'buyer_phone': formatted_phone,
-                'amount': int(amount),  # ZenoPay expects integer amount
-                'mobile_money_provider': mobile_money_provider
+                'amount': int(amount)  # ZenoPay expects integer amount
             }
             
-            # Add webhook URL if provided
+            # Add webhook URL if provided (as per ZenoPay docs)
             if webhook_url:
                 payload['webhook_url'] = webhook_url
             
-            # Make API request
+            # Make API request to the correct endpoint
             response = requests.post(
                 f"{self.base_url}/mobile_money_tanzania",
                 json=payload,

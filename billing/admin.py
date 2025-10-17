@@ -10,10 +10,37 @@ from .models import (
 
 @admin.register(SMSPackage)
 class SMSPackageAdmin(admin.ModelAdmin):
-    list_display = ['name', 'package_type', 'credits', 'price', 'unit_price', 'is_popular', 'is_active']
-    list_filter = ['package_type', 'is_popular', 'is_active', 'created_at']
-    search_fields = ['name', 'package_type']
+    list_display = [
+        'name', 'package_type', 'credits', 'price', 'unit_price', 
+        'default_sender_id', 'sender_id_restriction', 'is_popular', 'is_active'
+    ]
+    list_filter = ['package_type', 'sender_id_restriction', 'is_popular', 'is_active', 'created_at']
+    search_fields = ['name', 'package_type', 'default_sender_id']
     readonly_fields = ['created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Package Information', {
+            'fields': ('name', 'package_type', 'credits', 'price', 'unit_price')
+        }),
+        ('Status & Features', {
+            'fields': ('is_popular', 'is_active', 'features')
+        }),
+        ('Sender ID Configuration', {
+            'fields': (
+                'default_sender_id', 
+                'sender_id_restriction', 
+                'allowed_sender_ids'
+            ),
+            'description': 'Configure which sender IDs are allowed for this package'
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related()
 
 
 @admin.register(SMSBalance)

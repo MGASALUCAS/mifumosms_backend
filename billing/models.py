@@ -30,6 +30,31 @@ class SMSPackage(models.Model):
     is_popular = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     features = models.JSONField(default=list, blank=True, help_text="List of features")
+    
+    # Sender ID Configuration
+    default_sender_id = models.CharField(
+        max_length=50, 
+        blank=True, 
+        null=True,
+        help_text="Default sender ID for this package (e.g., Taarifa-SMS, Quantum)"
+    )
+    allowed_sender_ids = models.JSONField(
+        default=list, 
+        blank=True,
+        help_text="List of allowed sender IDs for this package"
+    )
+    sender_id_restriction = models.CharField(
+        max_length=20,
+        choices=[
+            ('none', 'No Restriction'),
+            ('default_only', 'Default Sender ID Only'),
+            ('allowed_list', 'Allowed List Only'),
+            ('custom_only', 'Custom Sender IDs Only'),
+        ],
+        default='none',
+        help_text="Sender ID restriction policy"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -47,6 +72,89 @@ class SMSPackage(models.Model):
         if self.unit_price < standard_rate:
             return round(((standard_rate - self.unit_price) / standard_rate) * 100, 1)
         return 0
+    
+    def is_sender_id_allowed(self, sender_id):
+        """
+        Check if a sender ID is allowed for this package.
+        
+        Args:
+            sender_id (str): The sender ID to check
+            
+        Returns:
+            bool: True if sender ID is allowed, False otherwise
+        """
+        if not sender_id:
+            return False
+            
+        # No restriction - all sender IDs allowed
+        if self.sender_id_restriction == 'none':
+            return True
+            
+        # Only default sender ID allowed
+        if self.sender_id_restriction == 'default_only':
+            return sender_id == self.default_sender_id
+            
+        # Only allowed list sender IDs
+        if self.sender_id_restriction == 'allowed_list':
+            return sender_id in (self.allowed_sender_ids or [])
+            
+        # Custom sender IDs only (for custom packages)
+        if self.sender_id_restriction == 'custom_only':
+            return self.package_type == 'custom'
+            
+        return False
+    
+    def get_available_sender_ids(self):
+        """
+        Get list of available sender IDs for this package.
+        
+        Returns:
+            list: List of available sender IDs
+        """
+        if self.sender_id_restriction == 'none':
+            # Return all registered sender IDs from Beem
+            from messaging.services.sms_service import SMSService
+            try:
+                sms_service = SMSService(tenant_id=None)  # Get from any tenant
+                result = sms_service.get_sender_ids()
+                if result.get('success'):
+                    return [sender.get('senderid') for sender in result.get('sender_ids', []) 
+                           if sender.get('status') == 'active']
+            except:
+                pass
+            return []
+            
+        elif self.sender_id_restriction == 'default_only':
+            return [self.default_sender_id] if self.default_sender_id else []
+            
+        elif self.sender_id_restriction == 'allowed_list':
+            return self.allowed_sender_ids or []
+            
+        elif self.sender_id_restriction == 'custom_only':
+            return []  # Custom packages don't have predefined sender IDs
+            
+        return []
+    
+    def get_effective_sender_id(self, requested_sender_id=None):
+        """
+        Get the effective sender ID to use for this package.
+        
+        Args:
+            requested_sender_id (str, optional): The requested sender ID
+            
+        Returns:
+            str: The effective sender ID to use
+        """
+        # If no sender ID requested, use default
+        if not requested_sender_id:
+            return self.default_sender_id or 'Taarifa-SMS'
+            
+        # Check if requested sender ID is allowed
+        if self.is_sender_id_allowed(requested_sender_id):
+            return requested_sender_id
+            
+        # Fall back to default if requested is not allowed
+        return self.default_sender_id or 'Taarifa-SMS'
 
 
 class SMSBalance(models.Model):
