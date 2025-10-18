@@ -20,12 +20,13 @@ from drf_yasg import openapi
 
 from .models import (
     SMSPackage, SMSBalance, Purchase, PaymentTransaction,
-    UsageRecord, BillingPlan, Subscription
+    UsageRecord, BillingPlan, Subscription, CustomSMSPurchase
 )
 from .serializers import (
     SMSPackageSerializer, PurchaseSerializer, PurchaseCreateSerializer,
     SMSBalanceSerializer, UsageRecordSerializer, BillingPlanSerializer,
-    SubscriptionSerializer, PaymentTransactionSerializer, PaymentInitiateSerializer
+    SubscriptionSerializer, PaymentTransactionSerializer, PaymentInitiateSerializer,
+    CustomSMSPurchaseSerializer, CustomSMSPurchaseCreateSerializer
 )
 from .zenopay_service import zenopay_service
 
@@ -158,7 +159,7 @@ def initiate_payment(request):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Validate mobile money provider
-        valid_providers = ['vodacom', 'halotel', 'tigo', 'airtel']
+        valid_providers = [p['code'] for p in get_mobile_money_providers_data()]
         if mobile_money_provider not in valid_providers:
             return Response({
                 'success': False,
@@ -245,7 +246,7 @@ def initiate_payment(request):
             if payment_response.get('success'):
                 # Store raw response for audit
                 payment_transaction.webhook_data = payment_response.get('data', {})
-                payment_transaction.status = 'pending'
+                payment_transaction.status = 'processing'  # Set to processing when push notification is sent
                 payment_transaction.save()
 
                 return Response({
@@ -277,15 +278,15 @@ def initiate_payment(request):
                             'phone': buyer_phone
                         },
                         'progress': {
-                            'step': 1,
+                            'step': 2,
                             'total_steps': 4,
-                            'current_step': 'Payment Initiated',
+                            'current_step': 'Payment Processing',
                             'next_step': 'Complete Payment on Mobile',
-                            'completed_steps': ['Payment Initiated'],
+                            'completed_steps': ['Payment Initiated', 'Payment Processing'],
                             'remaining_steps': ['Complete Payment on Mobile', 'Payment Verification', 'Credits Added'],
-                            'percentage': 25,
-                            'status_color': 'blue',
-                            'status_icon': 'clock'
+                            'percentage': 50,
+                            'status_color': 'yellow',
+                            'status_icon': 'sync'
                         }
                     }
                 }, status=status.HTTP_201_CREATED)
@@ -329,6 +330,10 @@ def check_payment_status(request, transaction_id):
 
         payment_transaction = get_object_or_404(PaymentTransaction, id=transaction_id, tenant=tenant)
 
+        # Add delay to ensure push notification stays visible for at least 1 minute
+        import time
+        time.sleep(60)  # Wait 1 minute to ensure push notification is visible
+
         status_response = zenopay_service.check_payment_status(payment_transaction.zenopay_order_id) or {}
         ok = status_response.get('success', False)
 
@@ -344,14 +349,33 @@ def check_payment_status(request, transaction_id):
 
             progress = _get_payment_progress(payment_transaction, status_response)
 
-            payment_status = (status_response.get('payment_status') or '').upper()
-            if payment_status == 'SUCCESS' and payment_transaction.status in ('pending', 'processing'):
+            # Check if payment is actually completed according to ZenoPay API
+            # According to ZenoPay docs: result should be "SUCCESS" and payment_status should be "COMPLETED"
+            result = (status_response.get('payment_status') or '').upper()  # This is the 'result' field from ZenoPay
+            payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
+            payment_status = payment_data.get('payment_status', '').upper()
+            
+            # Only mark as completed if both result is SUCCESS and payment_status is COMPLETED
+            if (result == 'SUCCESS' and payment_status == 'COMPLETED' and 
+                payment_transaction.status in ('pending', 'processing')):
                 payment_transaction.mark_as_completed(status_response.get('data', {}))
                 if getattr(payment_transaction, 'purchase', None):
                     payment_transaction.purchase.complete_purchase()
 
                 # refresh progress after state change
-                progress = _get_payment_progress(payment_transaction, {"success": True, "payment_status": "SUCCESS"})
+                progress = _get_payment_progress(payment_transaction, {"success": True, "payment_status": "COMPLETED"})
+            elif result == 'FAILED' or payment_status == 'FAILED':
+                # Handle payment failure
+                payment_transaction.mark_as_failed('Payment failed - user did not complete payment or network issue')
+                if getattr(payment_transaction, 'purchase', None):
+                    payment_transaction.purchase.mark_as_failed()
+                progress = _get_payment_progress(payment_transaction, {"success": False, "payment_status": "FAILED"})
+            elif not status_response.get('success'):
+                # Handle network issues or API errors
+                payment_transaction.mark_as_failed('Payment verification failed - network issue or API error')
+                if getattr(payment_transaction, 'purchase', None):
+                    payment_transaction.purchase.mark_as_failed()
+                progress = _get_payment_progress(payment_transaction, {"success": False, "payment_status": "ERROR"})
 
             return Response({
                 'success': True,
@@ -424,9 +448,17 @@ def verify_payment(request, order_id):
                 'last_checked': payment_transaction.updated_at.isoformat()
             })
 
+        # Add delay to ensure push notification stays visible for at least 1 minute
+        import time
+        time.sleep(60)  # Wait 1 minute to ensure push notification is visible
+
         status_response = zenopay_service.check_payment_status(payment_transaction.zenopay_order_id) or {}
         if status_response.get('success'):
-            payment_status = (status_response.get('payment_status') or 'UNKNOWN').lower()
+            # Get the actual payment status from ZenoPay response
+            result = (status_response.get('payment_status') or '').upper()  # This is the 'result' field from ZenoPay
+            payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
+            payment_status = payment_data.get('payment_status', '').upper()
+            
             payment_transaction.zenopay_reference = status_response.get('reference') or payment_transaction.zenopay_reference
             payment_transaction.zenopay_transid = status_response.get('transid') or payment_transaction.zenopay_transid
             payment_transaction.zenopay_channel = status_response.get('channel') or payment_transaction.zenopay_channel
@@ -434,18 +466,20 @@ def verify_payment(request, order_id):
             if 'data' in status_response:
                 payment_transaction.webhook_data = status_response['data']
 
-            if payment_status in ('success', 'completed'):
+            # Only mark as completed if both result is SUCCESS and payment_status is COMPLETED
+            if result == 'SUCCESS' and payment_status == 'COMPLETED':
                 payment_transaction.mark_as_completed(status_response.get('data', {}))
                 if getattr(payment_transaction, 'purchase', None):
                     payment_transaction.purchase.complete_purchase()
                 status_message = 'Payment verified and completed successfully! Credits have been added to your account.'
-            elif payment_status == 'failed':
-                payment_transaction.mark_as_failed('Payment failed via verification')
+            elif payment_status == 'FAILED' or result == 'FAILED':
+                payment_transaction.mark_as_failed('Payment failed - user did not complete payment or network issue')
                 if getattr(payment_transaction, 'purchase', None):
                     payment_transaction.purchase.mark_as_failed()
-                status_message = 'Payment verification failed. Please try again or contact support.'
+                status_message = 'Payment failed. Please try again or contact support.'
             else:
-                status_message = f'Payment status: {payment_status}. Please try again or contact support.'
+                # Payment is still processing or in unknown state
+                status_message = f'Payment is being processed. Status: {payment_status or result}. Please wait a moment and try again.'
 
             payment_transaction.save()
 
@@ -458,7 +492,7 @@ def verify_payment(request, order_id):
                 'last_checked': payment_transaction.updated_at.isoformat()
             })
 
-        # ZenoPay says not found / error
+        # Handle ZenoPay API errors
         err = (status_response.get('error') or '').lower()
         if 'not found' in err:
             logger.warning(f"Payment {order_id} not found in ZenoPay (may have expired)")
@@ -471,14 +505,22 @@ def verify_payment(request, order_id):
                 'error_code': 'PAYMENT_EXPIRED',
                 'status': 'expired'
             }, status=status.HTTP_404_NOT_FOUND)
-
-        logger.error(f"Payment verification failed for order {order_id}: {status_response.get('error')}")
-        return Response({
-            'success': False,
-            'message': 'Failed to verify payment status. Please try again or contact support.',
-            'error_code': 'PAYMENT_VERIFICATION_FAILED',
-            'detail': status_response.get('error')
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        elif 'network' in err or 'timeout' in err or 'connection' in err:
+            logger.error(f"Network error during payment verification for order {order_id}: {status_response.get('error')}")
+            return Response({
+                'success': False,
+                'message': 'Network error occurred. Please check your connection and try again.',
+                'error_code': 'NETWORK_ERROR',
+                'detail': 'Unable to verify payment due to network issues'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        else:
+            logger.error(f"Payment verification failed for order {order_id}: {status_response.get('error')}")
+            return Response({
+                'success': False,
+                'message': 'Failed to verify payment status. Please try again or contact support.',
+                'error_code': 'PAYMENT_VERIFICATION_FAILED',
+                'detail': status_response.get('error')
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     except Exception as e:
         logger.exception("Payment verification error")
@@ -503,12 +545,20 @@ def payment_webhook(request):
     POST /api/billing/payments/webhook/
     """
     try:
-        # Optional: simple shared-secret header check
-        expected_key = getattr(settings, "ZENOPAY_WEBHOOK_KEY", None)
-        provided_key = request.headers.get("X-Zenopay-Key")
-        if expected_key and provided_key != expected_key:
-            logger.warning("Webhook auth failed")
-            return Response({'success': False, 'message': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+        # Validate webhook authentication using ZenoPay API key
+        # According to ZenoPay docs, they send x-api-key in the header
+        expected_key = getattr(settings, "ZENOPAY_API_KEY", None)
+        provided_key = request.headers.get("x-api-key")
+        
+        if not expected_key:
+            logger.error("ZENOPAY_API_KEY not configured for webhook validation")
+            return Response({'success': False, 'message': 'Webhook authentication not configured'}, 
+                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        if provided_key != expected_key:
+            logger.warning(f"Webhook authentication failed. Expected: {expected_key[:8]}..., Got: {provided_key[:8] if provided_key else 'None'}...")
+            return Response({'success': False, 'message': 'Unauthorized webhook request'}, 
+                          status=status.HTTP_401_UNAUTHORIZED)
 
         webhook_data = request.data
         logger.info(f"Received ZenoPay webhook: {webhook_data}")
@@ -521,10 +571,31 @@ def payment_webhook(request):
 
             try:
                 payment_transaction = PaymentTransaction.objects.get(zenopay_order_id=order_id)
+                
+                # Additional verification: Check with ZenoPay API to confirm the payment status
+                # This prevents webhook spoofing and ensures the payment is actually completed
                 if payment_status == 'COMPLETED':
-                    payment_transaction.mark_as_completed(webhook_data)
-                    if getattr(payment_transaction, 'purchase', None):
-                        payment_transaction.purchase.complete_purchase()
+                    # Verify with ZenoPay API before marking as completed
+                    verification_response = zenopay_service.check_payment_status(order_id)
+                    if verification_response.get('success'):
+                        result = (verification_response.get('payment_status') or '').upper()
+                        payment_data = verification_response.get('data', {}).get('data', [{}])[0] if verification_response.get('data', {}).get('data') else {}
+                        verified_payment_status = payment_data.get('payment_status', '').upper()
+                        
+                        if result == 'SUCCESS' and verified_payment_status == 'COMPLETED':
+                            payment_transaction.mark_as_completed(webhook_data)
+                            if getattr(payment_transaction, 'purchase', None):
+                                payment_transaction.purchase.complete_purchase()
+                            logger.info(f"Payment transaction {payment_transaction.id} verified and completed via webhook")
+                        else:
+                            logger.warning(f"Webhook claimed COMPLETED but ZenoPay API verification failed for order {order_id}")
+                            payment_transaction.webhook_data = webhook_data
+                            payment_transaction.save()
+                    else:
+                        logger.warning(f"Failed to verify webhook with ZenoPay API for order {order_id}")
+                        payment_transaction.webhook_data = webhook_data
+                        payment_transaction.save()
+                        
                 elif payment_status == 'FAILED':
                     payment_transaction.mark_as_failed('Payment failed via webhook')
                     if getattr(payment_transaction, 'purchase', None):
@@ -624,10 +695,11 @@ def _get_payment_progress(payment_transaction, status_response):
     if payment_transaction.status == 'processing':
         progress.update({
             'step': 2,
+            'total_steps': 4,
             'current_step': 'Payment Processing',
-            'next_step': 'Payment Verification',
+            'next_step': 'Complete Payment on Mobile',
             'completed_steps': ['Payment Initiated', 'Payment Processing'],
-            'remaining_steps': ['Payment Verification', 'Credits Added'],
+            'remaining_steps': ['Complete Payment on Mobile', 'Payment Verification', 'Credits Added'],
             'percentage': 50,
             'status_color': 'yellow',
             'status_icon': 'sync'
@@ -651,17 +723,36 @@ def _get_payment_progress(payment_transaction, status_response):
             'status_icon': 'x',
             'error_message': payment_transaction.error_message
         })
-    elif status_response.get('success') and (status_response.get('payment_status') or '').upper() == 'SUCCESS':
-        progress.update({
-            'step': 3,
-            'current_step': 'Payment Verified',
-            'next_step': 'Credits Added',
-            'completed_steps': ['Payment Initiated', 'Complete Payment on Mobile', 'Payment Verification'],
-            'remaining_steps': ['Credits Added'],
-            'percentage': 75,
-            'status_color': 'blue',
-            'status_icon': 'check-circle'
-        })
+    elif status_response.get('success'):
+        # Check if payment is verified but not yet completed
+        result = (status_response.get('payment_status') or '').upper()
+        payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
+        payment_status = payment_data.get('payment_status', '').upper()
+        
+        if result == 'SUCCESS' and payment_status == 'COMPLETED':
+            # Payment is completed
+            progress.update({
+                'step': 4,
+                'current_step': 'Payment Completed',
+                'next_step': None,
+                'completed_steps': ['Payment Initiated', 'Complete Payment on Mobile', 'Payment Verification', 'Credits Added'],
+                'remaining_steps': [],
+                'percentage': 100,
+                'status_color': 'green',
+                'status_icon': 'check'
+            })
+        elif result == 'SUCCESS' and payment_status != 'COMPLETED':
+            # Payment is processing/verified but not completed
+            progress.update({
+                'step': 3,
+                'current_step': 'Payment Verified',
+                'next_step': 'Credits Added',
+                'completed_steps': ['Payment Initiated', 'Complete Payment on Mobile', 'Payment Verification'],
+                'remaining_steps': ['Credits Added'],
+                'percentage': 75,
+                'status_color': 'blue',
+                'status_icon': 'check-circle'
+            })
 
     return progress
 
@@ -779,18 +870,37 @@ def cleanup_payments(request):
             return Response({'success': False, 'message': 'User is not associated with any tenant. Please contact support.'},
                             status=status.HTTP_400_BAD_REQUEST)
 
+        # Check for expired payments (1 hour) and stuck processing payments (30 minutes)
         stale_threshold = timezone.now() - timedelta(hours=1)
+        processing_threshold = timezone.now() - timedelta(minutes=30)
         cleaned_count = 0
 
+        # Get both stale pending payments and stuck processing payments
         stale_payments = PaymentTransaction.objects.filter(
-            tenant=tenant, user=request.user, status='pending', created_at__lt=stale_threshold
+            tenant=tenant, user=request.user, 
+            status__in=['pending', 'processing'], 
+            created_at__lt=stale_threshold
         )
+        
+        # Also get processing payments that are stuck (older than 30 minutes)
+        stuck_processing = PaymentTransaction.objects.filter(
+            tenant=tenant, user=request.user,
+            status='processing',
+            created_at__lt=processing_threshold
+        )
+        
+        # Combine both querysets
+        all_stale_payments = stale_payments.union(stuck_processing)
 
-        for payment in stale_payments:
+        for payment in all_stale_payments:
             status_response = zenopay_service.check_payment_status(payment.zenopay_order_id) or {}
             if status_response.get('success'):
-                st = (status_response.get('payment_status') or 'UNKNOWN').lower()
-                if st in ('success', 'completed'):
+                # Check if payment is actually completed according to ZenoPay API
+                result = (status_response.get('payment_status') or '').upper()  # This is the 'result' field from ZenoPay
+                payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
+                payment_status = payment_data.get('payment_status', '').upper()
+                
+                if result == 'SUCCESS' and payment_status == 'COMPLETED':
                     payment.mark_as_completed(status_response.get('data', {}))
                     if getattr(payment, 'purchase', None):
                         payment.purchase.complete_purchase()
@@ -852,44 +962,7 @@ def get_mobile_money_providers(request):
     GET /api/billing/payments/providers/
     """
     try:
-        providers = [
-            {
-                'code': 'vodacom',
-                'name': 'Vodacom M-Pesa',
-                'description': 'Pay with M-Pesa via Vodacom',
-                'icon': 'vodacom-icon',
-                'popular': True,
-                'min_amount': 1000,
-                'max_amount': 1000000
-            },
-            {
-                'code': 'tigo',
-                'name': 'Tigo Pesa',
-                'description': 'Pay with Tigo Pesa',
-                'icon': 'tigo-icon',
-                'popular': True,
-                'min_amount': 1000,
-                'max_amount': 1000000
-            },
-            {
-                'code': 'airtel',
-                'name': 'Airtel Money',
-                'description': 'Pay with Airtel Money',
-                'icon': 'airtel-icon',
-                'popular': True,
-                'min_amount': 1000,
-                'max_amount': 1000000
-            },
-            {
-                'code': 'halotel',
-                'name': 'Halotel',
-                'description': 'Pay with Halotel',
-                'icon': 'halotel-icon',
-                'popular': False,
-                'min_amount': 1000,
-                'max_amount': 500000
-            }
-        ]
+        providers = get_mobile_money_providers_data()
         
         return Response({
             'success': True,
@@ -906,10 +979,10 @@ def get_mobile_money_providers(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ==============================
-# ENHANCED PAYMENT ENDPOINTS
+# HELPER FUNCTIONS
 # ==============================
 
-def get_mobile_money_providers():
+def get_mobile_money_providers_data():
     """Get available mobile money providers with their details."""
     return [
         {
@@ -950,122 +1023,140 @@ def get_mobile_money_providers():
         }
     ]
 
-@swagger_auto_schema(
-    method="get",
-    operation_description="Get available mobile money providers for payment.",
-    responses={
-        200: openapi.Response(
-            description="List of available mobile money providers",
-            examples={
-                "application/json": {
-                    "success": True,
-                    "data": [
-                        {
-                            "code": "vodacom",
-                            "name": "Vodacom M-Pesa",
-                            "description": "Pay with M-Pesa via Vodacom",
-                            "icon": "vodacom-icon",
-                            "popular": True,
-                            "min_amount": 1000,
-                            "max_amount": 1000000
-                        }
-                    ]
-                }
-            }
-        )
-    }
-)
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_mobile_money_providers_endpoint(request):
-    """
-    Get available mobile money providers for payment.
-    GET /api/billing/payments/providers/
-    """
-    try:
-        providers = get_mobile_money_providers()
-        
-        return Response({
-            'success': True,
-            'data': providers,
-            'message': f'Found {len(providers)} mobile money providers'
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting mobile money providers: {str(e)}")
-        return Response({
-            'success': False,
-            'message': 'Failed to get mobile money providers',
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# ==============================
+# CUSTOM SMS PURCHASE ENDPOINTS
+# ==============================
 
 @swagger_auto_schema(
     method="post",
-    operation_description="Initiate payment with ZenoPay for an SMS package with mobile money provider selection.",
+    operation_description="Calculate pricing for custom SMS purchase.",
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
-        required=["package_id", "buyer_email", "buyer_name", "buyer_phone", "mobile_money_provider"],
+        required=["credits"],
         properties={
-            "package_id": openapi.Schema(
-                type=openapi.TYPE_STRING, 
-                format=openapi.FORMAT_UUID,
-                description="SMS Package ID"
-            ),
-            "buyer_email": openapi.Schema(
-                type=openapi.TYPE_STRING, 
-                format=openapi.FORMAT_EMAIL,
-                description="Customer email address"
-            ),
-            "buyer_name": openapi.Schema(
-                type=openapi.TYPE_STRING,
-                description="Customer full name"
-            ),
-            "buyer_phone": openapi.Schema(
-                type=openapi.TYPE_STRING,
-                description="Customer phone number (07XXXXXXXX or 06XXXXXXXX)"
-            ),
-            "mobile_money_provider": openapi.Schema(
-                type=openapi.TYPE_STRING,
-                enum=["vodacom", "tigo", "airtel", "halotel"],
-                description="Mobile money provider code"
-            )
-        }
+            "credits": openapi.Schema(type=openapi.TYPE_INTEGER, description="Number of SMS credits (minimum 100)")
+        },
     ),
     responses={
-        201: openapi.Response(
-            description="Payment initiated successfully",
+        200: openapi.Response(
+            description="Pricing calculated successfully",
             examples={
                 "application/json": {
                     "success": True,
-                    "message": "Payment initiated successfully. Please complete payment on your mobile device.",
                     "data": {
-                        "transaction_id": "uuid",
-                        "order_id": "MIFUMO-20241017-ABC12345",
-                        "zenopay_order_id": "ZP-20241017123456-ABC12345",
-                        "amount": 150000.00,
-                        "currency": "TZS",
-                        "mobile_money_provider": "vodacom",
-                        "reference": "REF123456789",
-                        "instructions": "Please complete payment on your mobile device",
-                        "package": {
-                            "name": "Lite",
-                            "credits": 5000,
-                            "price": 150000.00
-                        }
+                        "credits": 5000,
+                        "unit_price": 30.00,
+                        "total_price": 150000.00,
+                        "active_tier": "Lite",
+                        "tier_min_credits": 1,
+                        "tier_max_credits": 5000,
+                        "savings_percentage": 0.0
                     }
                 }
             }
         ),
-        400: openapi.Response(description="Bad request - validation errors"),
-        404: openapi.Response(description="Package not found")
+        400: openapi.Response(description="Bad request - validation errors")
     }
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def initiate_payment_enhanced(request):
+def calculate_custom_sms_pricing(request):
     """
-    Initiate payment with ZenoPay for SMS package purchase with mobile money provider selection.
-    POST /api/billing/payments/initiate-enhanced/
+    Calculate pricing for custom SMS purchase.
+    POST /api/billing/payments/custom-sms/calculate/
+    """
+    try:
+        credits = request.data.get('credits')
+        
+        if not credits:
+            return Response({
+                'success': False,
+                'message': 'Credits amount is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if credits < 100:
+            return Response({
+                'success': False,
+                'message': 'Minimum 100 SMS credits required for custom purchase'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create a temporary CustomSMSPurchase to calculate pricing
+        temp_purchase = CustomSMSPurchase(credits=credits)
+        unit_price, total_price, active_tier, tier_min, tier_max = temp_purchase.calculate_pricing(credits)
+        
+        # Calculate savings percentage
+        standard_rate = 30  # TZS per SMS
+        savings_percentage = round(((standard_rate - unit_price) / standard_rate) * 100, 1) if unit_price < standard_rate else 0
+        
+        return Response({
+            'success': True,
+            'data': {
+                'credits': credits,
+                'unit_price': float(unit_price),
+                'total_price': float(total_price),
+                'active_tier': active_tier,
+                'tier_min_credits': tier_min,
+                'tier_max_credits': tier_max,
+                'savings_percentage': savings_percentage
+            }
+        })
+        
+    except Exception as e:
+        logger.exception("Custom SMS pricing calculation error")
+        return Response({
+            'success': False,
+            'message': 'Failed to calculate pricing',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@swagger_auto_schema(
+    method="post",
+    operation_description="Initiate custom SMS purchase with ZenoPay.",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=["credits", "buyer_email", "buyer_name", "buyer_phone"],
+        properties={
+            "credits": openapi.Schema(type=openapi.TYPE_INTEGER, description="Number of SMS credits (minimum 100)"),
+            "buyer_email": openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_EMAIL, description="Customer email address"),
+            "buyer_name": openapi.Schema(type=openapi.TYPE_STRING, description="Customer full name"),
+            "buyer_phone": openapi.Schema(type=openapi.TYPE_STRING, description="Customer phone number (07XXXXXXXX or 06XXXXXXXX)"),
+            "mobile_money_provider": openapi.Schema(
+                type=openapi.TYPE_STRING,
+                enum=["vodacom", "tigo", "airtel", "halotel"],
+                description="Mobile money provider code (default: vodacom)"
+            )
+        },
+    ),
+    responses={
+        201: openapi.Response(
+            description="Custom SMS purchase initiated successfully",
+            examples={
+                "application/json": {
+                    "success": True,
+                    "message": "Custom SMS purchase initiated successfully. Please complete payment on your mobile device.",
+                    "data": {
+                        "purchase_id": "uuid",
+                        "credits": 5000,
+                        "unit_price": 30.00,
+                        "total_price": 150000.00,
+                        "active_tier": "Lite",
+                        "status": "processing",
+                        "payment_instructions": "Request in progress. You will receive a callback shortly"
+                    }
+                }
+            }
+        ),
+        400: openapi.Response(description="Bad request - validation errors")
+    }
+)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def initiate_custom_sms_purchase(request):
+    """
+    Initiate custom SMS purchase with ZenoPay.
+    POST /api/billing/payments/custom-sms/initiate/
     """
     try:
         tenant = getattr(request.user, "tenant", None)
@@ -1075,86 +1166,54 @@ def initiate_payment_enhanced(request):
                 'message': 'User is not associated with any tenant. Please contact support.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Extract and validate request data
-        package_id = request.data.get('package_id')
-        buyer_email = request.data.get('buyer_email')
-        buyer_name = request.data.get('buyer_name')
-        buyer_phone = request.data.get('buyer_phone')
-        mobile_money_provider = request.data.get('mobile_money_provider', 'vodacom')
-
-        # Validate required fields
-        if not all([package_id, buyer_email, buyer_name, buyer_phone]):
+        serializer = CustomSMSPurchaseCreateSerializer(data=request.data)
+        if not serializer.is_valid():
             return Response({
                 'success': False,
-                'message': 'Missing required fields: package_id, buyer_email, buyer_name, buyer_phone'
+                'message': 'Validation failed',
+                'errors': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Validate mobile money provider
-        valid_providers = [p['code'] for p in get_mobile_money_providers()]
-        if mobile_money_provider not in valid_providers:
-            return Response({
-                'success': False,
-                'message': f'Invalid mobile money provider. Choose from: {", ".join(valid_providers)}'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # Validate phone number format
-        if not buyer_phone.startswith(('07', '06')):
-            return Response({
-                'success': False,
-                'message': 'Invalid phone number. Must be a Tanzanian mobile number starting with 07 or 06 (e.g., 0744963858)'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # Validate package_id format
-        try:
-            uuid.UUID(package_id)
-        except (ValueError, TypeError):
-            return Response({
-                'success': False,
-                'message': f'Invalid package ID format: {package_id}. Please select a valid package.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # Get and validate package
-        try:
-            package = SMSPackage.objects.get(id=package_id, is_active=True)
-        except SMSPackage.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': f'Package not found or inactive. Please select a valid package.'
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        # Check if package amount is within provider limits
-        provider_info = next((p for p in get_mobile_money_providers() if p['code'] == mobile_money_provider), None)
-        if provider_info:
-            if package.price < provider_info['min_amount']:
-                return Response({
-                    'success': False,
-                    'message': f'Package amount ({package.price} TZS) is below minimum for {provider_info["name"]} ({provider_info["min_amount"]} TZS)'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            if package.price > provider_info['max_amount']:
-                return Response({
-                    'success': False,
-                    'message': f'Package amount ({package.price} TZS) exceeds maximum for {provider_info["name"]} ({provider_info["max_amount"]} TZS)'
-                }, status=status.HTTP_400_BAD_REQUEST)
+        validated_data = serializer.validated_data
+        credits = validated_data['credits']
+        buyer_email = validated_data['buyer_email']
+        buyer_name = validated_data['buyer_name']
+        buyer_phone = validated_data['buyer_phone']
+        mobile_money_provider = validated_data.get('mobile_money_provider', 'vodacom')
 
         with transaction.atomic():
-            # Generate unique IDs
-            internal_order_id = f"MIFUMO-{timezone.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
-            zenopay_order_id = f"ZP-{timezone.now().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:8].upper()}"
-            invoice_number = f"INV-{timezone.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
-
-            # Set webhook URL
-            base_url = getattr(settings, "BASE_URL", "").rstrip("/")
-            webhook_url = f"{base_url}/api/billing/payments/webhook/" if base_url else "/api/billing/payments/webhook/"
+            # Create custom SMS purchase
+            custom_purchase = CustomSMSPurchase.objects.create(
+                tenant=tenant,
+                user=request.user,
+                credits=credits
+            )
+            
+            # Calculate pricing
+            unit_price, total_price, active_tier, tier_min, tier_max = custom_purchase.calculate_pricing(credits)
+            custom_purchase.unit_price = unit_price
+            custom_purchase.total_price = total_price
+            custom_purchase.active_tier = active_tier
+            custom_purchase.tier_min_credits = tier_min
+            custom_purchase.tier_max_credits = tier_max
+            custom_purchase.status = 'processing'
+            custom_purchase.save()
 
             # Create payment transaction
+            internal_order_id = f"CUSTOM-{timezone.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+            zenopay_order_id = zenopay_service.generate_order_id()
+            invoice_number = f"INV-{timezone.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+
+            base_url = getattr(settings, "BASE_URL", "").rstrip("/")
+            webhook_url = f"{base_url}/api/billing/payments/webhook/".replace("//api", "/api") if base_url else "/api/billing/payments/webhook/"
+
             payment_transaction = PaymentTransaction.objects.create(
                 tenant=tenant,
                 user=request.user,
                 zenopay_order_id=zenopay_order_id,
                 order_id=internal_order_id,
                 invoice_number=invoice_number,
-                amount=package.price,
+                amount=total_price,
                 currency='TZS',
                 buyer_email=buyer_email,
                 buyer_name=buyer_name,
@@ -1164,60 +1223,47 @@ def initiate_payment_enhanced(request):
                 webhook_url=webhook_url
             )
 
-            # Create purchase record
-            purchase = Purchase.objects.create(
-                tenant=tenant,
-                user=request.user,
-                package=package,
-                payment_transaction=payment_transaction,
-                credits=package.credits,
-                amount=package.price,
-                unit_price=package.unit_price,
-                invoice_number=invoice_number,
-                payment_method='zenopay_mobile_money',
-                status='pending'
-            )
+            # Link payment transaction to custom purchase
+            custom_purchase.payment_transaction = payment_transaction
+            custom_purchase.save()
 
-            # Initiate ZenoPay payment
+            # Initiate payment with ZenoPay
             payment_response = zenopay_service.create_payment(
                 order_id=zenopay_order_id,
                 buyer_email=buyer_email,
                 buyer_name=buyer_name,
                 buyer_phone=buyer_phone,
-                amount=package.price,
+                amount=total_price,
                 webhook_url=webhook_url,
                 mobile_money_provider=mobile_money_provider
             )
 
             if payment_response.get('success'):
-                # Update payment transaction with ZenoPay response
-                payment_transaction.zenopay_reference = payment_response.get('reference', '')
+                # Store raw response for audit
+                payment_transaction.webhook_data = payment_response.get('data', {})
                 payment_transaction.status = 'processing'
                 payment_transaction.save()
 
-                # Serialize response
-                serializer = PaymentTransactionSerializer(payment_transaction)
-                
                 return Response({
                     'success': True,
-                    'message': 'Payment initiated successfully. Please complete payment on your mobile device.',
+                    'message': 'Custom SMS purchase initiated successfully. Please complete payment on your mobile device.',
                     'data': {
+                        'purchase_id': str(custom_purchase.id),
                         'transaction_id': str(payment_transaction.id),
                         'order_id': internal_order_id,
                         'zenopay_order_id': zenopay_order_id,
-                        'amount': float(package.price),
-                        'currency': 'TZS',
+                        'invoice_number': invoice_number,
+                        'credits': credits,
+                        'unit_price': float(unit_price),
+                        'total_price': float(total_price),
+                        'active_tier': active_tier,
+                        'tier_min_credits': tier_min,
+                        'tier_max_credits': tier_max,
+                        'status': 'processing',
                         'mobile_money_provider': mobile_money_provider,
-                        'provider_name': provider_info['name'] if provider_info else mobile_money_provider,
+                        'provider_name': mobile_money_provider.title(),
+                        'payment_instructions': (payment_response.get('data') or {}).get('message', ''),
                         'reference': payment_response.get('reference', ''),
-                        'instructions': payment_response.get('instructions', 'Please complete payment on your mobile device'),
-                        'package': {
-                            'id': str(package.id),
-                            'name': package.name,
-                            'credits': package.credits,
-                            'price': float(package.price),
-                            'unit_price': float(package.unit_price)
-                        },
                         'buyer': {
                             'name': buyer_name,
                             'email': buyer_email,
@@ -1226,179 +1272,89 @@ def initiate_payment_enhanced(request):
                     }
                 }, status=status.HTTP_201_CREATED)
             else:
-                # Mark transaction as failed
-                payment_transaction.status = 'failed'
-                payment_transaction.save()
-                
+                err_msg = payment_response.get('error', 'Payment initiation failed')
+                custom_purchase.mark_as_failed(err_msg)
+                payment_transaction.mark_as_failed(err_msg)
                 return Response({
                     'success': False,
-                    'message': f'Payment initiation failed: {payment_response.get("error", "Unknown error")}'
+                    'message': 'Failed to initiate custom SMS purchase',
+                    'error': err_msg
                 }, status=status.HTTP_400_BAD_REQUEST)
 
     except Exception as e:
-        logger.error(f"Payment initiation error: {str(e)}")
+        logger.exception("Custom SMS purchase initiation error")
         return Response({
             'success': False,
-            'message': 'Payment initiation failed',
+            'message': 'Failed to initiate custom SMS purchase',
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 @swagger_auto_schema(
     method="get",
-    operation_description="Get payment status and progress for a transaction.",
     manual_parameters=[
-        openapi.Parameter(
-            'transaction_id',
-            openapi.IN_PATH,
-            type=openapi.TYPE_STRING,
-            description="Payment Transaction UUID",
-            required=True
-        )
-    ],
-    responses={
-        200: openapi.Response(
-            description="Payment status retrieved successfully",
-            examples={
-                "application/json": {
-                    "success": True,
-                    "data": {
-                        "transaction_id": "uuid",
-                        "order_id": "MIFUMO-20241017-ABC12345",
-                        "status": "processing",
-                        "payment_status": "PENDING",
-                        "amount": 150000.00,
-                        "reference": "REF123456789",
-                        "progress": {
-                            "step": 2,
-                            "total_steps": 4,
-                            "current_step": "Payment Pending",
-                            "description": "Please complete payment on your mobile device"
-                        },
-                        "updated_at": "2024-10-17T12:34:56Z"
-                    }
-                }
-            }
-        ),
-        404: openapi.Response(description="Transaction not found")
-    }
+        openapi.Parameter('purchase_id', openapi.IN_PATH, type=openapi.TYPE_STRING, description="Custom SMS Purchase UUID", required=True)
+    ]
 )
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_payment_status_enhanced(request, transaction_id):
+def check_custom_sms_purchase_status(request, purchase_id):
     """
-    Get payment status and progress for a transaction.
-    GET /api/billing/payments/status/{transaction_id}/
+    Check custom SMS purchase status.
+    GET /api/billing/payments/custom-sms/{purchase_id}/status/
     """
     try:
         tenant = getattr(request.user, "tenant", None)
         if not tenant:
-            return Response({
-                'success': False,
-                'message': 'User is not associated with any tenant.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'success': False, 'message': 'User is not associated with any tenant. Please contact support.'},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            payment_transaction = PaymentTransaction.objects.get(
-                id=transaction_id,
-                tenant=tenant
-            )
-        except PaymentTransaction.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'Transaction not found.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        custom_purchase = get_object_or_404(CustomSMSPurchase, id=purchase_id, tenant=tenant, user=request.user)
 
-        # Get payment progress
-        progress = _get_payment_progress_enhanced(payment_transaction)
+        if custom_purchase.payment_transaction:
+            # Check payment status
+            status_response = zenopay_service.check_payment_status(custom_purchase.payment_transaction.zenopay_order_id) or {}
+            
+            if status_response.get('success'):
+                result = (status_response.get('payment_status') or '').upper()
+                payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
+                payment_status = payment_data.get('payment_status', '').upper()
+                
+                # Update payment transaction
+                custom_purchase.payment_transaction.zenopay_reference = status_response.get('reference') or custom_purchase.payment_transaction.zenopay_reference
+                custom_purchase.payment_transaction.zenopay_transid = status_response.get('transid') or custom_purchase.payment_transaction.zenopay_transid
+                custom_purchase.payment_transaction.zenopay_channel = status_response.get('channel') or custom_purchase.payment_transaction.zenopay_channel
+                custom_purchase.payment_transaction.zenopay_msisdn = status_response.get('msisdn') or custom_purchase.payment_transaction.zenopay_msisdn
+                custom_purchase.payment_transaction.save()
+
+                # Check if payment is completed
+                if result == 'SUCCESS' and payment_status == 'COMPLETED' and custom_purchase.status in ('processing', 'pending'):
+                    custom_purchase.complete_purchase()
+                    custom_purchase.payment_transaction.mark_as_completed(status_response.get('data', {}))
+                elif payment_status == 'FAILED' or result == 'FAILED':
+                    custom_purchase.mark_as_failed('Payment failed via verification')
+                    custom_purchase.payment_transaction.mark_as_failed('Payment failed via verification')
 
         return Response({
             'success': True,
             'data': {
-                'transaction_id': str(payment_transaction.id),
-                'order_id': payment_transaction.order_id,
-                'zenopay_order_id': payment_transaction.zenopay_order_id,
-                'status': payment_transaction.status,
-                'amount': float(payment_transaction.amount),
-                'currency': payment_transaction.currency,
-                'mobile_money_provider': payment_transaction.mobile_money_provider,
-                'reference': payment_transaction.zenopay_reference,
-                'buyer': {
-                    'name': payment_transaction.buyer_name,
-                    'email': payment_transaction.buyer_email,
-                    'phone': payment_transaction.buyer_phone
-                },
-                'progress': progress,
-                'created_at': payment_transaction.created_at.isoformat(),
-                'updated_at': payment_transaction.updated_at.isoformat()
+                'purchase_id': str(custom_purchase.id),
+                'credits': custom_purchase.credits,
+                'unit_price': float(custom_purchase.unit_price),
+                'total_price': float(custom_purchase.total_price),
+                'active_tier': custom_purchase.active_tier,
+                'status': custom_purchase.status,
+                'created_at': custom_purchase.created_at.isoformat(),
+                'updated_at': custom_purchase.updated_at.isoformat(),
+                'completed_at': custom_purchase.completed_at.isoformat() if custom_purchase.completed_at else None
             }
         })
 
     except Exception as e:
-        logger.error(f"Payment status check error: {str(e)}")
+        logger.exception("Custom SMS purchase status check error")
         return Response({
             'success': False,
-            'message': 'Failed to get payment status',
+            'message': 'Failed to check custom SMS purchase status',
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-def _get_payment_progress_enhanced(payment_transaction):
-    """Get enhanced payment progress information."""
-    status_mapping = {
-        'pending': {
-            'step': 1,
-            'total_steps': 4,
-            'current_step': 'Payment Initiated',
-            'description': 'Payment request has been created and is being processed',
-            'icon': 'clock',
-            'color': 'blue'
-        },
-        'processing': {
-            'step': 2,
-            'total_steps': 4,
-            'current_step': 'Payment Pending',
-            'description': 'Please complete payment on your mobile device',
-            'icon': 'mobile',
-            'color': 'orange'
-        },
-        'completed': {
-            'step': 4,
-            'total_steps': 4,
-            'current_step': 'Payment Completed',
-            'description': 'Payment successful! SMS credits have been added to your account',
-            'icon': 'check-circle',
-            'color': 'green'
-        },
-        'failed': {
-            'step': 0,
-            'total_steps': 4,
-            'current_step': 'Payment Failed',
-            'description': 'Payment failed. Please try again or contact support',
-            'icon': 'x-circle',
-            'color': 'red'
-        },
-        'cancelled': {
-            'step': 0,
-            'total_steps': 4,
-            'current_step': 'Payment Cancelled',
-            'description': 'Payment was cancelled',
-            'icon': 'x-circle',
-            'color': 'gray'
-        },
-        'expired': {
-            'step': 0,
-            'total_steps': 4,
-            'current_step': 'Payment Expired',
-            'description': 'Payment has expired. Please initiate a new payment',
-            'icon': 'clock',
-            'color': 'gray'
-        }
-    }
-    
-    return status_mapping.get(payment_transaction.status, {
-        'step': 0,
-        'total_steps': 4,
-        'current_step': 'Unknown Status',
-        'description': 'Payment status is unknown',
-        'icon': 'question',
-        'color': 'gray'
-    })

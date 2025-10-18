@@ -117,6 +117,22 @@ def send_sms(request):
         # Initialize Beem service
         beem_service = BeemSMSService()
 
+        # Validate SMS sending capability before processing
+        from .services.sms_validation import SMSValidationService, SMSValidationError
+        
+        validation_service = SMSValidationService(tenant)
+        validation_result = validation_service.validate_sms_sending(
+            sender_id_obj.sender_id, 
+            required_credits=len(data['recipients'])
+        )
+        
+        if not validation_result['valid']:
+            return Response({
+                'success': False,
+                'error': validation_result['error'],
+                'error_type': validation_result.get('error_type', 'validation_error')
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # Send SMS via Beem
         with transaction.atomic():
             # Create base message
@@ -140,27 +156,56 @@ def send_sms(request):
                 status='queued'
             )
 
-            # Send via Beem API
+        # Send via Beem API (encoding will be auto-detected if not specified)
+        try:
             beem_response = beem_service.send_sms(
                 message=message_content,
                 recipients=data['recipients'],
                 source_addr=sender_id_obj.sender_id,
                 schedule_time=data.get('schedule_time'),
-                encoding=data.get('encoding', 0)
+                encoding=data.get('encoding')  # None will trigger auto-detection
             )
+        except BeemSMSError as e:
+            # Check if it's a Unicode-related error
+            if "Unicode" in str(e) or "Special Characters" in str(e):
+                logger.warning(f"Unicode error detected, retrying with explicit UCS2 encoding: {e}")
+                # Retry with explicit UCS2 encoding
+                beem_response = beem_service.send_sms(
+                    message=message_content,
+                    recipients=data['recipients'],
+                    source_addr=sender_id_obj.sender_id,
+                    schedule_time=data.get('schedule_time'),
+                    encoding=1  # Force UCS2 encoding
+                )
+            else:
+                raise
 
-            # Update SMS message with provider response
-            sms_message.provider_response = beem_response.get('response', {})
-            sms_message.status = 'sent' if beem_response.get('success') else 'failed'
-            sms_message.sent_at = timezone.now()
-            sms_message.cost_amount = beem_response.get('cost_estimate', 0.0)
-            sms_message.save()
+        # Update SMS message with provider response
+        sms_message.provider_response = beem_response.get('response', {})
+        sms_message.status = 'sent' if beem_response.get('success') else 'failed'
+        sms_message.sent_at = timezone.now()
+        sms_message.cost_amount = beem_response.get('cost_estimate', 0.0)
+        sms_message.save()
 
-            # Update base message
-            base_message.status = 'sent' if beem_response.get('success') else 'failed'
-            base_message.sent_at = timezone.now()
-            base_message.cost_micro = int(beem_response.get('cost_estimate', 0.0) * 1000000)
-            base_message.save()
+        # Update base message
+        base_message.status = 'sent' if beem_response.get('success') else 'failed'
+        base_message.sent_at = timezone.now()
+        base_message.cost_micro = int(beem_response.get('cost_estimate', 0.0) * 1000000)
+        base_message.save()
+        
+        # Deduct SMS credits after successful send
+        if beem_response.get('success'):
+            try:
+                validation_service.deduct_credits(
+                    amount=len(data['recipients']),
+                    sender_id=sender_id_obj.sender_id,
+                    message_id=str(base_message.id),
+                    description=f"Bulk SMS sent to {len(data['recipients'])} recipients"
+                )
+                logger.info(f"Deducted {len(data['recipients'])} SMS credits for bulk message {base_message.id}")
+            except SMSValidationError as e:
+                logger.error(f"Failed to deduct credits for bulk message {base_message.id}: {e}")
+                # Don't fail the message if credit deduction fails, just log it
 
         return Response({
             'success': True,

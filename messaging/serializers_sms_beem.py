@@ -56,6 +56,14 @@ class SMSSendSerializer(serializers.Serializer):
         if len(value) > 160:
             raise serializers.ValidationError("Message too long (max 160 characters)")
         
+        # Check for Unicode characters and provide helpful message
+        has_unicode = any(ord(char) > 127 for char in value)
+        if has_unicode:
+            # Log that Unicode characters were detected
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Unicode characters detected in message: {value[:50]}...")
+        
         return value.strip()
     
     def validate_recipients(self, value):

@@ -35,5 +35,10 @@ urlpatterns = [
     path('payments/webhook/', views_payment.payment_webhook, name='payment-webhook'),
     
     # Mobile money providers endpoint
-    path('payments/providers/', views_payment.get_mobile_money_providers_endpoint, name='payment-providers'),
+    path('payments/providers/', views_payment.get_mobile_money_providers, name='payment-providers'),
+    
+    # Custom SMS purchase endpoints
+    path('payments/custom-sms/calculate/', views_payment.calculate_custom_sms_pricing, name='custom-sms-calculate'),
+    path('payments/custom-sms/initiate/', views_payment.initiate_custom_sms_purchase, name='custom-sms-initiate'),
+    path('payments/custom-sms/<uuid:purchase_id>/status/', views_payment.check_custom_sms_purchase_status, name='custom-sms-status'),
 ]

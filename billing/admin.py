@@ -2,28 +2,40 @@
 Admin configuration for billing models.
 """
 from django.contrib import admin
+from django.utils.html import format_html
+from django.urls import reverse
+from django.utils.safestring import mark_safe
 from .models import (
     SMSPackage, SMSBalance, Purchase, UsageRecord, 
-    BillingPlan, Subscription, PaymentTransaction
+    BillingPlan, Subscription, PaymentTransaction, CustomSMSPurchase
 )
 
 
 @admin.register(SMSPackage)
 class SMSPackageAdmin(admin.ModelAdmin):
     list_display = [
-        'name', 'package_type', 'credits', 'price', 'unit_price', 
-        'default_sender_id', 'sender_id_restriction', 'is_popular', 'is_active'
+        'name', 'package_type', 'credits', 'price_formatted', 'unit_price_formatted', 
+        'savings_display', 'status_badges', 'created_at'
     ]
     list_filter = ['package_type', 'sender_id_restriction', 'is_popular', 'is_active', 'created_at']
     search_fields = ['name', 'package_type', 'default_sender_id']
-    readonly_fields = ['created_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at', 'savings_percentage']
+    list_per_page = 25
+    ordering = ['price']
     
     fieldsets = (
         ('Package Information', {
-            'fields': ('name', 'package_type', 'credits', 'price', 'unit_price')
+            'fields': ('name', 'package_type', 'credits', 'price', 'unit_price'),
+            'classes': ('wide',)
+        }),
+        ('Pricing Details', {
+            'fields': ('savings_percentage',),
+            'classes': ('wide', 'collapse'),
+            'description': 'Savings compared to standard rate (30 TZS per SMS)'
         }),
         ('Status & Features', {
-            'fields': ('is_popular', 'is_active', 'features')
+            'fields': ('is_popular', 'is_active', 'features'),
+            'classes': ('wide',)
         }),
         ('Sender ID Configuration', {
             'fields': (
@@ -31,6 +43,7 @@ class SMSPackageAdmin(admin.ModelAdmin):
                 'sender_id_restriction', 
                 'allowed_sender_ids'
             ),
+            'classes': ('wide',),
             'description': 'Configure which sender IDs are allowed for this package'
         }),
         ('Timestamps', {
@@ -39,8 +52,108 @@ class SMSPackageAdmin(admin.ModelAdmin):
         }),
     )
     
+    def price_formatted(self, obj):
+        """Format price with currency."""
+        return f"{obj.price:,.2f} TZS"
+    price_formatted.short_description = 'Price'
+    price_formatted.admin_order_field = 'price'
+    
+    def unit_price_formatted(self, obj):
+        """Format unit price with currency."""
+        return f"{obj.unit_price:,.2f} TZS"
+    unit_price_formatted.short_description = 'Unit Price'
+    unit_price_formatted.admin_order_field = 'unit_price'
+    
+    def savings_display(self, obj):
+        """Display savings percentage with color coding."""
+        try:
+            # Ensure we have a valid object with unit_price
+            if not hasattr(obj, 'unit_price') or obj.unit_price is None:
+                return format_html('<span style="color: gray;">No data</span>')
+            
+            # Calculate savings manually to avoid property issues
+            standard_rate = 30  # TZS per SMS
+            unit_price = float(obj.unit_price)  # Ensure it's a float
+            
+            if unit_price < standard_rate:
+                savings = round(((standard_rate - unit_price) / standard_rate) * 100, 1)
+            else:
+                savings = 0
+            
+            if savings > 0:
+                color = 'green' if savings >= 20 else 'orange' if savings >= 10 else 'blue'
+                # Use string formatting instead of format_html for the percentage
+                savings_text = '{:.1f}% OFF'.format(savings)
+                return format_html(
+                    '<span style="color: {}; font-weight: bold;">{}</span>',
+                    color, savings_text
+                )
+            return format_html('<span style="color: gray;">No savings</span>')
+        except Exception as e:
+            # Log the error for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            obj_name = obj.name if hasattr(obj, 'name') else 'unknown'
+            logger.error("Savings display error for {}: {}".format(obj_name, str(e)))
+            return format_html('<span style="color: red;">Error</span>')
+    savings_display.short_description = 'Savings'
+    
+    def status_badges(self, obj):
+        """Display status badges."""
+        try:
+            badges = []
+            
+            if obj.is_popular:
+                badges.append('<span class="badge badge-success">Popular</span>')
+            else:
+                badges.append('<span class="badge badge-secondary">Regular</span>')
+                
+            if obj.is_active:
+                badges.append('<span class="badge badge-success">Active</span>')
+            else:
+                badges.append('<span class="badge badge-danger">Inactive</span>')
+                
+            return mark_safe(' '.join(badges))
+        except Exception as e:
+            return mark_safe('<span class="badge badge-danger">Error</span>')
+    status_badges.short_description = 'Status'
+    
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related()
+    
+    def get_actions(self, request):
+        """Add custom actions."""
+        actions = super().get_actions(request)
+        if request.user.has_perm('billing.change_smspackage'):
+            actions['mark_as_popular'] = self.get_action('mark_as_popular')
+            actions['mark_as_regular'] = self.get_action('mark_as_regular')
+            actions['activate_packages'] = self.get_action('activate_packages')
+            actions['deactivate_packages'] = self.get_action('deactivate_packages')
+        return actions
+    
+    def mark_as_popular(self, request, queryset):
+        """Mark selected packages as popular."""
+        updated = queryset.update(is_popular=True)
+        self.message_user(request, f'{updated} packages marked as popular.')
+    mark_as_popular.short_description = "Mark selected packages as popular"
+    
+    def mark_as_regular(self, request, queryset):
+        """Mark selected packages as regular (not popular)."""
+        updated = queryset.update(is_popular=False)
+        self.message_user(request, f'{updated} packages marked as regular.')
+    mark_as_regular.short_description = "Mark selected packages as regular"
+    
+    def activate_packages(self, request, queryset):
+        """Activate selected packages."""
+        updated = queryset.update(is_active=True)
+        self.message_user(request, f'{updated} packages activated.')
+    activate_packages.short_description = "Activate selected packages"
+    
+    def deactivate_packages(self, request, queryset):
+        """Deactivate selected packages."""
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f'{updated} packages deactivated.')
+    deactivate_packages.short_description = "Deactivate selected packages"
 
 
 @admin.register(SMSBalance)
@@ -117,3 +230,37 @@ class PaymentTransactionAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         })
     )
+
+
+@admin.register(CustomSMSPurchase)
+class CustomSMSPurchaseAdmin(admin.ModelAdmin):
+    list_display = [
+        'id', 'tenant', 'user', 'credits', 'unit_price', 'total_price', 
+        'active_tier', 'status', 'created_at'
+    ]
+    list_filter = ['status', 'active_tier', 'created_at', 'completed_at']
+    search_fields = ['tenant__name', 'user__email', 'user__first_name', 'user__last_name']
+    readonly_fields = ['created_at', 'updated_at', 'completed_at']
+    raw_id_fields = ['tenant', 'user', 'payment_transaction']
+    
+    fieldsets = (
+        ('Purchase Details', {
+            'fields': ('tenant', 'user', 'credits', 'unit_price', 'total_price'),
+            'classes': ('wide',)
+        }),
+        ('Pricing Tier', {
+            'fields': ('active_tier', 'tier_min_credits', 'tier_max_credits'),
+            'classes': ('wide',)
+        }),
+        ('Payment', {
+            'fields': ('payment_transaction', 'status'),
+            'classes': ('wide',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'completed_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('tenant', 'user', 'payment_transaction')

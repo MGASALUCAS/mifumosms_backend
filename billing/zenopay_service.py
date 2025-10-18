@@ -166,14 +166,21 @@ class ZenoPayService:
             response_data = response.json()
             
             if response.status_code == 200:
+                # Parse ZenoPay response according to their API documentation
+                data_array = response_data.get('data', [])
+                payment_data = data_array[0] if data_array else {}
+                
                 return {
                     'success': True,
                     'data': response_data,
-                    'payment_status': response_data.get('result', 'UNKNOWN'),
+                    'payment_status': response_data.get('result', 'UNKNOWN'),  # This is the 'result' field
                     'reference': response_data.get('reference'),
-                    'transid': response_data.get('data', [{}])[0].get('transid') if response_data.get('data') else None,
-                    'channel': response_data.get('data', [{}])[0].get('channel') if response_data.get('data') else None,
-                    'msisdn': response_data.get('data', [{}])[0].get('msisdn') if response_data.get('data') else None
+                    'transid': payment_data.get('transid'),
+                    'channel': payment_data.get('channel'),
+                    'msisdn': payment_data.get('msisdn'),
+                    'order_id': payment_data.get('order_id'),
+                    'amount': payment_data.get('amount'),
+                    'creation_date': payment_data.get('creation_date')
                 }
             else:
                 return {

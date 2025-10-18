@@ -3,13 +3,14 @@ SMS-specific URL patterns for Mifumo WMS.
 Optimized for frontend integration.
 """
 from django.urls import path
-from . import views_sms_beem
+from . import views_sms_beem, views_sms
 
 urlpatterns = [
     # Core SMS Operations (used by frontend)
     path('send/', views_sms_beem.send_sms, name='sms-send'),
     path('balance/', views_sms_beem.get_beem_balance, name='sms-balance'),
     path('stats/', views_sms_beem.get_sms_stats, name='sms-stats'),
+    path('capability/', views_sms.check_sms_capability, name='sms-capability'),
 
     # SMS Utilities (used by frontend)
     path('validate-phone/', views_sms_beem.validate_phone_number, name='sms-validate-phone'),

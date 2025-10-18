@@ -496,3 +496,112 @@ class Subscription(models.Model):
             self.status == 'active' and
             self.current_period_start <= now <= self.current_period_end
         )
+
+
+class CustomSMSPurchase(models.Model):
+    """
+    Custom SMS purchase for flexible credit amounts.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='custom_sms_purchases')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='custom_sms_purchases')
+    
+    # Custom purchase details
+    credits = models.PositiveIntegerField(help_text="Number of SMS credits (minimum 100)")
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price per SMS in TZS")
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, help_text="Total price in TZS")
+    
+    # Pricing tier information
+    active_tier = models.CharField(max_length=50, help_text="Active pricing tier (e.g., 'Lite', 'Standard')")
+    tier_min_credits = models.PositiveIntegerField(help_text="Minimum credits for this tier")
+    tier_max_credits = models.PositiveIntegerField(help_text="Maximum credits for this tier")
+    
+    # Payment information
+    payment_transaction = models.OneToOneField(
+        'PaymentTransaction', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='custom_sms_purchase'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending'),
+            ('processing', 'Processing'),
+            ('completed', 'Completed'),
+            ('failed', 'Failed'),
+            ('cancelled', 'Cancelled'),
+        ],
+        default='pending'
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'custom_sms_purchases'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Custom SMS Purchase - {self.credits} credits - {self.total_price} TZS"
+    
+    def calculate_pricing(self, credits):
+        """
+        Calculate pricing based on credit amount and active tier.
+        Returns (unit_price, total_price, active_tier, tier_min, tier_max)
+        """
+        # Define pricing tiers
+        tiers = [
+            {'name': 'Lite', 'min': 1, 'max': 5000, 'unit_price': 30.00},
+            {'name': 'Standard', 'min': 5001, 'max': 50000, 'unit_price': 25.00},
+            {'name': 'Pro', 'min': 50001, 'max': 250000, 'unit_price': 18.00},
+            {'name': 'Enterprise', 'min': 250001, 'max': 1000000, 'unit_price': 12.00},
+        ]
+        
+        # Find the appropriate tier
+        active_tier = None
+        for tier in tiers:
+            if tier['min'] <= credits <= tier['max']:
+                active_tier = tier
+                break
+        
+        # If credits exceed all tiers, use Enterprise pricing
+        if not active_tier and credits > 1000000:
+            active_tier = {'name': 'Enterprise+', 'min': 1000001, 'max': 9999999, 'unit_price': 12.00}
+        
+        if not active_tier:
+            # Default to highest tier if no match
+            active_tier = tiers[-1]
+        
+        unit_price = active_tier['unit_price']
+        total_price = credits * unit_price
+        
+        return unit_price, total_price, active_tier['name'], active_tier['min'], active_tier['max']
+    
+    def save(self, *args, **kwargs):
+        # Auto-calculate pricing if not set
+        if not self.unit_price or not self.total_price:
+            self.unit_price, self.total_price, self.active_tier, self.tier_min_credits, self.tier_max_credits = self.calculate_pricing(self.credits)
+        super().save(*args, **kwargs)
+    
+    def complete_purchase(self):
+        """Complete the custom SMS purchase."""
+        self.status = 'completed'
+        self.completed_at = timezone.now()
+        self.save()
+        
+        # Add credits to tenant's SMS balance
+        sms_balance, created = SMSBalance.objects.get_or_create(tenant=self.tenant)
+        sms_balance.credits += self.credits
+        sms_balance.total_purchased += self.credits
+        sms_balance.save()
+    
+    def mark_as_failed(self, error_message=None):
+        """Mark the purchase as failed."""
+        self.status = 'failed'
+        if error_message:
+            self.error_message = error_message
+        self.save()

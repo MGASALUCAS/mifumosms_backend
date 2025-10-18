@@ -2,7 +2,6 @@
 SMS-specific API views for Mifumo WMS.
 """
 import logging
-import pandas as pd
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.db import transaction
@@ -207,6 +206,19 @@ def send_sms_view(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Validate SMS sending capability before processing
+        from .services.sms_validation import SMSValidationService, SMSValidationError
+        
+        validation_service = SMSValidationService(request.tenant)
+        validation_result = validation_service.validate_sms_sending(sender_id, required_credits=1)
+        
+        if not validation_result['valid']:
+            return Response({
+                'success': False,
+                'error': validation_result['error'],
+                'error_type': validation_result.get('error_type', 'validation_error')
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # Get or create contact
         from .models import Contact, Conversation
         contact, created = Contact.objects.get_or_create(
@@ -238,13 +250,58 @@ def send_sms_view(request):
         return Response({
             'success': True,
             'message_id': str(message_obj.id),
-            'message': 'SMS queued for sending'
+            'message': 'SMS queued for sending',
+            'validation_info': {
+                'available_credits': validation_result['available_credits'],
+                'remaining_credits': validation_result['remaining_credits']
+            }
         })
 
     except Exception as e:
         logger.error(f"SMS send error: {str(e)}")
         return Response(
             {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsTenantMember])
+def check_sms_capability(request):
+    """Check SMS sending capability for tenant."""
+    try:
+        from .services.sms_validation import SMSValidationService
+        
+        validation_service = SMSValidationService(request.tenant)
+        
+        # Get balance info
+        balance_info = validation_service.get_balance_info()
+        
+        # Get active sender IDs
+        active_sender_ids = validation_service.get_active_sender_ids()
+        
+        # Check general capability
+        capability = validation_service.can_send_sms()
+        
+        return Response({
+            'success': True,
+            'data': {
+                'can_send_sms': capability['can_send'],
+                'reason': capability['reason'],
+                'message': capability['message'],
+                'balance': balance_info,
+                'active_sender_ids': active_sender_ids,
+                'validation_required': {
+                    'sender_id_registered': len(active_sender_ids) > 0,
+                    'has_credits': balance_info['credits'] > 0
+                }
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"SMS capability check error: {str(e)}")
+        return Response(
+            {'success': False, 'error': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 

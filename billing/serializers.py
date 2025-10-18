@@ -4,7 +4,7 @@ Serializers for billing functionality.
 from rest_framework import serializers
 from .models import (
     SMSPackage, SMSBalance, Purchase, UsageRecord, 
-    BillingPlan, Subscription, PaymentTransaction
+    BillingPlan, Subscription, PaymentTransaction, CustomSMSPurchase
 )
 
 
@@ -162,3 +162,66 @@ class PaymentInitiateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "Please provide a valid Tanzanian mobile number (e.g., 0744963858)"
             )
+
+
+class CustomSMSPurchaseSerializer(serializers.ModelSerializer):
+    """Serializer for custom SMS purchases."""
+    active_tier = serializers.ReadOnlyField()
+    tier_min_credits = serializers.ReadOnlyField()
+    tier_max_credits = serializers.ReadOnlyField()
+    unit_price = serializers.ReadOnlyField()
+    total_price = serializers.ReadOnlyField()
+    
+    class Meta:
+        model = CustomSMSPurchase
+        fields = [
+            'id', 'credits', 'unit_price', 'total_price', 'active_tier',
+            'tier_min_credits', 'tier_max_credits', 'status', 'created_at',
+            'updated_at', 'completed_at'
+        ]
+        read_only_fields = ['id', 'status', 'created_at', 'updated_at', 'completed_at']
+    
+    def validate_credits(self, value):
+        """Validate that credits meet minimum requirement."""
+        if value < 100:
+            raise serializers.ValidationError(
+                "Minimum 100 SMS credits required for custom purchase."
+            )
+        return value
+
+
+class CustomSMSPurchaseCreateSerializer(serializers.Serializer):
+    """Serializer for creating custom SMS purchases."""
+    credits = serializers.IntegerField(min_value=100)
+    buyer_email = serializers.EmailField()
+    buyer_name = serializers.CharField(max_length=100)
+    buyer_phone = serializers.CharField(max_length=20)
+    mobile_money_provider = serializers.ChoiceField(
+        choices=['vodacom', 'tigo', 'airtel', 'halotel'],
+        default='vodacom'
+    )
+    
+    def validate_credits(self, value):
+        """Validate credits and calculate pricing."""
+        if value < 100:
+            raise serializers.ValidationError(
+                "Minimum 100 SMS credits required for custom purchase."
+            )
+        return value
+    
+    def validate_buyer_phone(self, value):
+        """Validate phone number format."""
+        # Remove any non-digit characters
+        phone = ''.join(filter(str.isdigit, value))
+        
+        # Check if it's a valid Tanzanian mobile number
+        if phone.startswith(('07', '06')) and len(phone) == 10:
+            return phone
+        elif phone.startswith('255') and len(phone) == 12:
+            # Convert from international format
+            if phone[3:5] in ['07', '06']:
+                return '0' + phone[3:]
+        
+        raise serializers.ValidationError(
+            "Please provide a valid Tanzanian mobile number (e.g., 0744963858)"
+        )

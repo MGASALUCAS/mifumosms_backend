@@ -24,9 +24,25 @@ def send_sms_task(self, message_id, sender_id, provider_id=None):
     """
     try:
         from .models import Message
+        from .services.sms_validation import SMSValidationService, SMSValidationError
         
         # Get base message
         base_message = Message.objects.get(id=message_id)
+        
+        # Initialize SMS validation service
+        validation_service = SMSValidationService(base_message.tenant)
+        
+        # Validate SMS sending capability
+        validation_result = validation_service.validate_sms_sending(sender_id, required_credits=1)
+        
+        if not validation_result['valid']:
+            # Mark message as failed with validation error
+            base_message.status = 'failed'
+            base_message.error_message = validation_result['error']
+            base_message.save()
+            
+            logger.error(f"SMS validation failed for message {message_id}: {validation_result['error']}")
+            return
         
         # Get SMS provider and sender ID
         from .models_sms import SMSProvider, SMSSenderID
@@ -81,6 +97,19 @@ def send_sms_task(self, message_id, sender_id, provider_id=None):
         )
         
         if result['success']:
+            # Deduct SMS credits after successful send
+            try:
+                validation_service.deduct_credits(
+                    amount=1,
+                    sender_id=sender_id,
+                    message_id=str(base_message.id),
+                    description=f"SMS sent to {phone}"
+                )
+                logger.info(f"Deducted 1 SMS credit for message {message_id}")
+            except SMSValidationError as e:
+                logger.error(f"Failed to deduct credits for message {message_id}: {e}")
+                # Don't fail the message if credit deduction fails, just log it
+            
             # Update SMS message
             sms_message.status = 'sent'
             sms_message.provider_message_id = result.get('message_id')
