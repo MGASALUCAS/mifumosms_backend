@@ -11,6 +11,6 @@ urlpatterns = [
     # Include all app URLs
     path('', include('tenants.urls')),
     path('', include('accounts.urls')),
-    path('', include('messaging.urls')),
+    # messaging.urls is included in mifumo/urls.py under api/messaging/
     path('', include('billing.urls')),
 ]
