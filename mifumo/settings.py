@@ -14,11 +14,11 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config('DJANGO_SECRET_KEY', default='django-insecure-change-me')
-DEBUG = config('DJANGO_DEBUG', default=True, cast=bool)
+DEBUG = config('DJANGO_DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = config(
     'DJANGO_ALLOWED_HOSTS',
-    default='.localhost,.mifumo.local,127.0.0.1,localhost,104.131.116.55,196.249.97.239,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev,testserver'
+    default='104.131.116.55,196.249.97.239,localhost,127.0.0.1,.mifumo.local,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev,testserver'
 ).split(',')
 
 SITE_ID = 1
@@ -238,7 +238,7 @@ SIMPLE_JWT = {
 # =============================================================================
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080'
+    default='http://104.131.116.55,http://104.131.116.55:8000,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080'
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = config('CORS_ALLOW_CREDENTIALS', default=True, cast=bool)
@@ -272,6 +272,8 @@ CORS_PREFLIGHT_MAX_AGE = 86400
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
     r"^http://127\.0\.0\.1:\d+$",
+    r"^http://104\.131\.116\.55:\d+$",
+    r"^http://196\.249\.97\.239:\d+$",
 ]
 
 # Expose additional headers
@@ -286,14 +288,16 @@ CSRF_TRUSTED_ORIGINS = [
     # keep anything you already trust via CORS:
     *[origin for origin in CORS_ALLOWED_ORIGINS
       if origin.startswith('http://') or origin.startswith('https://')],
-    # add your server IP (HTTP) and the exact port you are using
+    # Production server IPs
     'http://104.131.116.55',
     'http://104.131.116.55:8000',
-    # add production server IP
+    'http://104.131.116.55:80',
     'http://196.249.97.239',
     'http://196.249.97.239:8000',
+    'http://196.249.97.239:80',
     'https://196.249.97.239',
     'https://196.249.97.239:8000',
+    'https://196.249.97.239:443',
     # add any real domains you use (https), e.g. ngrok:
     'https://ileana-unsupposed-nonmortally.ngrok-free.dev',
 ]
@@ -366,7 +370,7 @@ TWILIO_PHONE_NUMBER = config('TWILIO_PHONE_NUMBER', default='')
 TELEGRAM_BOT_TOKEN = config('TELEGRAM_BOT_TOKEN', default='')
 
 # Base URL (used in webhooks, etc.)
-BASE_URL = config('BASE_URL', default='http://localhost:8000')
+BASE_URL = config('BASE_URL', default='http://104.131.116.55')
 
 # Email
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
@@ -520,6 +524,13 @@ if SENTRY_DSN.strip():
 SECURE_BROWSER_XSS_FILTER = config('SECURE_BROWSER_XSS_FILTER', default=True, cast=bool)
 SECURE_CONTENT_TYPE_NOSNIFF = config('SECURE_CONTENT_TYPE_NOSNIFF', default=True, cast=bool)
 X_FRAME_OPTIONS = config('X_FRAME_OPTIONS', default='DENY')
+
+# Additional production security settings
+SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0, cast=int)  # Set to 31536000 for HTTPS
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
+SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+SECURE_PROXY_SSL_HEADER = config('SECURE_PROXY_SSL_HEADER', default=None)
 
 # =============================================================================
 # JAZZMIN
