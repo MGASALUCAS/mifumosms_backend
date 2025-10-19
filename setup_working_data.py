@@ -101,8 +101,11 @@ def create_domain(tenant):
     """Create domain"""
     print("🌐 Creating domain...")
     
+    # Use IP address for domain
+    ip_address = '104.131.116.55'
+    
     domain, created = Domain.objects.get_or_create(
-        domain='mifumo.com',
+        domain=ip_address,
         defaults={'tenant': tenant}
     )
     
@@ -116,7 +119,6 @@ def create_admin_user():
     user, created = User.objects.get_or_create(
         email='admin@mifumo.com',
         defaults={
-            'username': 'admin@mifumo.com',
             'first_name': 'Admin',
             'last_name': 'User',
             'is_staff': True,
@@ -531,12 +533,12 @@ def setup_working_data():
         print("  ✅ SMS templates for common use cases")
         print("  ✅ Multi-user support with proper permissions")
         
-        print(f"\n🌐 Admin Dashboard: http://localhost:8000/admin/")
+        print(f"\n🌐 Admin Dashboard: http://104.131.116.55:8000/admin/")
         print(f"📧 Login: {user.email}")
         print(f"🔑 Password: admin123")
         
         print(f"\n🧪 Test SMS Functionality:")
-        print(f"   python test_real_sms.py")
+        print(f"   python test_sms_simple.py")
         
     except Exception as e:
         print(f"❌ Error during setup: {e}")
