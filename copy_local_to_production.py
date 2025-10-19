@@ -167,13 +167,11 @@ def copy_all_local_data():
                     'credits': 5000,
                     'price': Decimal('150000.00'),
                     'unit_price': Decimal('30.00'),
-                    'currency': 'TZS',
                     'is_active': True,
                     'default_sender_id': 'Taarifa-SMS',
                     'allowed_sender_ids': ['Taarifa-SMS', 'INFO', 'ALERT', 'NOTIFY'],
                     'sender_id_restriction': 'allowed_list',
-                    'description': 'Perfect for small businesses and startups',
-                    'created_at': timezone.now() - timedelta(days=30)
+                    'features': ['SMS sending', 'Basic support', '4 Sender IDs']
                 },
                 {
                     'name': 'Standard',
@@ -181,14 +179,12 @@ def copy_all_local_data():
                     'credits': 50000,
                     'price': Decimal('1250000.00'),
                     'unit_price': Decimal('25.00'),
-                    'currency': 'TZS',
                     'is_popular': True,
                     'is_active': True,
                     'default_sender_id': 'Taarifa-SMS',
                     'allowed_sender_ids': ['Taarifa-SMS', 'INFO', 'ALERT', 'NOTIFY', 'MIFUMO', 'SMS'],
                     'sender_id_restriction': 'allowed_list',
-                    'description': 'Most popular choice for growing businesses',
-                    'created_at': timezone.now() - timedelta(days=30)
+                    'features': ['SMS sending', 'Priority support', '6 Sender IDs', 'Analytics']
                 },
                 {
                     'name': 'Pro',
@@ -196,13 +192,11 @@ def copy_all_local_data():
                     'credits': 250000,
                     'price': Decimal('4500000.00'),
                     'unit_price': Decimal('18.00'),
-                    'currency': 'TZS',
                     'is_active': True,
                     'default_sender_id': 'Taarifa-SMS',
                     'allowed_sender_ids': ['Taarifa-SMS', 'INFO', 'ALERT', 'NOTIFY', 'MIFUMO', 'SMS', 'SYSTEM', 'SERVICE'],
                     'sender_id_restriction': 'allowed_list',
-                    'description': 'Advanced features for professional use',
-                    'created_at': timezone.now() - timedelta(days=30)
+                    'features': ['SMS sending', 'Premium support', '8 Sender IDs', 'Advanced Analytics', 'API Access']
                 },
                 {
                     'name': 'Enterprise',
@@ -210,13 +204,11 @@ def copy_all_local_data():
                     'credits': 1000000,
                     'price': Decimal('12000000.00'),
                     'unit_price': Decimal('12.00'),
-                    'currency': 'TZS',
                     'is_active': True,
                     'default_sender_id': 'Taarifa-SMS',
                     'allowed_sender_ids': ['Taarifa-SMS', 'INFO', 'ALERT', 'NOTIFY', 'MIFUMO', 'SMS', 'SYSTEM', 'SERVICE', 'UPDATE', 'REMINDER'],
                     'sender_id_restriction': 'allowed_list',
-                    'description': 'Enterprise-grade solution for large organizations',
-                    'created_at': timezone.now() - timedelta(days=30)
+                    'features': ['SMS sending', 'Dedicated support', 'All Sender IDs', 'Full Analytics', 'API Access', 'Custom Integration']
                 }
             ]
             
