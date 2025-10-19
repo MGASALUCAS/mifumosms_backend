@@ -259,3 +259,24 @@ def sender_id_request_status(request):
         },
         "sender_id_requests": SenderIDRequestSerializer(requests, many=True).data
     })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_sender_request(request):
+    """
+    Submit a new sender ID request.
+    This endpoint is provided for frontend compatibility.
+    POST /api/messaging/sender-requests/submit/
+    """
+    try:
+        # Use the existing SenderIDRequestListCreateView logic
+        view = SenderIDRequestListCreateView()
+        view.setup(request)
+        return view.post(request)
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': 'Failed to submit sender ID request',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

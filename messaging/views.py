@@ -1228,9 +1228,12 @@ def request_sender_id(request):
                 'message': 'User is not associated with any tenant'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Redirect to sender-requests endpoint
-        from .views_sender_requests import request_default_sender_id
-        return request_default_sender_id(request)
+        # Redirect to the sender requests endpoint
+        return Response({
+            'success': True,
+            'message': 'Please use /api/messaging/sender-requests/ endpoint for sender ID requests',
+            'redirect_url': '/api/messaging/sender-requests/'
+        }, status=status.HTTP_200_OK)
 
     except Exception as e:
         return Response({

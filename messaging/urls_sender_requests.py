@@ -9,6 +9,7 @@ app_name = 'sender_id_requests'
 urlpatterns = [
     # Sender ID Request URLs - Root level for frontend compatibility
     path('', views_sender_requests.SenderIDRequestListCreateView.as_view(), name='request-list-create'),
+    path('submit/', views_sender_requests.submit_sender_request, name='request-submit'),
     path('<uuid:pk>/', views_sender_requests.SenderIDRequestDetailView.as_view(), name='request-detail'),
     path('<uuid:pk>/review/', views_sender_requests.SenderIDRequestReviewView.as_view(), name='request-review'),
     
