@@ -405,6 +405,7 @@ class UsageRecord(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='usage_records')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='usage_records', null=True, blank=True)
     message = models.ForeignKey('messaging.SMSMessage', on_delete=models.CASCADE, related_name='usage_record', null=True, blank=True)
     credits_used = models.PositiveIntegerField(default=1)
     cost = models.DecimalField(max_digits=10, decimal_places=2, default=25.00)

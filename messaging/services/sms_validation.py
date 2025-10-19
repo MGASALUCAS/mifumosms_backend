@@ -179,12 +179,21 @@ class SMSValidationService:
                 raise SMSValidationError("Failed to deduct credits")
             
             # Create usage record
-            UsageRecord.objects.create(
-                tenant=self.tenant,
-                user=self.tenant.memberships.filter(status='active').first().user,  # Get first active user
-                credits_used=amount,
-                cost=0.0  # Cost is handled in purchase
-            )
+            # Get the first active user from the tenant
+            active_membership = self.tenant.memberships.filter(status='active').first()
+            if active_membership:
+                user = active_membership.user
+            else:
+                # Fallback: get any user from the tenant
+                user = self.tenant.memberships.first().user if self.tenant.memberships.exists() else None
+            
+            if user:
+                UsageRecord.objects.create(
+                    tenant=self.tenant,
+                    user=user,
+                    credits_used=amount,
+                    cost=0.0  # Cost is handled in purchase
+                )
             
             logger.info(
                 f"Deducted {amount} SMS credits for tenant {self.tenant.id}, "
