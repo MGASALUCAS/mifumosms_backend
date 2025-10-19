@@ -216,7 +216,6 @@ class PaymentTransaction(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='payment_transactions')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payment_transactions')
 
     # ZenoPay specific fields
     zenopay_order_id = models.CharField(max_length=100, unique=True, help_text="ZenoPay order ID")
@@ -334,7 +333,6 @@ class Purchase(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='purchases')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='purchases')
     package = models.ForeignKey(SMSPackage, on_delete=models.CASCADE, related_name='purchases')
 
     # Link to payment transaction
@@ -405,7 +403,6 @@ class UsageRecord(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='usage_records')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='usage_records')
     message = models.ForeignKey('messaging.SMSMessage', on_delete=models.CASCADE, related_name='usage_record', null=True, blank=True)
     credits_used = models.PositiveIntegerField(default=1)
     cost = models.DecimalField(max_digits=10, decimal_places=2, default=25.00)
@@ -504,7 +501,6 @@ class CustomSMSPurchase(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='custom_sms_purchases')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='custom_sms_purchases')
     
     # Custom purchase details
     credits = models.PositiveIntegerField(help_text="Number of SMS credits (minimum 100)")

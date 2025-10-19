@@ -51,17 +51,6 @@ class TenantMiddleware(MiddlewareMixin):
                     request.tenant = None
             else:
                 request.tenant = None
-        
-        # If no tenant found and not in allowed skip paths, try to use default tenant for development
-        if not request.tenant and not any(request.path.startswith(path) for path in skip_paths):
-            if not request.path.startswith('/api/auth/'):
-                # For development, try to use the first available tenant
-                try:
-                    request.tenant = Tenant.objects.filter(is_active=True).first()
-                except Tenant.DoesNotExist:
-                    # If no tenant exists at all, allow the request to continue
-                    # This is useful for initial setup
-                    pass
 
 
 class RequestLoggingMiddleware(MiddlewareMixin):
