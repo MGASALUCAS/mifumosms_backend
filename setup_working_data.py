@@ -217,7 +217,9 @@ def setup_sender_ids(tenant, provider):
                     defaults={
                         'provider': provider,
                         'status': sender_data.get('status', 'pending'),
-                        'is_approved': sender_data.get('status') == 'active',
+                        'sample_content': f'Sample message for {sender_data.get("senderid", "")}',
+                        'provider_sender_id': sender_data.get('id', ''),
+                        'provider_data': sender_data,
                         'created_at': timezone.now()
                     }
                 )
@@ -250,7 +252,7 @@ def setup_sender_ids(tenant, provider):
                 defaults={
                     'provider': provider,
                     'status': 'active' if sender_name == 'Taarifa-SMS' else 'pending',
-                    'is_approved': sender_name == 'Taarifa-SMS',
+                    'sample_content': f'Sample message for {sender_name}',
                     'created_at': timezone.now()
                 }
             )
