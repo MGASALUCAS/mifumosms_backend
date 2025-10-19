@@ -416,6 +416,38 @@ POST /api/messaging/sender-ids/request/
 }
 ```
 
+### Submit Sender ID Request (Frontend Compatible)
+```javascript
+POST /api/messaging/sender-requests/submit/
+```
+**Request:**
+```json
+{
+  "requested_sender_id": "MyCompany",
+  "sample_content": "A test use case for the sender name purposely used for information transfer.",
+  "business_justification": "Requesting to use this sender ID for customer notifications and business communications.",
+  "business_name": "My Company Ltd",
+  "business_type": "Technology",
+  "contact_person": "John Doe",
+  "contact_phone": "0744963858",
+  "contact_email": "admin@mycompany.com",
+  "business_license": "LIC123456"
+}
+```
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Sender ID request submitted successfully",
+  "data": {
+    "id": "uuid",
+    "requested_sender_id": "MYCOMPANY",
+    "status": "pending",
+    "created_at": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
 ### List Sender Requests
 ```javascript
 GET /api/messaging/sender-requests/
@@ -597,6 +629,13 @@ class MifumoSMSAPI {
     });
   }
 
+  async submitSenderRequest(requestData) {
+    return this.request('/messaging/sender-requests/submit/', {
+      method: 'POST',
+      body: JSON.stringify(requestData)
+    });
+  }
+
   // SMS
   async sendSMS(recipients, message, senderID = 'TAARIFA-SMS') {
     return this.request('/messaging/sms/send/', {
@@ -631,6 +670,20 @@ const smsResult = await api.sendSMS(
   'Hello from Mifumo SMS!'
 );
 console.log('SMS sent:', smsResult.data);
+
+// Submit sender ID request
+const senderRequest = await api.submitSenderRequest({
+  requested_sender_id: 'MyCompany',
+  sample_content: 'A test use case for the sender name purposely used for information transfer.',
+  business_justification: 'Requesting to use this sender ID for customer notifications.',
+  business_name: 'My Company Ltd',
+  business_type: 'Technology',
+  contact_person: 'John Doe',
+  contact_phone: '0744963858',
+  contact_email: 'admin@mycompany.com',
+  business_license: 'LIC123456'
+});
+console.log('Sender request submitted:', senderRequest.data);
 ```
 
 ### Vue.js Integration
