@@ -145,10 +145,15 @@ def create_minimal_data():
         plan, created = BillingPlan.objects.get_or_create(
             name='SMS Service Plan',
             defaults={
+                'plan_type': 'basic',
                 'description': 'SMS service billing plan',
                 'price': Decimal('10000.00'),
+                'currency': 'TZS',
                 'billing_cycle': 'monthly',
-                'sms_limit': 1000,
+                'max_contacts': 1000,
+                'max_campaigns': 10,
+                'max_sms_per_month': 1000,
+                'features': ['SMS sending', 'Basic support'],
                 'is_active': True
             }
         )
@@ -161,8 +166,9 @@ def create_minimal_data():
             defaults={
                 'plan': plan,
                 'status': 'active',
-                'start_date': timezone.now(),
-                'end_date': timezone.now() + timedelta(days=30)
+                'current_period_start': timezone.now(),
+                'current_period_end': timezone.now() + timedelta(days=30),
+                'cancel_at_period_end': False
             }
         )
         print(f"   ✅ Subscription: {subscription.status}")
