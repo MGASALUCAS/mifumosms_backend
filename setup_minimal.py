@@ -179,8 +179,8 @@ def create_minimal_data():
             tenant=tenant,
             defaults={
                 'credits': 1000,
-                'used_credits': 0,
-                'last_updated': timezone.now()
+                'total_purchased': 1000,
+                'total_used': 0
             }
         )
         print(f"   ✅ Balance: {balance.credits} credits")
