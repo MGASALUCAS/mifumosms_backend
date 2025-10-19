@@ -77,12 +77,51 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'email', 'username', 'first_name', 'last_name', 'full_name', 'short_name',
+            'id', 'email', 'first_name', 'last_name', 'full_name', 'short_name',
             'phone_number', 'timezone', 'avatar', 'bio', 'is_verified',
             'email_notifications', 'sms_notifications', 'created_at', 'updated_at',
             'last_login_at'
         ]
         read_only_fields = ['id', 'is_verified', 'created_at', 'updated_at', 'last_login_at']
+
+    def validate_email(self, value):
+        """Validate email uniqueness during updates."""
+        # Get the current user instance
+        user = self.instance
+        
+        # If this is an update and email hasn't changed, allow it
+        if user and user.email == value:
+            return value
+        
+        # Check if email is already taken by another user
+        if User.objects.filter(email=value).exclude(pk=user.pk if user else None).exists():
+            raise serializers.ValidationError('A user with this email already exists.')
+        
+        return value
+
+    def validate_first_name(self, value):
+        """Validate first name."""
+        if not value or not value.strip():
+            raise serializers.ValidationError('This field may not be blank.')
+        return value.strip()
+
+    def validate_last_name(self, value):
+        """Validate last name."""
+        if not value or not value.strip():
+            raise serializers.ValidationError('This field may not be blank.')
+        return value.strip()
+
+    def validate_email_notifications(self, value):
+        """Validate email notifications field."""
+        if not isinstance(value, bool):
+            raise serializers.ValidationError('Must be a boolean value.')
+        return value
+
+    def validate_sms_notifications(self, value):
+        """Validate SMS notifications field."""
+        if not isinstance(value, bool):
+            raise serializers.ValidationError('Must be a boolean value.')
+        return value
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
