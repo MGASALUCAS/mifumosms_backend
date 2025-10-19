@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Minimal Setup Script - Creates basic working data
+Basic Setup Script - Creates essential working data only
 """
 
 import os
@@ -18,14 +18,14 @@ from django.utils import timezone
 from django.db import transaction
 from tenants.models import Tenant, Domain
 from accounts.models import User
-from messaging.models_sms import SMSProvider, SMSSenderID, SMSTemplate
+from messaging.models_sms import SMSProvider, SMSSenderID
 from billing.models import SMSPackage, BillingPlan, Subscription, SMSBalance
 
 User = get_user_model()
 
-def create_minimal_data():
-    """Create minimal working data"""
-    print("🚀 Creating minimal working data...")
+def create_basic_data():
+    """Create basic working data"""
+    print("🚀 Creating basic working data...")
     print("=" * 50)
     
     try:
@@ -185,44 +185,8 @@ def create_minimal_data():
         )
         print(f"   ✅ Balance: {balance.credits} credits")
         
-        # 10. Create SMS templates
-        print("📝 Creating SMS templates...")
-        templates_data = [
-            {
-                'name': 'Welcome Message',
-                'message': 'Welcome to {company_name}! Thank you for joining us.',
-                'category': 'NOTIFICATION',
-                'language': 'en',
-                'variables': ['company_name'],
-                'is_active': True
-            },
-            {
-                'name': 'Order Confirmation',
-                'message': 'Your order #{order_id} has been confirmed. Total: TZS {amount}.',
-                'category': 'TRANSACTIONAL',
-                'language': 'en',
-                'variables': ['order_id', 'amount'],
-                'is_active': True
-            }
-        ]
-        
-        for data in templates_data:
-            template, created = SMSTemplate.objects.get_or_create(
-                tenant=tenant,
-                name=data['name'],
-                defaults={
-                    'message': data['message'],
-                    'category': data['category'],
-                    'language': data['language'],
-                    'variables': data['variables'],
-                    'is_active': data['is_active']
-                }
-            )
-            if created:
-                print(f"   ✅ Template: {template.name}")
-        
         print("=" * 50)
-        print("🎉 Minimal setup completed successfully!")
+        print("🎉 Basic setup completed successfully!")
         print("\n📊 Data Created:")
         print(f"  🏢 Tenant: {tenant.name}")
         print(f"  👤 Admin: {user.email}")
@@ -231,11 +195,12 @@ def create_minimal_data():
         print(f"  📦 SMS Packages: {SMSPackage.objects.count()}")
         print(f"  📋 Billing Plan: {plan.name}")
         print(f"  💰 SMS Balance: {balance.credits} credits")
-        print(f"  📝 Templates: {SMSTemplate.objects.filter(tenant=tenant).count()}")
         
         print(f"\n🌐 Admin Dashboard: http://104.131.116.55:8000/admin/")
         print(f"📧 Login: {user.email}")
         print(f"🔑 Password: admin123")
+        
+        print(f"\n✅ Your admin dashboard is now ready with real data!")
         
     except Exception as e:
         print(f"❌ Error during setup: {e}")
@@ -243,4 +208,4 @@ def create_minimal_data():
         traceback.print_exc()
 
 if __name__ == "__main__":
-    create_minimal_data()
+    create_basic_data()
