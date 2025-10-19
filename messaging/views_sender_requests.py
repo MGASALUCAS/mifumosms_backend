@@ -270,10 +270,29 @@ def submit_sender_request(request):
     POST /api/messaging/sender-requests/submit/
     """
     try:
-        # Use the existing SenderIDRequestListCreateView logic
-        view = SenderIDRequestListCreateView()
-        view.setup(request)
-        return view.post(request)
+        # Get tenant
+        tenant = getattr(request.user, 'tenant', None)
+        if not tenant:
+            return Response({
+                'success': False,
+                'message': 'User is not associated with any tenant'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Use the serializer to validate and create
+        serializer = SenderIDRequestCreateSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            sender_request = serializer.save(tenant=tenant, user=request.user)
+            return Response({
+                'success': True,
+                'message': 'Sender ID request submitted successfully',
+                'data': SenderIDRequestSerializer(sender_request).data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response({
+                'success': False,
+                'message': 'Invalid request data',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         return Response({
             'success': False,
