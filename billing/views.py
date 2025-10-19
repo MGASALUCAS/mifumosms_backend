@@ -11,7 +11,7 @@ from django.db.models import Sum
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from .models import BillingPlan, Subscription, UsageRecord
+from .models import BillingPlan, Subscription, UsageRecord, SMSBalance
 from .serializers import (
     BillingPlanSerializer, SubscriptionSerializer, UsageRecordSerializer,
 )
@@ -187,6 +187,25 @@ def billing_overview(request):
             total_cost=Sum('cost'),
         )
 
+        # Get SMS balance
+        sms_balance, _ = SMSBalance.objects.get_or_create(tenant=tenant)
+
+        # Get recent purchases
+        from .models import Purchase, PaymentTransaction
+        recent_purchases = Purchase.objects.filter(
+            tenant=tenant
+        ).order_by('-created_at')[:5].values(
+            'id', 'invoice_number', 'amount', 'credits', 'status', 'created_at'
+        )
+        
+        # Get active payments
+        active_payments = PaymentTransaction.objects.filter(
+            tenant=tenant,
+            status__in=['pending', 'processing']
+        ).order_by('-created_at')[:5].values(
+            'id', 'order_id', 'amount', 'status', 'created_at'
+        )
+
         return Response(
             {
                 'success': True,
@@ -199,10 +218,22 @@ def billing_overview(request):
                         if subscription.current_period_end else None,
                         'is_active': subscription.is_active,
                     },
+                    'sms_balance': {
+                        'credits': sms_balance.credits,
+                        'total_purchased': sms_balance.total_purchased,
+                        'total_used': sms_balance.total_used,
+                    },
                     'usage': {
                         'total_credits': usage_stats['total_credits'] or 0,
                         'total_cost': float(usage_stats['total_cost'] or 0),
                     },
+                    'usage_summary': {
+                        'total_credits': usage_stats['total_credits'] or 0,
+                        'total_cost': float(usage_stats['total_cost'] or 0),
+                        'current_balance': sms_balance.credits,
+                    },
+                    'recent_purchases': list(recent_purchases),
+                    'active_payments': list(active_payments),
                 },
             },
             status=status.HTTP_200_OK,

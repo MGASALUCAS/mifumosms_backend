@@ -262,7 +262,7 @@ def initiate_payment(request):
                         'credits': package.credits,
                         'status': 'pending',
                         'mobile_money_provider': mobile_money_provider,
-                        'provider_name': mobile_money_provider.title(),
+                        'provider_name': get_provider_name(mobile_money_provider),
                         'payment_instructions': (payment_response.get('data') or {}).get('message', ''),
                         'reference': payment_response.get('reference', ''),
                         'package': {
@@ -663,6 +663,10 @@ def payment_progress(request, transaction_id):
                 'status': payment_transaction.status,
                 'payment_status': (status_response.get('payment_status') or 'UNKNOWN') if status_response.get('success') else 'UNKNOWN',
                 'progress': progress,
+                'progress_percentage': progress.get('percentage', 0),
+                'current_step': progress.get('current_step', ''),
+                'next_step': progress.get('next_step', ''),
+                'steps': progress.get('completed_steps', []) + progress.get('remaining_steps', []),
                 'purchase': purchase_data,
                 'created_at': payment_transaction.created_at.isoformat(),
                 'updated_at': payment_transaction.updated_at.isoformat(),
@@ -966,7 +970,7 @@ def get_mobile_money_providers(request):
         
         return Response({
             'success': True,
-            'data': providers,
+            'providers': providers,
             'message': f'Found {len(providers)} mobile money providers'
         })
         
@@ -991,6 +995,7 @@ def get_mobile_money_providers_data():
             'description': 'Pay with M-Pesa via Vodacom',
             'icon': 'vodacom-icon',
             'popular': True,
+            'is_active': True,
             'min_amount': 1000,
             'max_amount': 1000000
         },
@@ -1000,6 +1005,7 @@ def get_mobile_money_providers_data():
             'description': 'Pay with Tigo Pesa',
             'icon': 'tigo-icon',
             'popular': True,
+            'is_active': True,
             'min_amount': 1000,
             'max_amount': 1000000
         },
@@ -1009,6 +1015,7 @@ def get_mobile_money_providers_data():
             'description': 'Pay with Airtel Money',
             'icon': 'airtel-icon',
             'popular': True,
+            'is_active': True,
             'min_amount': 1000,
             'max_amount': 1000000
         },
@@ -1018,10 +1025,20 @@ def get_mobile_money_providers_data():
             'description': 'Pay with Halotel',
             'icon': 'halotel-icon',
             'popular': False,
+            'is_active': True,
             'min_amount': 1000,
             'max_amount': 500000
         }
     ]
+
+
+def get_provider_name(code):
+    """Get provider name by code."""
+    providers = get_mobile_money_providers_data()
+    for provider in providers:
+        if provider['code'] == code:
+            return provider['name']
+    return code.title()
 
 
 # ==============================
@@ -1089,6 +1106,14 @@ def calculate_custom_sms_pricing(request):
         standard_rate = 30  # TZS per SMS
         savings_percentage = round(((standard_rate - unit_price) / standard_rate) * 100, 1) if unit_price < standard_rate else 0
         
+        # Define pricing tiers for response
+        pricing_tiers = [
+            {'name': 'Lite', 'min_credits': 1, 'max_credits': 4999, 'unit_price': 30.00},
+            {'name': 'Standard', 'min_credits': 5000, 'max_credits': 50000, 'unit_price': 25.00},
+            {'name': 'Pro', 'min_credits': 50001, 'max_credits': 250000, 'unit_price': 18.00},
+            {'name': 'Enterprise', 'min_credits': 250001, 'max_credits': 1000000, 'unit_price': 12.00},
+        ]
+        
         return Response({
             'success': True,
             'data': {
@@ -1098,7 +1123,8 @@ def calculate_custom_sms_pricing(request):
                 'active_tier': active_tier,
                 'tier_min_credits': tier_min,
                 'tier_max_credits': tier_max,
-                'savings_percentage': savings_percentage
+                'savings_percentage': savings_percentage,
+                'pricing_tiers': pricing_tiers
             }
         })
         
@@ -1185,7 +1211,6 @@ def initiate_custom_sms_purchase(request):
             # Create custom SMS purchase
             custom_purchase = CustomSMSPurchase.objects.create(
                 tenant=tenant,
-                user=request.user,
                 credits=credits
             )
             
@@ -1261,7 +1286,7 @@ def initiate_custom_sms_purchase(request):
                         'tier_max_credits': tier_max,
                         'status': 'processing',
                         'mobile_money_provider': mobile_money_provider,
-                        'provider_name': mobile_money_provider.title(),
+                        'provider_name': get_provider_name(mobile_money_provider),
                         'payment_instructions': (payment_response.get('data') or {}).get('message', ''),
                         'reference': payment_response.get('reference', ''),
                         'buyer': {
@@ -1309,7 +1334,7 @@ def check_custom_sms_purchase_status(request, purchase_id):
             return Response({'success': False, 'message': 'User is not associated with any tenant. Please contact support.'},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        custom_purchase = get_object_or_404(CustomSMSPurchase, id=purchase_id, tenant=tenant, user=request.user)
+        custom_purchase = get_object_or_404(CustomSMSPurchase, id=purchase_id, tenant=tenant)
 
         if custom_purchase.payment_transaction:
             # Check payment status

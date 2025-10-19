@@ -16,17 +16,20 @@ class SMSPackageSerializer(serializers.ModelSerializer):
         model = SMSPackage
         fields = [
             'id', 'name', 'package_type', 'credits', 'price', 'unit_price',
-            'is_popular', 'features', 'savings_percentage'
+            'is_popular', 'is_active', 'features', 'savings_percentage',
+            'default_sender_id', 'allowed_sender_ids', 'sender_id_restriction',
+            'created_at', 'updated_at'
         ]
 
 
 class SMSBalanceSerializer(serializers.ModelSerializer):
     """Serializer for SMS balance."""
+    tenant = serializers.CharField(source='tenant.name', read_only=True)
     
     class Meta:
         model = SMSBalance
         fields = [
-            'id', 'credits', 'total_purchased', 'total_used', 
+            'id', 'tenant', 'credits', 'total_purchased', 'total_used', 
             'last_updated', 'created_at'
         ]
 
@@ -36,11 +39,12 @@ class PurchaseSerializer(serializers.ModelSerializer):
     package_name = serializers.CharField(source='package.name', read_only=True)
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    tenant = serializers.CharField(source='tenant.name', read_only=True)
     
     class Meta:
         model = Purchase
         fields = [
-            'id', 'invoice_number', 'package', 'package_name',
+            'id', 'invoice_number', 'package', 'package_name', 'tenant',
             'amount', 'credits', 'unit_price', 'payment_method',
             'payment_method_display', 'payment_reference', 'status',
             'status_display', 'created_at', 'completed_at'
@@ -80,7 +84,7 @@ class BillingPlanSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'plan_type', 'description', 'price', 'currency',
             'billing_cycle', 'max_contacts', 'max_campaigns', 'max_sms_per_month',
-            'features', 'is_active'
+            'features', 'is_active', 'created_at'
         ]
 
 
@@ -89,11 +93,12 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     plan_name = serializers.CharField(source='plan.name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_active = serializers.ReadOnlyField()
+    tenant = serializers.CharField(source='tenant.name', read_only=True)
     
     class Meta:
         model = Subscription
         fields = [
-            'id', 'plan', 'plan_name', 'status', 'status_display',
+            'id', 'plan', 'plan_name', 'tenant', 'status', 'status_display',
             'current_period_start', 'current_period_end', 'cancel_at_period_end',
             'is_active', 'created_at'
         ]

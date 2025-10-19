@@ -77,6 +77,15 @@ class SMSBalanceView(generics.RetrieveAPIView):
         balance, _ = SMSBalance.objects.get_or_create(tenant=tenant)
         return balance
 
+    def get(self, request, *args, **kwargs):
+        try:
+            return super().get(request, *args, **kwargs)
+        except ValueError as e:
+            return Response({
+                'success': False,
+                'message': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -405,6 +414,25 @@ def usage_statistics(request):
         balance = SMSBalance.objects.filter(tenant=tenant).first()
         current_balance = balance.credits if balance else 0
 
+        # Get daily usage for the last 7 days
+        daily_usage = []
+        for i in range(7):
+            day_start = now - timedelta(days=i+1)
+            day_end = now - timedelta(days=i)
+            day_usage = UsageRecord.objects.filter(
+                tenant=tenant, 
+                created_at__gte=day_start, 
+                created_at__lt=day_end
+            ).aggregate(
+                total_credits=Sum("credits_used"), 
+                total_cost=Sum("cost")
+            )
+            daily_usage.append({
+                "date": day_start.strftime("%Y-%m-%d"),
+                "credits": day_usage["total_credits"] or 0,
+                "cost": float(day_usage["total_cost"] or 0),
+            })
+
         return Response(
             {
                 "success": True,
@@ -413,15 +441,19 @@ def usage_statistics(request):
                     "total_usage": {
                         "credits": total_usage["total_credits"] or 0,
                         "cost": float(total_usage["total_cost"] or 0),
+                        "period": "all_time"
                     },
                     "monthly_usage": {
                         "credits": monthly_usage["total_credits"] or 0,
                         "cost": float(monthly_usage["total_cost"] or 0),
+                        "period": "monthly"
                     },
                     "weekly_usage": {
                         "credits": weekly_usage["total_credits"] or 0,
                         "cost": float(weekly_usage["total_cost"] or 0),
+                        "period": "weekly"
                     },
+                    "daily_usage": daily_usage,
                 },
             }
         )

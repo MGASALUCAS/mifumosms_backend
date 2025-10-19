@@ -216,6 +216,7 @@ class PaymentTransaction(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='payment_transactions')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payment_transactions', null=True, blank=True)
 
     # ZenoPay specific fields
     zenopay_order_id = models.CharField(max_length=100, unique=True, help_text="ZenoPay order ID")
@@ -552,8 +553,8 @@ class CustomSMSPurchase(models.Model):
         """
         # Define pricing tiers
         tiers = [
-            {'name': 'Lite', 'min': 1, 'max': 5000, 'unit_price': 30.00},
-            {'name': 'Standard', 'min': 5001, 'max': 50000, 'unit_price': 25.00},
+            {'name': 'Lite', 'min': 1, 'max': 4999, 'unit_price': 30.00},
+            {'name': 'Standard', 'min': 5000, 'max': 50000, 'unit_price': 25.00},
             {'name': 'Pro', 'min': 50001, 'max': 250000, 'unit_price': 18.00},
             {'name': 'Enterprise', 'min': 250001, 'max': 1000000, 'unit_price': 12.00},
         ]
