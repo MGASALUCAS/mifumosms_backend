@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Production-Ready Data Setup Script
-Sets up real, functional data for production use with actual Beem SMS integration
+Working Data Setup Script for Production Server
+Sets up real, functional data using only existing models
 """
 
 import os
@@ -11,7 +11,7 @@ import requests
 import json
 from datetime import datetime, timedelta
 from decimal import Decimal
-import time
+import random
 
 # Setup Django environment
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mifumo.settings')
@@ -64,16 +64,15 @@ def check_beem_connection():
             return True
         else:
             print(f"   ❌ Beem API connection failed: HTTP {response.status_code}")
-            print(f"   📄 Response: {response.text}")
             return False
             
     except Exception as e:
         print(f"   ❌ Beem API connection error: {e}")
         return False
 
-def create_production_tenant():
-    """Create production tenant with real business information"""
-    print("🏢 Creating production tenant...")
+def create_tenant():
+    """Create tenant"""
+    print("🏢 Creating tenant...")
     
     tenant, created = Tenant.objects.get_or_create(
         subdomain='mifumo',
@@ -98,77 +97,46 @@ def create_production_tenant():
     
     return tenant
 
-def create_production_domains(tenant):
-    """Create production domains"""
-    print("🌐 Creating production domains...")
+def create_domain(tenant):
+    """Create domain"""
+    print("🌐 Creating domain...")
     
-    domains = [
-        'mifumo.com',
-        'app.mifumo.com',
-        'api.mifumo.com'
-    ]
+    domain, created = Domain.objects.get_or_create(
+        domain='mifumo.com',
+        defaults={'tenant': tenant}
+    )
     
-    for domain_name in domains:
-        domain, created = Domain.objects.get_or_create(
-            domain=domain_name,
-            defaults={'tenant': tenant}
-        )
-        if created:
-            print(f"   ✅ Created domain: {domain.domain}")
+    if created:
+        print(f"   ✅ Created domain: {domain.domain}")
 
-def create_production_users():
-    """Create production users"""
-    print("👥 Creating production users...")
+def create_admin_user():
+    """Create admin user"""
+    print("👤 Creating admin user...")
     
-    users_data = [
-        {
-            'email': 'admin@mifumo.com',
+    user, created = User.objects.get_or_create(
+        email='admin@mifumo.com',
+        defaults={
+            'username': 'admin@mifumo.com',
             'first_name': 'Admin',
             'last_name': 'User',
             'is_staff': True,
             'is_superuser': True,
             'is_active': True
-        },
-        {
-            'email': 'support@mifumo.com',
-            'first_name': 'Support',
-            'last_name': 'Team',
-            'is_staff': True,
-            'is_superuser': False,
-            'is_active': True
-        },
-        {
-            'email': 'developer@mifumo.com',
-            'first_name': 'Developer',
-            'last_name': 'Team',
-            'is_staff': False,
-            'is_superuser': False,
-            'is_active': True
         }
-    ]
+    )
     
-    users = []
-    for data in users_data:
-        user, created = User.objects.get_or_create(
-            email=data['email'],
-            defaults={
-                **data,
-                'username': data['email']
-            }
-        )
-        if created:
-            user.set_password('password123')
-            user.save()
-            print(f"   ✅ Created user: {user.email}")
-        else:
-            print(f"   ℹ️  User exists: {user.email}")
-        users.append(user)
+    if created:
+        user.set_password('admin123')
+        user.save()
+        print(f"   ✅ Created admin user: {user.email}")
+    else:
+        print(f"   ℹ️  Using existing admin user: {user.email}")
     
-    return users
+    return user
 
-def setup_production_sms_provider(tenant):
-    """Set up production SMS provider with real Beem configuration"""
-    print("📱 Setting up production SMS provider...")
+def setup_sms_provider(tenant):
+    """Set up SMS provider"""
+    print("📱 Setting up SMS provider...")
     
     # Get real balance
     api_key = getattr(settings, 'BEEM_API_KEY', '')
@@ -220,9 +188,9 @@ def setup_production_sms_provider(tenant):
     
     return provider
 
-def setup_production_sender_ids(tenant, provider):
-    """Set up production sender IDs from Beem API"""
-    print("📝 Setting up production sender IDs...")
+def setup_sender_ids(tenant, provider):
+    """Set up sender IDs"""
+    print("📝 Setting up sender IDs...")
     
     api_key = getattr(settings, 'BEEM_API_KEY', '')
     secret_key = getattr(settings, 'BEEM_SECRET_KEY', '')
@@ -288,9 +256,9 @@ def setup_production_sender_ids(tenant, provider):
             if created:
                 print(f"      ✅ Created: {sender_id.sender_id} ({sender_id.status})")
 
-def create_production_sms_packages():
-    """Create production SMS packages with real pricing"""
-    print("📦 Creating production SMS packages...")
+def create_sms_packages():
+    """Create SMS packages"""
+    print("📦 Creating SMS packages...")
     
     packages_data = [
         {
@@ -385,9 +353,9 @@ def create_production_sms_packages():
     
     return packages
 
-def create_production_billing(tenant, packages):
-    """Create production billing system"""
-    print("💰 Creating production billing system...")
+def create_billing_system(tenant, packages):
+    """Create billing system"""
+    print("💰 Creating billing system...")
     
     # Create billing plan
     plan, created = BillingPlan.objects.get_or_create(
@@ -430,32 +398,10 @@ def create_production_billing(tenant, packages):
     
     if created:
         print(f"   ✅ Created SMS balance: {balance.credits} credits")
-    
-    # Create sample purchases
-    admin_user = User.objects.filter(is_superuser=True).first()
-    if admin_user:
-        for package in packages[:2]:  # Create purchases for first 2 packages
-            purchase, created = Purchase.objects.get_or_create(
-                tenant=tenant,
-                package=package,
-                user=admin_user,
-                defaults={
-                    'invoice_number': f'INV-{package.id.hex[:8].upper()}',
-                    'amount': package.price,
-                    'credits': package.credits,
-                    'unit_price': package.unit_price,
-                    'payment_method': 'zenopay_mobile_money',
-                    'payment_reference': f'REF-{package.id.hex[:8].upper()}',
-                    'status': 'completed',
-                    'completed_at': timezone.now() - timedelta(days=random.randint(1, 30))
-                }
-            )
-            if created:
-                print(f"   ✅ Created purchase: {package.name}")
 
-def create_production_templates(tenant):
-    """Create production SMS templates"""
-    print("📝 Creating production SMS templates...")
+def create_sms_templates(tenant):
+    """Create SMS templates"""
+    print("📝 Creating SMS templates...")
     
     templates_data = [
         {
@@ -506,11 +452,39 @@ def create_production_templates(tenant):
         else:
             print(f"   ℹ️  Template exists: {template.name}")
 
+def create_test_contacts(user, tenant):
+    """Create test contacts"""
+    print("📞 Creating test contacts...")
+    
+    contacts_data = [
+        {'name': 'Test User 1', 'phone_e164': '+255700000100', 'email': 'test1@example.com'},
+        {'name': 'Test User 2', 'phone_e164': '+255700000101', 'email': 'test2@example.com'},
+        {'name': 'Test User 3', 'phone_e164': '+255700000102', 'email': 'test3@example.com'},
+    ]
+    
+    contacts = []
+    for data in contacts_data:
+        contact, created = Contact.objects.get_or_create(
+            phone_e164=data['phone_e164'],
+            created_by=user,
+            defaults={
+                **data,
+                'opt_in_at': timezone.now() - timedelta(days=1),
+                'is_active': True,
+                'tags': ['test', 'demo']
+            }
+        )
+        if created:
+            print(f"   ✅ Created contact: {contact.name} ({contact.phone_e164})")
+        contacts.append(contact)
+    
+    return contacts
+
 @transaction.atomic
-def setup_production_ready():
-    """Set up production-ready data"""
-    print("🚀 Setting up PRODUCTION-READY data for Mifumo SMS Backend...")
-    print("=" * 70)
+def setup_working_data():
+    """Set up working data"""
+    print("🚀 Setting up WORKING data for Mifumo SMS Backend...")
+    print("=" * 60)
     
     try:
         # Check Beem connection first
@@ -518,32 +492,36 @@ def setup_production_ready():
             print("\n⚠️  Beem SMS API not accessible. Continuing with limited functionality...")
         
         # Create core data
-        tenant = create_production_tenant()
-        create_production_domains(tenant)
-        users = create_production_users()
+        tenant = create_tenant()
+        create_domain(tenant)
+        user = create_admin_user()
         
         # Set up SMS system
-        provider = setup_production_sms_provider(tenant)
-        setup_production_sender_ids(tenant, provider)
-        packages = create_production_sms_packages()
+        provider = setup_sms_provider(tenant)
+        setup_sender_ids(tenant, provider)
+        packages = create_sms_packages()
         
         # Create billing system
-        create_production_billing(tenant, packages)
+        create_billing_system(tenant, packages)
         
         # Create templates
-        create_production_templates(tenant)
+        create_sms_templates(tenant)
         
-        print("=" * 70)
-        print("🎉 Production-ready setup completed successfully!")
-        print("\n📊 Production Data Created:")
+        # Create test contacts
+        contacts = create_test_contacts(user, tenant)
+        
+        print("=" * 60)
+        print("🎉 Working data setup completed successfully!")
+        print("\n📊 Data Created:")
         print(f"  🏢 Tenant: {tenant.name} ({tenant.subdomain})")
         print(f"  👥 Users: {User.objects.count()}")
         print(f"  📱 SMS Provider: {provider.name}")
         print(f"  📦 SMS Packages: {SMSPackage.objects.count()}")
         print(f"  📝 SMS Templates: {SMSTemplate.objects.count()}")
+        print(f"  📞 Contacts: {Contact.objects.count()}")
         print(f"  💰 Billing Plan: Active subscription")
         
-        print("\n🔧 Production Features Available:")
+        print("\n🔧 Features Available:")
         print("  ✅ Real Beem SMS API integration")
         print("  ✅ Real sender IDs from Beem API")
         print("  ✅ Real account balance checking")
@@ -554,18 +532,17 @@ def setup_production_ready():
         print("  ✅ Multi-user support with proper permissions")
         
         print(f"\n🌐 Admin Dashboard: http://localhost:8000/admin/")
-        print(f"📧 Admin Login: {users[0].email}")
-        print(f"🔑 Admin Password: password123")
+        print(f"📧 Login: {user.email}")
+        print(f"🔑 Password: admin123")
         
         print(f"\n🧪 Test SMS Functionality:")
         print(f"   python test_real_sms.py")
         
     except Exception as e:
-        print(f"❌ Error during production setup: {e}")
+        print(f"❌ Error during setup: {e}")
         import traceback
         traceback.print_exc()
         raise
 
 if __name__ == "__main__":
-    import random
-    setup_production_ready()
+    setup_working_data()

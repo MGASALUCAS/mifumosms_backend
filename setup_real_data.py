@@ -29,8 +29,8 @@ from messaging.models_sms import (
     SMSBulkUpload, SMSSchedule, SenderNameRequest
 )
 from billing.models import (
-    SMSPackage, BillingPlan, Subscription, Invoice, PaymentMethod, 
-    SMSPurchase, SMSBalance, UsageRecord
+    SMSPackage, BillingPlan, Subscription, PaymentTransaction, 
+    CustomSMSPurchase, SMSBalance, UsageRecord, Purchase
 )
 
 User = get_user_model()
