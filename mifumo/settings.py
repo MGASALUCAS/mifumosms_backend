@@ -3,6 +3,7 @@ Django settings for mifumo project.
 """
 
 import os
+import sys
 from pathlib import Path
 from datetime import timedelta
 from decouple import config
@@ -15,6 +16,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config('DJANGO_SECRET_KEY', default='django-insecure-change-me')
 DEBUG = config('DJANGO_DEBUG', default=False, cast=bool)
+
+# Testing flag to disable certain signals during tests
+TESTING = 'test' in sys.argv
 
 ALLOWED_HOSTS = config(
     'DJANGO_ALLOWED_HOSTS',
@@ -53,7 +57,7 @@ LOCAL_APPS = [
     'tenants',
     'accounts.apps.AccountsConfig',
     'messaging',
-    'billing',
+    'billing.apps.BillingConfig',
     'api',
 ]
 
