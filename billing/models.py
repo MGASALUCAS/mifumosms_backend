@@ -333,6 +333,7 @@ class Purchase(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='purchases')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='purchases')
     package = models.ForeignKey(SMSPackage, on_delete=models.CASCADE, related_name='purchases')
 
     # Link to payment transaction

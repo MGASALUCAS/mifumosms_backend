@@ -171,16 +171,16 @@ class PurchaseAdmin(admin.ModelAdmin):
     list_filter = ['status', 'payment_method', 'created_at']
     search_fields = ['invoice_number', 'tenant__name', 'user__email', 'package__name']
     readonly_fields = ['created_at', 'updated_at', 'completed_at']
-    raw_id_fields = ['package', 'user', 'tenant', 'payment_transaction']
+    raw_id_fields = ['package', 'tenant', 'user', 'payment_transaction']
 
 
 @admin.register(UsageRecord)
 class UsageRecordAdmin(admin.ModelAdmin):
-    list_display = ['tenant', 'user', 'credits_used', 'cost', 'created_at']
+    list_display = ['tenant', 'credits_used', 'cost', 'created_at']
     list_filter = ['created_at']
-    search_fields = ['tenant__name', 'user__email', 'user__first_name', 'user__last_name']
+    search_fields = ['tenant__name']
     readonly_fields = ['created_at']
-    raw_id_fields = ['tenant', 'user', 'message']
+    raw_id_fields = ['tenant', 'message']
 
 
 @admin.register(BillingPlan)
@@ -202,11 +202,11 @@ class SubscriptionAdmin(admin.ModelAdmin):
 
 @admin.register(PaymentTransaction)
 class PaymentTransactionAdmin(admin.ModelAdmin):
-    list_display = ['order_id', 'tenant', 'user', 'amount', 'currency', 'status', 'payment_method', 'created_at']
+    list_display = ['order_id', 'tenant', 'amount', 'currency', 'status', 'payment_method', 'created_at']
     list_filter = ['status', 'payment_method', 'created_at', 'completed_at']
-    search_fields = ['order_id', 'zenopay_order_id', 'invoice_number', 'tenant__name', 'user__email', 'buyer_email', 'buyer_name']
+    search_fields = ['order_id', 'zenopay_order_id', 'invoice_number', 'tenant__name', 'buyer_email', 'buyer_name']
     readonly_fields = ['created_at', 'updated_at', 'completed_at', 'failed_at', 'zenopay_order_id', 'order_id', 'invoice_number']
-    raw_id_fields = ['tenant', 'user']
+    raw_id_fields = ['tenant']
     fieldsets = (
         ('Transaction Details', {
             'fields': ('order_id', 'zenopay_order_id', 'invoice_number', 'amount', 'currency', 'status')
@@ -235,17 +235,17 @@ class PaymentTransactionAdmin(admin.ModelAdmin):
 @admin.register(CustomSMSPurchase)
 class CustomSMSPurchaseAdmin(admin.ModelAdmin):
     list_display = [
-        'id', 'tenant', 'user', 'credits', 'unit_price', 'total_price', 
+        'id', 'tenant', 'credits', 'unit_price', 'total_price', 
         'active_tier', 'status', 'created_at'
     ]
     list_filter = ['status', 'active_tier', 'created_at', 'completed_at']
-    search_fields = ['tenant__name', 'user__email', 'user__first_name', 'user__last_name']
+    search_fields = ['tenant__name']
     readonly_fields = ['created_at', 'updated_at', 'completed_at']
-    raw_id_fields = ['tenant', 'user', 'payment_transaction']
+    raw_id_fields = ['tenant', 'payment_transaction']
     
     fieldsets = (
         ('Purchase Details', {
-            'fields': ('tenant', 'user', 'credits', 'unit_price', 'total_price'),
+            'fields': ('tenant', 'credits', 'unit_price', 'total_price'),
             'classes': ('wide',)
         }),
         ('Pricing Tier', {
@@ -263,4 +263,4 @@ class CustomSMSPurchaseAdmin(admin.ModelAdmin):
     )
     
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('tenant', 'user', 'payment_transaction')
+        return super().get_queryset(request).select_related('tenant', 'payment_transaction')

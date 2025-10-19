@@ -51,7 +51,7 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     'core',
     'tenants',
-    'accounts',
+    'accounts.apps.AccountsConfig',
     'messaging',
     'billing',
     'api',
