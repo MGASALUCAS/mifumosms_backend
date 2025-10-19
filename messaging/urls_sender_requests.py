@@ -7,10 +7,10 @@ from . import views_sender_requests
 app_name = 'sender_id_requests'
 
 urlpatterns = [
-    # Sender ID Request URLs
-    path('requests/', views_sender_requests.SenderIDRequestListCreateView.as_view(), name='request-list-create'),
-    path('requests/<uuid:pk>/', views_sender_requests.SenderIDRequestDetailView.as_view(), name='request-detail'),
-    path('requests/<uuid:pk>/review/', views_sender_requests.SenderIDRequestReviewView.as_view(), name='request-review'),
+    # Sender ID Request URLs - Root level for frontend compatibility
+    path('', views_sender_requests.SenderIDRequestListCreateView.as_view(), name='request-list-create'),
+    path('<uuid:pk>/', views_sender_requests.SenderIDRequestDetailView.as_view(), name='request-detail'),
+    path('<uuid:pk>/review/', views_sender_requests.SenderIDRequestReviewView.as_view(), name='request-review'),
     
     # Sender ID Usage URLs
     path('usage/', views_sender_requests.SenderIDUsageListCreateView.as_view(), name='usage-list-create'),

@@ -45,14 +45,18 @@ urlpatterns = [
     # Analytics
     path('analytics/overview/', views.analytics_overview, name='analytics-overview'),
 
-    # Purchase History
-    path('purchase-history/', views.purchase_history, name='purchase-history'),
-    path('purchase-history/summary/', views.purchase_history_summary, name='purchase-history-summary'),
-    path('purchase-history/<uuid:purchase_id>/', views.purchase_detail, name='purchase-detail'),
+    # Purchase History - moved to billing/history/ for better organization
+    # Use /api/billing/history/purchases/ instead
 
     # Dashboard
     path('dashboard/overview/', views_dashboard.dashboard_overview, name='dashboard-overview'),
     path('dashboard/metrics/', views_dashboard.dashboard_metrics, name='dashboard-metrics'),
+    
+    # Sender IDs (for frontend compatibility)
+    path('sender-ids/', views.sender_ids_list, name='sender-ids-list'),
+    path('sender-ids/request/', views.request_sender_id, name='sender-ids-request'),
+    path('sender-ids/<uuid:pk>/', views.sender_id_detail, name='sender-id-detail'),
+    path('sender-ids/<uuid:pk>/status/', views.sender_id_status, name='sender-id-status'),
 ]
 
 # Include SMS URLs

@@ -40,7 +40,7 @@ class ContactCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate_phone_e164(self, value):
-        """Validate phone number format and uniqueness per user."""
+        """Validate phone number format and uniqueness per tenant."""
         import phonenumbers
         try:
             parsed = phonenumbers.parse(value, None)
@@ -48,9 +48,10 @@ class ContactCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Invalid phone number format.")
             formatted_phone = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
 
-            # Check for duplicate phone number within the same user
+            # Check for duplicate phone number within the same tenant
             user = self.context['request'].user
-            if Contact.objects.filter(created_by=user, phone_e164=formatted_phone).exists():
+            tenant = getattr(user, 'tenant', None)
+            if tenant and Contact.objects.filter(tenant=tenant, phone_e164=formatted_phone).exists():
                 raise serializers.ValidationError("A contact with this phone number already exists in your contact list.")
 
             return formatted_phone

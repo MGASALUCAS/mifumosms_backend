@@ -160,7 +160,7 @@ class SMSPackageAdmin(admin.ModelAdmin):
 class SMSBalanceAdmin(admin.ModelAdmin):
     list_display = ['tenant', 'credits', 'total_purchased', 'total_used', 'last_updated']
     list_filter = ['created_at', 'last_updated']
-    search_fields = ['tenant__name', 'tenant__domain']
+    search_fields = ['tenant__name', 'tenant__subdomain']
     readonly_fields = ['created_at', 'last_updated']
     raw_id_fields = ['tenant']
 

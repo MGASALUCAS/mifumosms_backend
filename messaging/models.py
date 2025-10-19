@@ -21,6 +21,7 @@ class Contact(models.Model):
 
     # Owner information
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_contacts', null=True, blank=True)
+    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='contacts', null=True, blank=True)
 
     # Basic information
     name = models.CharField(max_length=255)
@@ -49,7 +50,7 @@ class Contact(models.Model):
     class Meta:
         db_table = 'contacts'
         ordering = ['-created_at']
-        unique_together = [['created_by', 'phone_e164']]
+        unique_together = [['tenant', 'phone_e164']]
 
     def __str__(self):
         return f"{self.name} ({self.phone_e164})"

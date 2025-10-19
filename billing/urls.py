@@ -3,7 +3,7 @@ URL patterns for billing functionality.
 Optimized for frontend integration.
 """
 from django.urls import path
-from . import views, views_sms, views_payment
+from . import views, views_sms, views_payment, views_billing_history
 
 urlpatterns = [
     # Core billing endpoints (used by frontend)
@@ -41,4 +41,11 @@ urlpatterns = [
     path('payments/custom-sms/calculate/', views_payment.calculate_custom_sms_pricing, name='custom-sms-calculate'),
     path('payments/custom-sms/initiate/', views_payment.initiate_custom_sms_purchase, name='custom-sms-initiate'),
     path('payments/custom-sms/<uuid:purchase_id>/status/', views_payment.check_custom_sms_purchase_status, name='custom-sms-status'),
+    
+    # Billing history endpoints
+    path('history/', views_billing_history.BillingHistoryView.as_view(), name='billing-history'),
+    path('history/summary/', views_billing_history.billing_history_summary, name='billing-history-summary'),
+    path('history/purchases/', views_billing_history.purchase_history_detailed, name='purchase-history-detailed'),
+    path('history/payments/', views_billing_history.payment_history_detailed, name='payment-history-detailed'),
+    path('history/usage/', views_billing_history.usage_history_detailed, name='usage-history-detailed'),
 ]

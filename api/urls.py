@@ -8,9 +8,6 @@ from rest_framework.routers import DefaultRouter
 router = DefaultRouter()
 
 urlpatterns = [
-    # Include all app URLs
-    path('', include('tenants.urls')),
-    path('', include('accounts.urls')),
-    # messaging.urls is included in mifumo/urls.py under api/messaging/
-    path('', include('billing.urls')),
+    # All app URLs are included in mifumo/urls.py with proper prefixes
+    # This file is kept for potential future API router configurations
 ]

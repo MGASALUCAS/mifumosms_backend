@@ -32,6 +32,7 @@ from .serializers import (
 from core.permissions import IsTenantMember, IsTenantAdmin
 from core.rate_limits import check_rate_limit, MESSAGE_RATE_LIMITER
 from .tasks import send_message_task, ai_suggest_reply_task, ai_summarize_conversation_task
+from .models_sms import SMSSenderID
 
 
 def validate_user_tenant(user):
@@ -104,7 +105,8 @@ class ContactListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         """Create contact for the current user."""
         serializer.save(
-            created_by=self.request.user
+            created_by=self.request.user,
+            tenant=getattr(self.request.user, 'tenant', None)
         )
 
 
@@ -1167,5 +1169,151 @@ def purchase_detail(request, purchase_id):
         return Response({
             'success': False,
             'message': 'Failed to retrieve purchase details',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Sender ID Management Views (for frontend compatibility)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def sender_ids_list(request):
+    """Get list of sender IDs for the current tenant."""
+    try:
+        tenant = getattr(request.user, 'tenant', None)
+        if not tenant:
+            return Response({
+                'success': False,
+                'message': 'User is not associated with any tenant'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        sender_ids = SMSSenderID.objects.filter(
+            tenant=tenant,
+            status='active'
+        ).order_by('-created_at')
+
+        data = []
+        for sender_id in sender_ids:
+            data.append({
+                'id': str(sender_id.id),
+                'sender_id': sender_id.sender_id,
+                'sample_content': sender_id.sample_content,
+                'status': sender_id.status,
+                'created_at': sender_id.created_at.isoformat(),
+                'updated_at': sender_id.updated_at.isoformat()
+            })
+
+        return Response({
+            'success': True,
+            'data': data
+        })
+
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': 'Failed to retrieve sender IDs',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def request_sender_id(request):
+    """Request a new sender ID."""
+    try:
+        tenant = getattr(request.user, 'tenant', None)
+        if not tenant:
+            return Response({
+                'success': False,
+                'message': 'User is not associated with any tenant'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Redirect to sender-requests endpoint
+        from .views_sender_requests import request_default_sender_id
+        return request_default_sender_id(request)
+
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': 'Failed to request sender ID',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def sender_id_detail(request, pk):
+    """Get details of a specific sender ID."""
+    try:
+        tenant = getattr(request.user, 'tenant', None)
+        if not tenant:
+            return Response({
+                'success': False,
+                'message': 'User is not associated with any tenant'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        sender_id = get_object_or_404(
+            SMSSenderID,
+            id=pk,
+            tenant=tenant
+        )
+
+        data = {
+            'id': str(sender_id.id),
+            'sender_id': sender_id.sender_id,
+            'sample_content': sender_id.sample_content,
+            'status': sender_id.status,
+            'provider': sender_id.provider.name if sender_id.provider else None,
+            'created_at': sender_id.created_at.isoformat(),
+            'updated_at': sender_id.updated_at.isoformat()
+        }
+
+        return Response({
+            'success': True,
+            'data': data
+        })
+
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': 'Failed to retrieve sender ID details',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def sender_id_status(request, pk):
+    """Get status of a specific sender ID."""
+    try:
+        tenant = getattr(request.user, 'tenant', None)
+        if not tenant:
+            return Response({
+                'success': False,
+                'message': 'User is not associated with any tenant'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        sender_id = get_object_or_404(
+            SMSSenderID,
+            id=pk,
+            tenant=tenant
+        )
+
+        data = {
+            'id': str(sender_id.id),
+            'sender_id': sender_id.sender_id,
+            'status': sender_id.status,
+            'is_active': sender_id.status == 'active'
+        }
+
+        return Response({
+            'success': True,
+            'data': data
+        })
+
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': 'Failed to retrieve sender ID status',
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
