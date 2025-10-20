@@ -407,5 +407,4 @@ admin.site.site_header = "Mifumo SMS Management"
 admin.site.site_title = "Mifumo Admin"
 admin.site.index_title = "SMS & Messaging Administration"
 
-# Group related models in admin
-admin.site.index_template = 'admin/custom_index.html'
+# Use default Django admin index template (no custom override)
