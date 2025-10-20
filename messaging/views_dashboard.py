@@ -100,18 +100,18 @@ def dashboard_overview(request):
             created_at__gte=month_start
         ).count()
 
-        # Campaign statistics (tenant-based)
-        total_campaigns = Campaign.objects.filter(tenant=tenant).count()
+        # Campaign statistics (user-based, not tenant-based)
+        total_campaigns = Campaign.objects.filter(created_by=user).count()
         completed_campaigns = Campaign.objects.filter(
-            tenant=tenant,
+            created_by=user,
             status='completed'
         ).count()
 
-        # Calculate campaign success rate (tenant-based)
+        # Calculate campaign success rate (user-based)
         campaign_success_rate = 0
         if total_campaigns > 0:
             successful_campaigns = Campaign.objects.filter(
-                tenant=tenant,
+                created_by=user,
                 status='completed'
             ).aggregate(
                 total_sent=Sum('sent_count', default=0),
@@ -136,12 +136,12 @@ def dashboard_overview(request):
 
         # Sender ID calculation - count campaigns as they represent sender ID usage
         sender_ids_this_month = Campaign.objects.filter(
-            tenant=tenant,
+            created_by=user,
             created_at__gte=month_start
         ).count()
 
         # Recent campaigns (last 5)
-        recent_campaigns = Campaign.objects.filter(tenant=tenant).order_by('-created_at')[:5]
+        recent_campaigns = Campaign.objects.filter(created_by=user).order_by('-created_at')[:5]
         campaigns_data = []
 
         for campaign in recent_campaigns:
@@ -310,9 +310,9 @@ def dashboard_metrics(request):
 
         contacts_change = _calculate_percentage_change(active_contacts, last_month_active)
 
-        # Campaign success rate (tenant-based)
+        # Campaign success rate (user-based)
         campaigns_this_month = Campaign.objects.filter(
-            tenant=tenant,
+            created_by=user,
             created_at__gte=month_start
         )
 
@@ -323,7 +323,7 @@ def dashboard_metrics(request):
 
         # Previous month for comparison
         campaigns_last_month = Campaign.objects.filter(
-            tenant=tenant,
+            created_by=user,
             created_at__gte=last_month_start,
             created_at__lt=month_start
         )
@@ -502,9 +502,9 @@ def dashboard_comprehensive(request):
             'new_contacts_this_month': Contact.objects.filter(tenant=tenant, created_at__gte=month_start).count(),
             
             # Campaigns
-            'total_campaigns': Campaign.objects.filter(tenant=tenant).count(),
-            'completed_campaigns': Campaign.objects.filter(tenant=tenant, status='completed').count(),
-            'running_campaigns': Campaign.objects.filter(tenant=tenant, status='running').count(),
+            'total_campaigns': Campaign.objects.filter(created_by=user).count(),
+            'completed_campaigns': Campaign.objects.filter(created_by=user, status='completed').count(),
+            'running_campaigns': Campaign.objects.filter(created_by=user, status='running').count(),
             
             # Billing
             'current_credits': 0,
@@ -524,7 +524,7 @@ def dashboard_comprehensive(request):
 
         campaign_success_rate = 0
         if metrics_data['total_campaigns'] > 0:
-            campaign_aggregate = Campaign.objects.filter(tenant=tenant, status='completed').aggregate(
+            campaign_aggregate = Campaign.objects.filter(created_by=user, status='completed').aggregate(
                 total_sent=Sum('sent_count', default=0),
                 total_delivered=Sum('delivered_count', default=0)
             )
@@ -534,7 +534,7 @@ def dashboard_comprehensive(request):
                 )
 
         # Recent activity
-        recent_campaigns = Campaign.objects.filter(tenant=tenant).order_by('-created_at')[:5]
+        recent_campaigns = Campaign.objects.filter(created_by=user).order_by('-created_at')[:5]
         recent_messages = Message.objects.filter(tenant=tenant).order_by('-created_at')[:10]
 
         campaigns_data = []
