@@ -1,5 +1,5 @@
 """
-Admin configuration for messaging models with Jazzmin enhancements.
+Clean admin configuration for messaging models - organized and streamlined.
 """
 from django.contrib import admin
 from django.utils.html import format_html
@@ -13,12 +13,19 @@ from .models import (
     Campaign, Flow
 )
 from .models_sms import (
-    SenderNameRequest, SMSProvider, SMSSenderID, SMSMessage,
+    SMSProvider, SMSSenderID, SMSMessage,
     SMSTemplate, SMSDeliveryReport, SMSBulkUpload, SMSSchedule
 )
+from .models_sender_requests import SenderIDRequest
+from . import admin_sender_requests
+
+# =============================================================================
+# CORE MESSAGING MODELS
+# =============================================================================
 
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
+    """Manage contacts and customer information."""
     list_display = ['name', 'phone_e164', 'email', 'created_by', 'status_badge', 'opt_in_status', 'created_at']
     list_filter = ['is_active', 'opt_in_at', 'opt_out_at', 'created_at', 'created_by']
     search_fields = ['name', 'phone_e164', 'email', 'created_by__email']
@@ -45,8 +52,7 @@ class ContactAdmin(admin.ModelAdmin):
     )
 
     def save_model(self, request, obj, form, change):
-        """Automatically set created_by to the current user when creating a new contact."""
-        if not change:  # Only for new objects
+        if not change:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
@@ -62,65 +68,52 @@ class ContactAdmin(admin.ModelAdmin):
         return format_html('<span class="badge badge-warning">Not Opted In</span>')
     opt_in_status.short_description = 'Opt-in Status'
 
+
 @admin.register(Segment)
 class SegmentAdmin(admin.ModelAdmin):
+    """Manage contact segments for targeted messaging."""
     list_display = ['name', 'created_by', 'contact_count', 'created_at']
     list_filter = ['created_at', 'created_by']
     search_fields = ['name', 'description', 'created_by__email']
     readonly_fields = ['contact_count', 'created_at', 'updated_at']
 
     def save_model(self, request, obj, form, change):
-        """Automatically set created_by to the current user when creating a new segment."""
-        if not change:  # Only for new objects
+        if not change:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
+
 @admin.register(Template)
 class TemplateAdmin(admin.ModelAdmin):
+    """Manage message templates."""
     list_display = ['name', 'created_by', 'category', 'language', 'approved', 'usage_count', 'created_at']
     list_filter = ['category', 'language', 'approved', 'created_at', 'created_by']
     search_fields = ['name', 'body_text', 'created_by__email']
     readonly_fields = ['usage_count', 'created_at', 'updated_at']
 
     def save_model(self, request, obj, form, change):
-        """Automatically set created_by to the current user when creating a new template."""
-        if not change:  # Only for new objects
+        if not change:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
+
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
+    """Manage customer conversations and chat history."""
     list_display = ['contact', 'status', 'message_count', 'unread_count', 'last_message_at']
     list_filter = ['status', 'created_at', 'last_message_at']
     search_fields = ['contact__name', 'contact__phone_e164', 'subject']
     readonly_fields = ['message_count', 'unread_count', 'created_at', 'updated_at', 'last_message_at', 'closed_at']
 
+
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
+    """Manage individual messages in conversations."""
     list_display = ['conversation', 'recipient_display', 'direction_badge', 'provider', 'status_badge', 'preview_text', 'created_at']
     list_filter = ['direction', 'provider', 'status', 'created_at']
     search_fields = ['text', 'conversation__contact__name', 'recipient_number']
     readonly_fields = ['created_at', 'updated_at', 'sent_at', 'delivered_at', 'read_at']
     list_per_page = 25
-
-    fieldsets = (
-        ('Message Content', {
-            'fields': ('conversation', 'text', 'template'),
-            'classes': ('wide',)
-        }),
-        ('Recipient Information', {
-            'fields': ('recipient_number',),
-            'classes': ('wide',)
-        }),
-        ('Delivery Information', {
-            'fields': ('direction', 'provider', 'status', 'created_by'),
-            'classes': ('wide',)
-        }),
-        ('Timestamps', {
-            'fields': ('sent_at', 'delivered_at', 'read_at', 'created_at', 'updated_at'),
-            'classes': ('wide', 'collapse')
-        }),
-    )
 
     def direction_badge(self, obj):
         if obj.direction == 'inbound':
@@ -147,7 +140,6 @@ class MessageAdmin(admin.ModelAdmin):
     preview_text.short_description = 'Preview'
 
     def recipient_display(self, obj):
-        """Display recipient information with proper formatting."""
         if obj.conversation and obj.conversation.contact:
             return format_html(
                 '<strong>{}</strong><br><small>{}</small>',
@@ -160,15 +152,19 @@ class MessageAdmin(admin.ModelAdmin):
             return format_html('<span class="text-muted">-</span>')
     recipient_display.short_description = 'Recipient'
 
+
 @admin.register(Attachment)
 class AttachmentAdmin(admin.ModelAdmin):
+    """Manage file attachments in messages."""
     list_display = ['message', 'file_name', 'file_type', 'file_size', 'created_at']
     list_filter = ['file_type', 'created_at']
     search_fields = ['file_name']
     readonly_fields = ['created_at']
 
+
 @admin.register(Campaign)
 class CampaignAdmin(admin.ModelAdmin):
+    """Manage SMS and messaging campaigns."""
     list_display = ['name', 'created_by', 'status', 'campaign_type', 'total_recipients', 'sent_count', 'created_at']
     list_filter = ['status', 'campaign_type', 'created_at', 'scheduled_at', 'created_by']
     search_fields = ['name', 'description', 'message_text', 'created_by__email']
@@ -180,332 +176,32 @@ class CampaignAdmin(admin.ModelAdmin):
     filter_horizontal = ['target_segments', 'target_contacts']
 
     def save_model(self, request, obj, form, change):
-        """Automatically set created_by to the current user when creating a new campaign."""
-        if not change:  # Only for new objects
+        if not change:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'description', 'campaign_type', 'created_by'),
-            'classes': ('wide',)
-        }),
-        ('Content', {
-            'fields': ('message_text', 'template'),
-            'classes': ('wide',)
-        }),
-        ('Targeting', {
-            'fields': ('target_segments', 'target_contacts', 'target_criteria'),
-            'classes': ('wide',)
-        }),
-        ('Scheduling', {
-            'fields': ('status', 'scheduled_at', 'is_recurring', 'recurring_schedule'),
-            'classes': ('wide',)
-        }),
-        ('Statistics', {
-            'fields': ('total_recipients', 'sent_count', 'delivered_count', 'read_count', 'failed_count'),
-            'classes': ('wide', 'collapse')
-        }),
-        ('Cost Tracking', {
-            'fields': ('estimated_cost', 'actual_cost'),
-            'classes': ('wide', 'collapse')
-        }),
-        ('Settings', {
-            'fields': ('settings',),
-            'classes': ('wide', 'collapse')
-        }),
-        ('Timestamps', {
-            'fields': ('started_at', 'completed_at', 'created_at', 'updated_at'),
-            'classes': ('wide', 'collapse')
-        }),
-    )
 
 @admin.register(Flow)
 class FlowAdmin(admin.ModelAdmin):
+    """Manage automated messaging flows and workflows."""
     list_display = ['name', 'created_by', 'active', 'trigger_count', 'created_at']
     list_filter = ['active', 'created_at', 'created_by']
     search_fields = ['name', 'description', 'created_by__email']
     readonly_fields = ['trigger_count', 'created_at', 'updated_at']
 
     def save_model(self, request, obj, form, change):
-        """Automatically set created_by to the current user when creating a new flow."""
-        if not change:  # Only for new objects
+        if not change:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
 
-@admin.register(SenderNameRequest)
-class SenderNameRequestAdmin(admin.ModelAdmin):
-    """Admin interface for managing sender name requests with approval/rejection actions."""
-
-    list_display = [
-        'sender_name', 'tenant', 'created_by', 'status_badge', 'supporting_docs_count',
-        'created_at', 'reviewed_by', 'reviewed_at', 'admin_actions'
-    ]
-    list_filter = [
-        'status', 'tenant', 'created_at', 'reviewed_at', 'created_by', 'reviewed_by'
-    ]
-    search_fields = [
-        'sender_name', 'use_case', 'created_by__email', 'created_by__first_name',
-        'created_by__last_name', 'tenant__name', 'admin_notes'
-    ]
-    readonly_fields = [
-        'id', 'created_at', 'updated_at', 'supporting_documents_count',
-        'provider_request_id', 'provider_response'
-    ]
-    list_per_page = 25
-    list_select_related = ['tenant', 'created_by', 'reviewed_by']
-
-    fieldsets = (
-        ('Request Information', {
-            'fields': ('sender_name', 'use_case', 'tenant', 'created_by'),
-            'classes': ('wide',)
-        }),
-        ('Supporting Documents', {
-            'fields': ('supporting_documents', 'supporting_documents_count'),
-            'classes': ('wide',)
-        }),
-        ('Review & Status', {
-            'fields': ('status', 'admin_notes', 'reviewed_by', 'reviewed_at'),
-            'classes': ('wide',)
-        }),
-        ('Provider Integration', {
-            'fields': ('provider_request_id', 'provider_response'),
-            'classes': ('wide', 'collapse')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('wide', 'collapse')
-        }),
-    )
-
-    actions = ['approve_requests', 'reject_requests', 'mark_requires_changes']
-
-    def status_badge(self, obj):
-        """Display status with color-coded badge and emoji."""
-        status_config = {
-            'pending': {
-                'emoji': '🟡',
-                'color': 'badge-warning',
-                'text': 'Pending Review'
-            },
-            'approved': {
-                'emoji': '🟢',
-                'color': 'badge-success',
-                'text': 'Approved'
-            },
-            'rejected': {
-                'emoji': '🔴',
-                'color': 'badge-danger',
-                'text': 'Rejected'
-            },
-            'requires_changes': {
-                'emoji': '🔵',
-                'color': 'badge-info',
-                'text': 'Requires Changes'
-            }
-        }
-
-        config = status_config.get(obj.status, {
-            'emoji': '⚪',
-            'color': 'badge-secondary',
-            'text': obj.get_status_display()
-        })
-
-        return format_html(
-            '<span class="badge {}" style="font-size: 0.9rem; padding: 6px 12px; border-radius: 15px; font-weight: 600;">{} {}</span>',
-            config['color'],
-            config['emoji'],
-            config['text']
-        )
-    status_badge.short_description = 'Status'
-    status_badge.admin_order_field = 'status'
-
-    def supporting_docs_count(self, obj):
-        """Display count of supporting documents with emoji."""
-        count = obj.supporting_documents_count
-        if count > 0:
-            return format_html(
-                '<span class="badge badge-info" style="font-size: 0.8rem; padding: 4px 10px; border-radius: 12px;">📎 {}</span>',
-                count
-            )
-        return format_html(
-            '<span class="badge badge-secondary" style="font-size: 0.8rem; padding: 4px 10px; border-radius: 12px;">📎 0</span>'
-        )
-    supporting_docs_count.short_description = 'Documents'
-    supporting_docs_count.admin_order_field = 'supporting_documents_count'
-
-    def admin_actions(self, obj):
-        """Display action buttons for admin operations with emojis."""
-        if obj.status == 'pending':
-            approve_url = reverse('admin:messaging_sendernamerequest_approve', args=[obj.pk])
-            reject_url = reverse('admin:messaging_sendernamerequest_reject', args=[obj.pk])
-            return format_html(
-                '<div style="display: flex; gap: 5px; flex-wrap: wrap;">'
-                '<a class="button" href="{}" style="background: #28a745; color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" onclick="return confirm(\'Are you sure you want to approve this request?\')">✅ Approve</a>'
-                '<a class="button" href="{}" style="background: #dc3545; color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" onclick="return confirm(\'Are you sure you want to reject this request?\')">❌ Reject</a>'
-                '<button type="button" onclick="markAsRequiresChanges(\'{}\')" style="background: #17a2b8; color: white; padding: 6px 12px; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">🔄 Requires Changes</button>'
-                '</div>',
-                approve_url, reject_url, obj.pk
-            )
-        elif obj.status == 'requires_changes':
-            approve_url = reverse('admin:messaging_sendernamerequest_approve', args=[obj.pk])
-            return format_html(
-                '<div style="display: flex; gap: 5px; flex-wrap: wrap;">'
-                '<a class="button" href="{}" style="background: #28a745; color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" onclick="return confirm(\'Are you sure you want to approve this request?\')">✅ Approve</a>'
-                '<span style="color: #17a2b8; font-weight: 600; font-size: 0.9rem; padding: 6px 12px; background: #e0f7fa; border-radius: 6px;">🔄 Requires Changes</span>'
-                '</div>',
-                approve_url
-            )
-        elif obj.status == 'approved':
-            return format_html(
-                '<span style="color: #28a745; font-weight: 600; font-size: 0.9rem; padding: 6px 12px; background: #d4edda; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">✅ Approved</span>'
-            )
-        elif obj.status == 'rejected':
-            return format_html(
-                '<span style="color: #dc3545; font-weight: 600; font-size: 0.9rem; padding: 6px 12px; background: #f8d7da; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">❌ Rejected</span>'
-            )
-        return '-'
-    admin_actions.short_description = 'Actions'
-
-    def save_model(self, request, obj, form, change):
-        """Automatically set reviewed_by when status changes."""
-        if change and 'status' in form.changed_data:
-            obj.reviewed_by = request.user
-            from django.utils import timezone
-            obj.reviewed_at = timezone.now()
-        super().save_model(request, obj, form, change)
-
-    def approve_requests(self, request, queryset):
-        """Bulk approve selected requests."""
-        updated = queryset.filter(status='pending').update(
-            status='approved',
-            reviewed_by=request.user,
-            reviewed_at=timezone.now()
-        )
-        self.message_user(request, f'✅ {updated} requests approved successfully.')
-    approve_requests.short_description = '✅ Approve selected requests'
-
-    def reject_requests(self, request, queryset):
-        """Bulk reject selected requests."""
-        updated = queryset.filter(status='pending').update(
-            status='rejected',
-            reviewed_by=request.user,
-            reviewed_at=timezone.now()
-        )
-        self.message_user(request, f'❌ {updated} requests rejected successfully.')
-    reject_requests.short_description = '❌ Reject selected requests'
-
-    def mark_requires_changes(self, request, queryset):
-        """Mark selected requests as requiring changes."""
-        updated = queryset.filter(status='pending').update(
-            status='requires_changes',
-            reviewed_by=request.user,
-            reviewed_at=timezone.now()
-        )
-        self.message_user(request, f'🔄 {updated} requests marked as requiring changes.')
-    mark_requires_changes.short_description = '🔄 Mark as requiring changes'
-
-    def get_queryset(self, request):
-        """Filter requests based on user permissions."""
-        qs = super().get_queryset(request)
-        if request.user.is_superuser:
-            return qs
-        # For non-superusers, only show requests from their tenant
-        if hasattr(request.user, 'tenant'):
-            return qs.filter(tenant=request.user.tenant)
-        return qs.none()
-
-    def has_add_permission(self, request):
-        """Allow admins to add new requests."""
-        return request.user.is_staff
-
-    def has_change_permission(self, request, obj=None):
-        """Allow admins to change requests."""
-        return request.user.is_staff
-
-    def has_delete_permission(self, request, obj=None):
-        """Allow superusers to delete requests."""
-        return request.user.is_superuser
-
-    def get_urls(self):
-        """Add custom URLs for approve/reject actions."""
-        from django.urls import path
-        urls = super().get_urls()
-        custom_urls = [
-            path(
-                '<uuid:request_id>/approve/',
-                self.admin_site.admin_view(self.approve_request),
-                name='messaging_sendernamerequest_approve',
-            ),
-            path(
-                '<uuid:request_id>/reject/',
-                self.admin_site.admin_view(self.reject_request),
-                name='messaging_sendernamerequest_reject',
-            ),
-        ]
-        return custom_urls + urls
-
-    def approve_request(self, request, request_id):
-        """Approve a single sender name request."""
-        try:
-            sender_request = SenderNameRequest.objects.get(id=request_id)
-            sender_request.status = 'approved'
-            sender_request.reviewed_by = request.user
-            sender_request.reviewed_at = timezone.now()
-            sender_request.save()
-
-            messages.success(request, f'Sender name request "{sender_request.sender_name}" has been approved.')
-        except SenderNameRequest.DoesNotExist:
-            messages.error(request, 'Sender name request not found.')
-
-        return redirect('admin:messaging_sendernamerequest_changelist')
-
-    def reject_request(self, request, request_id):
-        """Reject a single sender name request."""
-        try:
-            sender_request = SenderNameRequest.objects.get(id=request_id)
-            sender_request.status = 'rejected'
-            sender_request.reviewed_by = request.user
-            sender_request.reviewed_at = timezone.now()
-            sender_request.save()
-
-            messages.success(request, f'Sender name request "{sender_request.sender_name}" has been rejected.')
-        except SenderNameRequest.DoesNotExist:
-            messages.error(request, 'Sender name request not found.')
-
-        return redirect('admin:messaging_sendernamerequest_changelist')
-
-    def changelist_view(self, request, extra_context=None):
-        """Override changelist view to provide statistics to the template."""
-        # Get the base queryset
-        queryset = self.get_queryset(request)
-
-        # Calculate statistics
-        total_count = queryset.count()
-        pending_count = queryset.filter(status='pending').count()
-        approved_count = queryset.filter(status='approved').count()
-        rejected_count = queryset.filter(status='rejected').count()
-        requires_changes_count = queryset.filter(status='requires_changes').count()
-
-        # Add statistics to extra_context
-        extra_context = extra_context or {}
-        extra_context.update({
-            'pending_count': pending_count,
-            'approved_count': approved_count,
-            'rejected_count': rejected_count,
-            'requires_changes_count': requires_changes_count,
-        })
-
-        return super().changelist_view(request, extra_context=extra_context)
-
-
-# SMS Admin Configurations
+# =============================================================================
+# SMS MANAGEMENT MODELS
+# =============================================================================
 
 @admin.register(SMSProvider)
 class SMSProviderAdmin(admin.ModelAdmin):
-    """Admin interface for SMS providers."""
-
+    """Configure SMS service providers and API settings."""
     list_display = [
         'name', 'provider_type', 'tenant', 'is_active', 'is_default',
         'cost_per_sms', 'currency', 'created_at'
@@ -544,15 +240,10 @@ class SMSProviderAdmin(admin.ModelAdmin):
         }),
     )
 
-    class Meta:
-        verbose_name = "SMS Provider"
-        verbose_name_plural = "SMS Providers"
-
 
 @admin.register(SMSSenderID)
 class SMSSenderIDAdmin(admin.ModelAdmin):
-    """Admin interface for SMS sender IDs."""
-
+    """Manage approved SMS sender IDs."""
     list_display = [
         'sender_id', 'tenant', 'provider', 'status_badge', 'created_at'
     ]
@@ -567,27 +258,7 @@ class SMSSenderIDAdmin(admin.ModelAdmin):
     ]
     list_per_page = 25
 
-    fieldsets = (
-        ('Sender ID Information', {
-            'fields': ('sender_id', 'tenant', 'provider', 'sample_content'),
-            'classes': ('wide',)
-        }),
-        ('Status', {
-            'fields': ('status',),
-            'classes': ('wide',)
-        }),
-        ('Provider Data', {
-            'fields': ('provider_sender_id', 'provider_data'),
-            'classes': ('wide', 'collapse')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at', 'created_by'),
-            'classes': ('wide', 'collapse')
-        }),
-    )
-
     def status_badge(self, obj):
-        """Display status with color-coded badge."""
         status_colors = {
             'pending': 'badge-warning',
             'active': 'badge-success',
@@ -598,15 +269,10 @@ class SMSSenderIDAdmin(admin.ModelAdmin):
         return format_html(f'<span class="badge {color}">{obj.status.title()}</span>')
     status_badge.short_description = 'Status'
 
-    class Meta:
-        verbose_name = "SMS Sender ID"
-        verbose_name_plural = "SMS Sender IDs"
-
 
 @admin.register(SMSMessage)
 class SMSMessageAdmin(admin.ModelAdmin):
-    """Admin interface for SMS messages."""
-
+    """Monitor SMS message delivery and status."""
     list_display = [
         'base_message', 'provider', 'sender_id', 'status_badge', 'cost_amount', 'sent_at'
     ]
@@ -621,31 +287,7 @@ class SMSMessageAdmin(admin.ModelAdmin):
     ]
     list_per_page = 25
 
-    fieldsets = (
-        ('Message Information', {
-            'fields': ('base_message', 'provider', 'sender_id', 'template'),
-            'classes': ('wide',)
-        }),
-        ('Status & Delivery', {
-            'fields': ('status', 'sent_at', 'delivered_at', 'error_message'),
-            'classes': ('wide',)
-        }),
-        ('Cost Information', {
-            'fields': ('cost_amount', 'cost_currency'),
-            'classes': ('wide',)
-        }),
-        ('Provider Data', {
-            'fields': ('provider_message_id', 'provider_response'),
-            'classes': ('wide', 'collapse')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('wide', 'collapse')
-        }),
-    )
-
     def status_badge(self, obj):
-        """Display status with color-coded badge."""
         status_colors = {
             'queued': 'badge-warning',
             'sent': 'badge-info',
@@ -657,15 +299,10 @@ class SMSMessageAdmin(admin.ModelAdmin):
         return format_html(f'<span class="badge {color}">{obj.status.title()}</span>')
     status_badge.short_description = 'Status'
 
-    class Meta:
-        verbose_name = "SMS Message"
-        verbose_name_plural = "SMS Messages"
-
 
 @admin.register(SMSTemplate)
 class SMSTemplateAdmin(admin.ModelAdmin):
-    """Admin interface for SMS templates."""
-
+    """Create and manage SMS message templates."""
     list_display = [
         'name', 'category', 'tenant', 'is_active', 'created_at'
     ]
@@ -680,30 +317,10 @@ class SMSTemplateAdmin(admin.ModelAdmin):
     ]
     list_per_page = 25
 
-    fieldsets = (
-        ('Template Information', {
-            'fields': ('name', 'category', 'message', 'tenant'),
-            'classes': ('wide',)
-        }),
-        ('Status', {
-            'fields': ('is_active',),
-            'classes': ('wide',)
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at', 'created_by'),
-            'classes': ('wide', 'collapse')
-        }),
-    )
-
-    class Meta:
-        verbose_name = "SMS Template"
-        verbose_name_plural = "SMS Templates"
-
 
 @admin.register(SMSDeliveryReport)
 class SMSDeliveryReportAdmin(admin.ModelAdmin):
-    """Admin interface for SMS delivery reports."""
-
+    """View SMS delivery reports and analytics."""
     list_display = [
         'sms_message', 'status', 'dest_addr', 'delivered_at', 'received_at'
     ]
@@ -721,8 +338,7 @@ class SMSDeliveryReportAdmin(admin.ModelAdmin):
 
 @admin.register(SMSBulkUpload)
 class SMSBulkUploadAdmin(admin.ModelAdmin):
-    """Admin interface for SMS bulk uploads."""
-
+    """Manage bulk SMS uploads and batch processing."""
     list_display = [
         'file_name', 'tenant', 'status_badge', 'total_rows', 'processed_rows', 'created_at'
     ]
@@ -738,7 +354,6 @@ class SMSBulkUploadAdmin(admin.ModelAdmin):
     list_per_page = 25
 
     def status_badge(self, obj):
-        """Display status with color-coded badge."""
         status_colors = {
             'pending': 'badge-warning',
             'processing': 'badge-info',
@@ -752,8 +367,7 @@ class SMSBulkUploadAdmin(admin.ModelAdmin):
 
 @admin.register(SMSSchedule)
 class SMSScheduleAdmin(admin.ModelAdmin):
-    """Admin interface for SMS schedules."""
-
+    """Schedule automated SMS messages and campaigns."""
     list_display = [
         'name', 'tenant', 'frequency', 'is_active', 'next_run', 'created_at'
     ]
@@ -782,3 +396,16 @@ class SMSScheduleAdmin(admin.ModelAdmin):
             'classes': ('wide', 'collapse')
         }),
     )
+
+
+# =============================================================================
+# ADMIN CUSTOMIZATION
+# =============================================================================
+
+# Customize admin site headers
+admin.site.site_header = "Mifumo SMS Management"
+admin.site.site_title = "Mifumo Admin"
+admin.site.index_title = "SMS & Messaging Administration"
+
+# Group related models in admin
+admin.site.index_template = 'admin/custom_index.html'

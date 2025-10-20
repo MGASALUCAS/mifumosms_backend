@@ -800,3 +800,219 @@ def usage_history_detailed(request):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+
+@swagger_auto_schema(
+    method='get',
+    operation_description="Get comprehensive transaction history including all payment types.",
+    manual_parameters=[
+        openapi.Parameter(
+            'page',
+            openapi.IN_QUERY,
+            description="Page number",
+            type=openapi.TYPE_INTEGER,
+            default=1
+        ),
+        openapi.Parameter(
+            'page_size',
+            openapi.IN_QUERY,
+            description="Number of items per page",
+            type=openapi.TYPE_INTEGER,
+            default=20
+        ),
+        openapi.Parameter(
+            'status',
+            openapi.IN_QUERY,
+            description="Filter by transaction status",
+            type=openapi.TYPE_STRING
+        ),
+        openapi.Parameter(
+            'transaction_type',
+            openapi.IN_QUERY,
+            description="Filter by transaction type (purchase, payment, custom)",
+            type=openapi.TYPE_STRING
+        ),
+    ],
+    responses={
+        200: "Transaction history retrieved successfully",
+        400: "Invalid request parameters",
+        500: "Internal Server Error",
+    },
+)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def comprehensive_transaction_history(request):
+    """
+    Get comprehensive transaction history including purchases, payments, and custom SMS purchases.
+    GET /api/billing/history/comprehensive/
+    """
+    try:
+        tenant = getattr(request.user, 'tenant', None)
+        if not tenant:
+            return Response(
+                {
+                    'success': False,
+                    'message': 'User is not associated with any tenant.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Get filters
+        status_filter = request.query_params.get('status')
+        transaction_type = request.query_params.get('transaction_type')
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+        
+        # Collect all transaction types
+        transactions = []
+        
+        # 1. Regular Purchases
+        purchases = Purchase.objects.filter(tenant=tenant).select_related('package')
+        if status_filter:
+            purchases = purchases.filter(status=status_filter)
+        
+        for purchase in purchases:
+            transactions.append({
+                'id': str(purchase.id),
+                'type': 'purchase',
+                'type_display': 'SMS Package Purchase',
+                'invoice_number': purchase.invoice_number,
+                'amount': float(purchase.amount),
+                'currency': 'TZS',
+                'status': purchase.status,
+                'status_display': purchase.get_status_display(),
+                'payment_method': purchase.payment_method,
+                'payment_method_display': purchase.get_payment_method_display(),
+                'credits': purchase.credits,
+                'package_name': purchase.package.name if purchase.package else 'Unknown Package',
+                'unit_price': float(purchase.unit_price),
+                'created_at': purchase.created_at,
+                'completed_at': purchase.completed_at,
+                'description': f"Purchased {purchase.credits} SMS credits from {purchase.package.name if purchase.package else 'Unknown Package'}",
+                'icon': '📦',
+                'color': 'blue'
+            })
+        
+        # 2. Payment Transactions
+        from billing.models import PaymentTransaction
+        payment_transactions = PaymentTransaction.objects.filter(tenant=tenant)
+        if status_filter:
+            payment_transactions = payment_transactions.filter(status=status_filter)
+        
+        for pt in payment_transactions:
+            transactions.append({
+                'id': str(pt.id),
+                'type': 'payment',
+                'type_display': 'Payment Transaction',
+                'invoice_number': pt.invoice_number,
+                'amount': float(pt.amount),
+                'currency': pt.currency,
+                'status': pt.status,
+                'status_display': pt.get_status_display(),
+                'payment_method': pt.payment_method,
+                'payment_method_display': pt.get_payment_method_display(),
+                'credits': None,
+                'package_name': None,
+                'unit_price': None,
+                'created_at': pt.created_at,
+                'completed_at': pt.completed_at,
+                'description': f"Payment of {pt.amount} {pt.currency} via {pt.get_payment_method_display()}",
+                'buyer_name': pt.buyer_name,
+                'buyer_email': pt.buyer_email,
+                'buyer_phone': pt.buyer_phone,
+                'icon': '💳',
+                'color': 'green'
+            })
+        
+        # 3. Custom SMS Purchases
+        from billing.models import CustomSMSPurchase
+        custom_purchases = CustomSMSPurchase.objects.filter(tenant=tenant)
+        if status_filter:
+            custom_purchases = custom_purchases.filter(status=status_filter)
+        
+        for csp in custom_purchases:
+            transactions.append({
+                'id': str(csp.id),
+                'type': 'custom',
+                'type_display': 'Custom SMS Purchase',
+                'invoice_number': f"CSP-{str(csp.id)[:8].upper()}",
+                'amount': float(csp.total_price),
+                'currency': 'TZS',
+                'status': csp.status,
+                'status_display': csp.get_status_display(),
+                'payment_method': 'custom',
+                'payment_method_display': 'Custom Purchase',
+                'credits': csp.credits,
+                'package_name': f"Custom ({csp.active_tier})",
+                'unit_price': float(csp.unit_price),
+                'created_at': csp.created_at,
+                'completed_at': csp.completed_at,
+                'description': f"Custom purchase of {csp.credits} SMS credits at {csp.unit_price} TZS each",
+                'tier_info': {
+                    'active_tier': csp.active_tier,
+                    'min_credits': csp.tier_min_credits,
+                    'max_credits': csp.tier_max_credits
+                },
+                'icon': '⚙️',
+                'color': 'purple'
+            })
+        
+        # Filter by transaction type if specified
+        if transaction_type:
+            transactions = [t for t in transactions if t['type'] == transaction_type]
+        
+        # Sort by creation date (newest first)
+        transactions.sort(key=lambda x: x['created_at'], reverse=True)
+        
+        # Ensure all transactions have consistent status mapping
+        for transaction in transactions:
+            # Map any "processing" status to "pending" for consistency
+            if transaction['status'] == 'processing':
+                transaction['status'] = 'pending'
+                transaction['status_display'] = 'Pending'
+        
+        # Pagination
+        total_count = len(transactions)
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        
+        paginated_transactions = transactions[start_index:end_index]
+        
+        # Calculate pagination info
+        has_next = end_index < total_count
+        has_previous = page > 1
+        
+        # Calculate summary statistics
+        total_amount = sum(t['amount'] for t in transactions if t['status'] == 'completed')
+        total_credits = sum(t['credits'] for t in transactions if t['credits'] and t['status'] == 'completed')
+        
+        return Response({
+            'success': True,
+            'data': {
+                'transactions': paginated_transactions,
+                'summary': {
+                    'total_transactions': total_count,
+                    'total_amount': total_amount,
+                    'total_credits': total_credits,
+                    'currency': 'TZS'
+                },
+                'pagination': {
+                    'count': total_count,
+                    'next': f"?page={page + 1}&page_size={page_size}" if has_next else None,
+                    'previous': f"?page={page - 1}&page_size={page_size}" if has_previous else None,
+                    'page': page,
+                    'page_size': page_size,
+                    'total_pages': (total_count + page_size - 1) // page_size
+                }
+            }
+        })
+        
+    except Exception as e:
+        return Response(
+            {
+                'success': False,
+                'message': 'Failed to retrieve comprehensive transaction history',
+                'error': str(e),
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

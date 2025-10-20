@@ -26,6 +26,7 @@ import logging
 
 from .models import Message, Conversation, Contact
 from .models_sms import SMSProvider, SMSSenderID, SMSTemplate, SMSMessage, SMSDeliveryReport
+from billing.models import SMSBalance
 from .services.beem_sms import BeemSMSService, BeemSMSError
 from .serializers_sms_beem import (
     SMSSendSerializer,
@@ -36,6 +37,53 @@ from .serializers_sms_beem import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _error_response(message, status_code=status.HTTP_400_BAD_REQUEST, error_code=None, errors=None, detail=None, user_hint=None, actions=None):
+    """Standard error payload for frontend-friendly display with guidance."""
+    payload = {
+        'success': False,
+        'message': message,
+    }
+    if error_code:
+        payload['error_code'] = error_code
+    if errors:
+        payload['errors'] = errors
+    if detail:
+        payload['detail'] = detail
+    if user_hint:
+        payload['user_hint'] = user_hint
+    if actions:
+        payload['actions'] = actions
+    return Response(payload, status=status_code)
+
+
+def _parse_provider_error(detail):
+    """Extract provider error code and message from Beem error payloads."""
+    try:
+        import json
+        # Detail may be a JSON string or a string like: "Beem API error: 400 - {json}"
+        text = detail or ''
+        json_part = None
+        if isinstance(text, dict):
+            json_part = text
+        else:
+            # Try direct JSON
+            try:
+                json_part = json.loads(text)
+            except Exception:
+                # Try to find JSON after a dash
+                if ' - ' in text:
+                    possible = text.split(' - ', 1)[1]
+                    json_part = json.loads(possible)
+        if isinstance(json_part, dict):
+            data = json_part.get('data') or json_part
+            code = data.get('code')
+            message = data.get('message') or data.get('error')
+            return code, message
+    except Exception:
+        pass
+    return None, None
 
 
 @api_view(['POST'])
@@ -72,39 +120,51 @@ def send_sms(request):
     try:
         serializer = SMSSendSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response({
-                'success': False,
-                'message': 'Validation error',
-                'errors': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return _error_response(
+                'Some information is missing or invalid.',
+                status.HTTP_400_BAD_REQUEST,
+                error_code='VALIDATION_ERROR',
+                errors=serializer.errors,
+                user_hint='Check the phone numbers and message, then try again.'
+            )
 
         data = serializer.validated_data
         tenant = request.user.tenant
 
         # Check if user has a tenant
         if not tenant:
-            return Response({
-                'success': False,
-                'message': 'User is not associated with any tenant. Please contact support.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return _error_response(
+                'You are not linked to any organization.',
+                status.HTTP_400_BAD_REQUEST,
+                error_code='NO_TENANT',
+                user_hint='Please contact support to link your account to an organization.'
+            )
 
         # Get or create Beem provider
         beem_provider = get_or_create_beem_provider(tenant)
 
-        # Get and validate sender ID
+        # Get and validate sender ID (admin fallback to default)
         sender_id = data.get('sender_id')
-        if not sender_id:
-            return Response({
-                'success': False,
-                'message': 'Sender ID is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        sender_id_obj = get_sender_id(tenant, sender_id)
+        sender_id_obj = None
+        if sender_id:
+            sender_id_obj = get_sender_id(tenant, sender_id)
+        
         if not sender_id_obj:
-            return Response({
-                'success': False,
-                'message': f'Sender ID "{sender_id}" is not registered or not active'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            # If admin, auto-use/create default sender ID
+            if getattr(request.user, 'is_superuser', False) or getattr(request.user, 'is_staff', False):
+                sender_id_obj = get_or_create_default_sender(tenant, beem_provider)
+            else:
+                # Normal users: if requesting platform default, create it on-demand
+                if (sender_id or '').strip().lower() == 'taarifa-sms':
+                    sender_id_obj = get_or_create_default_sender(tenant, beem_provider)
+                else:
+                    return _error_response(
+                        'Sender name is missing or not available.',
+                        status.HTTP_400_BAD_REQUEST,
+                        error_code='SENDER_ID_INVALID',
+                        user_hint='Choose an approved sender name or request the default in Sender Names.',
+                        actions={'request_default_url': '/api/messaging/sender-requests/request-default/', 'available_url': '/api/messaging/sender-requests/available/'}
+                    )
 
         # Get template if provided
         template = None
@@ -121,17 +181,30 @@ def send_sms(request):
         from .services.sms_validation import SMSValidationService, SMSValidationError
         
         validation_service = SMSValidationService(tenant)
+        required_credits = len(data['recipients'])
+        
+        # Admin fallback: ensure sufficient credits
+        if getattr(request.user, 'is_superuser', False) or getattr(request.user, 'is_staff', False):
+            balance, _ = SMSBalance.objects.get_or_create(tenant=tenant)
+            if balance.credits < required_credits:
+                top_up_amount = max(1000, required_credits - balance.credits)
+                balance.add_credits(top_up_amount)
+        
         validation_result = validation_service.validate_sms_sending(
-            sender_id_obj.sender_id, 
-            required_credits=len(data['recipients'])
+            sender_id_obj.sender_id,
+            required_credits=required_credits
         )
         
         if not validation_result['valid']:
-            return Response({
-                'success': False,
-                'error': validation_result['error'],
-                'error_type': validation_result.get('error_type', 'validation_error')
-            }, status=status.HTTP_400_BAD_REQUEST)
+            lack_credits = 'Insufficient SMS credits' in validation_result['error'] or validation_result.get('reason') == 'no_credits'
+            return _error_response(
+                validation_result['error'],
+                status.HTTP_400_BAD_REQUEST,
+                error_code='INSUFFICIENT_CREDITS' if lack_credits else 'VALIDATION_ERROR',
+                detail=validation_result.get('error_type'),
+                user_hint='Buy SMS credits and try again.' if lack_credits else 'Please review the details and try again.',
+                actions={'purchase_url': '/api/billing/sms/purchase/'} if lack_credits else None
+            )
 
         # Send SMS via Beem
         with transaction.atomic():
@@ -166,19 +239,24 @@ def send_sms(request):
                 encoding=data.get('encoding')  # None will trigger auto-detection
             )
         except BeemSMSError as e:
-            # Check if it's a Unicode-related error
-            if "Unicode" in str(e) or "Special Characters" in str(e):
-                logger.warning(f"Unicode error detected, retrying with explicit UCS2 encoding: {e}")
-                # Retry with explicit UCS2 encoding
-                beem_response = beem_service.send_sms(
-                    message=message_content,
-                    recipients=data['recipients'],
-                    source_addr=sender_id_obj.sender_id,
-                    schedule_time=data.get('schedule_time'),
-                    encoding=1  # Force UCS2 encoding
-                )
-            else:
-                raise
+            # Return Beem error payload to frontend with parsed provider reason
+            beem_error = getattr(e, 'detail', None) or str(e)
+            prov_code, prov_msg = _parse_provider_error(beem_error)
+            user_msg = 'Your message could not be sent right now.'
+            hint = 'Check the phone number format (+2557XXXXXXXX) and try again.'
+            if prov_msg:
+                user_msg = f"Provider error: {prov_msg}"
+                # Specific hint for invalid sender id
+                if (prov_code == 111) or ('invalid sender id' in prov_msg.lower()):
+                    hint = 'Choose another sender name or request approval in Sender Names.'
+            return _error_response(
+                user_msg,
+                status.HTTP_400_BAD_REQUEST,
+                error_code='PROVIDER_ERROR',
+                detail=beem_error,
+                user_hint=hint,
+                actions={'request_default_url': '/api/messaging/sender-requests/request-default/', 'available_url': '/api/messaging/sender-requests/available/'}
+            )
 
         # Update SMS message with provider response
         sms_message.provider_response = beem_response.get('response', {})
@@ -223,19 +301,23 @@ def send_sms(request):
 
     except BeemSMSError as e:
         logger.error(f"Beem SMS error: {str(e)}")
-        return Response({
-            'success': False,
-            'message': f'SMS sending failed: {str(e)}',
-            'provider': 'beem'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return _error_response(
+            'Your message could not be sent due to provider issues.',
+            status.HTTP_400_BAD_REQUEST,
+            error_code='PROVIDER_ERROR',
+            detail=str(e),
+            user_hint='Please wait a moment and try again.'
+        )
 
     except Exception as e:
         logger.error(f"Unexpected error sending SMS: {str(e)}")
-        return Response({
-            'success': False,
-            'message': 'An unexpected error occurred while sending SMS',
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return _error_response(
+            'Something went wrong while sending your message.',
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            error_code='SYSTEM_ERROR',
+            detail=str(e),
+            user_hint='Please try again. If the problem persists, contact support.'
+        )
 
 
 @api_view(['POST'])
@@ -266,21 +348,25 @@ def send_bulk_sms(request):
     try:
         serializer = SMSBulkSendSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response({
-                'success': False,
-                'message': 'Validation error',
-                'errors': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return _error_response(
+                'Some information is missing or invalid.',
+                status.HTTP_400_BAD_REQUEST,
+                error_code='VALIDATION_ERROR',
+                errors=serializer.errors,
+                user_hint='Check each message block and try again.'
+            )
 
         data = serializer.validated_data
         tenant = request.user.tenant
 
         # Check if user has a tenant
         if not tenant:
-            return Response({
-                'success': False,
-                'message': 'User is not associated with any tenant. Please contact support.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return _error_response(
+                'You are not linked to any organization.',
+                status.HTTP_400_BAD_REQUEST,
+                error_code='NO_TENANT',
+                user_hint='Please contact support to link your account to an organization.'
+            )
 
         # Get Beem provider
         beem_provider = get_or_create_beem_provider(tenant)
@@ -296,18 +382,23 @@ def send_bulk_sms(request):
             for message_data in data['messages']:
                 # Get and validate sender ID
                 sender_id = message_data.get('sender_id')
-                if not sender_id:
-                    return Response({
-                        'success': False,
-                        'message': 'Sender ID is required for all messages'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-
-                sender_id_obj = get_sender_id(tenant, sender_id)
+                sender_id_obj = None
+                if sender_id:
+                    sender_id_obj = get_sender_id(tenant, sender_id)
                 if not sender_id_obj:
-                    return Response({
-                        'success': False,
-                        'message': f'Sender ID "{sender_id}" is not registered or not active'
-                    }, status=status.HTTP_400_BAD_REQUEST)
+                    if getattr(request.user, 'is_superuser', False) or getattr(request.user, 'is_staff', False):
+                        sender_id_obj = get_or_create_default_sender(tenant, beem_provider)
+                    else:
+                        if (sender_id or '').strip().lower() == 'taarifa-sms':
+                            sender_id_obj = get_or_create_default_sender(tenant, beem_provider)
+                        else:
+                            return _error_response(
+                                'Sender name is missing or not available.',
+                                status.HTTP_400_BAD_REQUEST,
+                                error_code='SENDER_ID_INVALID',
+                                user_hint='Choose an approved sender name or request the default in Sender Names.',
+                                actions={'request_default_url': '/api/messaging/sender-requests/request-default/', 'available_url': '/api/messaging/sender-requests/available/'}
+                            )
 
                 # Send via Beem
                 beem_response = beem_service.send_sms(
@@ -363,19 +454,31 @@ def send_bulk_sms(request):
 
     except BeemSMSError as e:
         logger.error(f"Beem bulk SMS error: {str(e)}")
-        return Response({
-            'success': False,
-            'message': f'Bulk SMS sending failed: {str(e)}',
-            'provider': 'beem'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        prov_code, prov_msg = _parse_provider_error(str(e))
+        user_msg = 'Your messages could not be sent due to provider issues.'
+        hint = 'Please wait a moment and try again.'
+        if prov_msg:
+            user_msg = f"Provider error: {prov_msg}"
+            if (prov_code == 111) or ('invalid sender id' in prov_msg.lower()):
+                hint = 'Choose another sender name or request approval in Sender Names.'
+        return _error_response(
+            user_msg,
+            status.HTTP_400_BAD_REQUEST,
+            error_code='PROVIDER_ERROR',
+            detail=str(e),
+            user_hint=hint,
+            actions={'request_default_url': '/api/messaging/sender-requests/request-default/', 'available_url': '/api/messaging/sender-requests/available/'}
+        )
 
     except Exception as e:
         logger.error(f"Unexpected error sending bulk SMS: {str(e)}")
-        return Response({
-            'success': False,
-            'message': 'An unexpected error occurred while sending bulk SMS',
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return _error_response(
+            'Something went wrong while sending your messages.',
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            error_code='SYSTEM_ERROR',
+            detail=str(e),
+            user_hint='Please try again. If the problem persists, contact support.'
+        )
 
 
 @api_view(['GET'])
@@ -740,3 +843,25 @@ def get_sender_id(tenant, sender_id_name):
         )
     except SMSSenderID.DoesNotExist:
         return None
+
+
+def get_or_create_default_sender(tenant, provider):
+    """Ensure default sender 'Taarifa-SMS' exists and is active for the tenant."""
+    sender = SMSSenderID.objects.filter(
+        tenant=tenant,
+        sender_id='Taarifa-SMS'
+    ).first()
+    if sender:
+        if sender.status != 'active' or sender.provider_id != provider.id:
+            sender.status = 'active'
+            sender.provider = provider
+            sender.save()
+        return sender
+
+    return SMSSenderID.objects.create(
+        tenant=tenant,
+        provider=provider,
+        sender_id='Taarifa-SMS',
+        status='active',
+        sample_content='A test use case for the sender name purposely used for information transfer.'
+    )

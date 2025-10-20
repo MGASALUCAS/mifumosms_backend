@@ -246,7 +246,9 @@ def initiate_payment(request):
             if payment_response.get('success'):
                 # Store raw response for audit
                 payment_transaction.webhook_data = payment_response.get('data', {})
-                payment_transaction.status = 'processing'  # Set to processing when push notification is sent
+                # Keep status as pending until ZenoPay confirms COMPLETED or FAILED
+                if payment_transaction.status != 'pending':
+                    payment_transaction.status = 'pending'
                 payment_transaction.save()
 
                 return Response({
@@ -280,13 +282,13 @@ def initiate_payment(request):
                         'progress': {
                             'step': 2,
                             'total_steps': 4,
-                            'current_step': 'Payment Processing',
-                            'next_step': 'Complete Payment on Mobile',
-                            'completed_steps': ['Payment Initiated', 'Payment Processing'],
-                            'remaining_steps': ['Complete Payment on Mobile', 'Payment Verification', 'Credits Added'],
-                            'percentage': 50,
+                            'current_step': 'Complete Payment on Mobile',
+                            'next_step': 'Payment Verification',
+                            'completed_steps': ['Payment Initiated'],
+                            'remaining_steps': ['Payment Verification', 'Credits Added'],
+                            'percentage': 33,
                             'status_color': 'yellow',
-                            'status_icon': 'sync'
+                            'status_icon': 'clock'
                         }
                     }
                 }, status=status.HTTP_201_CREATED)
@@ -355,22 +357,33 @@ def check_payment_status(request, transaction_id):
             payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
             payment_status = payment_data.get('payment_status', '').upper()
             
-            # Only mark as completed if both result is SUCCESS and payment_status is COMPLETED
-            if (result == 'SUCCESS' and payment_status == 'COMPLETED' and 
-                payment_transaction.status in ('pending', 'processing')):
-                payment_transaction.mark_as_completed(status_response.get('data', {}))
-                if getattr(payment_transaction, 'purchase', None):
-                    payment_transaction.purchase.complete_purchase()
+            # Map ZenoPay status directly: SUCCESS = completed, FAILED = failed, anything else = pending
+            require_webhook = getattr(settings, 'ZENOPAY_REQUIRE_WEBHOOK', False)
+            if result == 'SUCCESS' and payment_status == 'COMPLETED':
+                # Only mark completed if webhook received when strict mode is on
+                if not require_webhook or getattr(payment_transaction, 'webhook_received', False):
+                    payment_transaction.mark_as_completed(status_response.get('data', {}))
+                    if getattr(payment_transaction, 'purchase', None):
+                        payment_transaction.purchase.complete_purchase()
+                else:
+                    # Await webhook confirmation
+                    if payment_transaction.status != 'pending':
+                        payment_transaction.status = 'pending'
+                        payment_transaction.save()
 
                 # refresh progress after state change
                 progress = _get_payment_progress(payment_transaction, {"success": True, "payment_status": "COMPLETED"})
             elif result == 'FAILED' or payment_status == 'FAILED':
                 # Handle payment failure
                 payment_transaction.mark_as_failed('Payment failed - user did not complete payment or network issue')
-                if getattr(payment_transaction, 'purchase', None):
-                    payment_transaction.purchase.mark_as_failed()
-                progress = _get_payment_progress(payment_transaction, {"success": False, "payment_status": "FAILED"})
-            elif not status_response.get('success'):
+            else:
+                # Keep as pending if not explicitly SUCCESS/COMPLETED or FAILED
+                if payment_transaction.status != 'pending':
+                    payment_transaction.status = 'pending'
+                    payment_transaction.save()
+                progress = _get_payment_progress(payment_transaction, {"success": False, "payment_status": "PENDING"})
+            
+            if not status_response.get('success'):
                 # Handle network issues or API errors
                 payment_transaction.mark_as_failed('Payment verification failed - network issue or API error')
                 if getattr(payment_transaction, 'purchase', None):
@@ -466,11 +479,17 @@ def verify_payment(request, order_id):
             if 'data' in status_response:
                 payment_transaction.webhook_data = status_response['data']
 
-            # Only mark as completed if both result is SUCCESS and payment_status is COMPLETED
+            # Map ZenoPay status directly: SUCCESS = completed, FAILED = failed, anything else = pending
             if result == 'SUCCESS' and payment_status == 'COMPLETED':
-                payment_transaction.mark_as_completed(status_response.get('data', {}))
-                if getattr(payment_transaction, 'purchase', None):
-                    payment_transaction.purchase.complete_purchase()
+                require_webhook = getattr(settings, 'ZENOPAY_REQUIRE_WEBHOOK', False)
+                if not require_webhook or getattr(payment_transaction, 'webhook_received', False):
+                    payment_transaction.mark_as_completed(status_response.get('data', {}))
+                    if getattr(payment_transaction, 'purchase', None):
+                        payment_transaction.purchase.complete_purchase()
+                else:
+                    if payment_transaction.status != 'pending':
+                        payment_transaction.status = 'pending'
+                        payment_transaction.save()
                 status_message = 'Payment verified and completed successfully! Credits have been added to your account.'
             elif payment_status == 'FAILED' or result == 'FAILED':
                 payment_transaction.mark_as_failed('Payment failed - user did not complete payment or network issue')
@@ -478,6 +497,10 @@ def verify_payment(request, order_id):
                     payment_transaction.purchase.mark_as_failed()
                 status_message = 'Payment failed. Please try again or contact support.'
             else:
+                # Keep as pending if not explicitly SUCCESS/COMPLETED or FAILED
+                if payment_transaction.status != 'pending':
+                    payment_transaction.status = 'pending'
+                    payment_transaction.save()
                 # Payment is still processing or in unknown state
                 status_message = f'Payment is being processed. Status: {payment_status or result}. Please wait a moment and try again.'
 
@@ -532,6 +555,65 @@ def verify_payment(request, order_id):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def sync_pending_payments(request):
+    """
+    Poll ZenoPay for all pending payments for the tenant and update their statuses.
+    POST /api/billing/payments/sync/
+    """
+    try:
+        tenant = getattr(request.user, 'tenant', None)
+        if not tenant:
+            return Response({'success': False, 'message': 'User is not associated with any tenant.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = 0
+        failed = 0
+        checked = 0
+        results = []
+
+        pending_payments = PaymentTransaction.objects.filter(tenant=tenant, status='pending')
+
+        for payment in pending_payments:
+            checked += 1
+            status_response = zenopay_service.check_payment_status(payment.zenopay_order_id) or {}
+            if status_response.get('success'):
+                result = (status_response.get('payment_status') or '').upper()
+                payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
+                payment_status = payment_data.get('payment_status', '').upper()
+
+                if result == 'SUCCESS' and payment_status == 'COMPLETED':
+                    payment.mark_as_completed(status_response.get('data', {}))
+                    if getattr(payment, 'purchase', None):
+                        payment.purchase.complete_purchase()
+                    updated += 1
+                    results.append({'id': str(payment.id), 'status': 'completed'})
+                elif result == 'FAILED' or payment_status == 'FAILED':
+                    payment.mark_as_failed('Payment failed via sync')
+                    if getattr(payment, 'purchase', None):
+                        payment.purchase.mark_as_failed()
+                    updated += 1
+                    results.append({'id': str(payment.id), 'status': 'failed'})
+                else:
+                    results.append({'id': str(payment.id), 'status': 'pending'})
+            else:
+                failed += 1
+                results.append({'id': str(payment.id), 'status': 'error', 'error': status_response.get('error', 'Unknown error')})
+
+        return Response({
+            'success': True,
+            'data': {
+                'checked': checked,
+                'updated': updated,
+                'failed_checks': failed,
+                'results': results
+            }
+        })
+    except Exception as e:
+        logger.exception('Sync pending payments error')
+        return Response({'success': False, 'message': 'Failed to sync payments', 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @swagger_auto_schema(
     method="post",
     operation_description="Webhook endpoint for ZenoPay notifications.",
@@ -582,15 +664,24 @@ def payment_webhook(request):
                         payment_data = verification_response.get('data', {}).get('data', [{}])[0] if verification_response.get('data', {}).get('data') else {}
                         verified_payment_status = payment_data.get('payment_status', '').upper()
                         
+                        # Map ZenoPay status directly: SUCCESS = completed, FAILED = failed, anything else = pending
                         if result == 'SUCCESS' and verified_payment_status == 'COMPLETED':
+                            payment_transaction.webhook_received = True
                             payment_transaction.mark_as_completed(webhook_data)
                             if getattr(payment_transaction, 'purchase', None):
                                 payment_transaction.purchase.complete_purchase()
                             logger.info(f"Payment transaction {payment_transaction.id} verified and completed via webhook")
+                        elif result == 'FAILED' or verified_payment_status == 'FAILED':
+                            payment_transaction.mark_as_failed('Payment failed via webhook verification')
+                            if getattr(payment_transaction, 'purchase', None):
+                                payment_transaction.purchase.mark_as_failed()
+                            logger.info(f"Payment transaction {payment_transaction.id} marked as failed via webhook")
                         else:
-                            logger.warning(f"Webhook claimed COMPLETED but ZenoPay API verification failed for order {order_id}")
-                            payment_transaction.webhook_data = webhook_data
+                            # Keep as pending if not explicitly SUCCESS/COMPLETED or FAILED
+                            if payment_transaction.status != 'pending':
+                                payment_transaction.status = 'pending'
                             payment_transaction.save()
+                            logger.warning(f"Webhook status unclear for order {order_id}, keeping as pending")
                     else:
                         logger.warning(f"Failed to verify webhook with ZenoPay API for order {order_id}")
                         payment_transaction.webhook_data = webhook_data
@@ -746,7 +837,7 @@ def _get_payment_progress(payment_transaction, status_response):
                 'status_icon': 'check'
             })
         elif result == 'SUCCESS' and payment_status != 'COMPLETED':
-            # Payment is processing/verified but not completed
+            # Payment is verified but not completed - keep as pending
             progress.update({
                 'step': 3,
                 'current_step': 'Payment Verified',
@@ -754,8 +845,8 @@ def _get_payment_progress(payment_transaction, status_response):
                 'completed_steps': ['Payment Initiated', 'Complete Payment on Mobile', 'Payment Verification'],
                 'remaining_steps': ['Credits Added'],
                 'percentage': 75,
-                'status_color': 'blue',
-                'status_icon': 'check-circle'
+                'status_color': 'yellow',
+                'status_icon': 'clock'
             })
 
     return progress
@@ -904,13 +995,19 @@ def cleanup_payments(request):
                 payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
                 payment_status = payment_data.get('payment_status', '').upper()
                 
+                # Map ZenoPay status directly: SUCCESS = completed, FAILED = failed, anything else = pending
                 if result == 'SUCCESS' and payment_status == 'COMPLETED':
                     payment.mark_as_completed(status_response.get('data', {}))
                     if getattr(payment, 'purchase', None):
                         payment.purchase.complete_purchase()
+                elif result == 'FAILED' or payment_status == 'FAILED':
+                    payment.mark_as_failed('Payment failed via cleanup verification')
+                    if getattr(payment, 'purchase', None):
+                        payment.purchase.mark_as_failed()
                 else:
-                    payment.status = 'expired'
-                    payment.error_message = 'Payment expired (system cleanup)'
+                    # Keep as pending if not explicitly SUCCESS/COMPLETED or FAILED
+                    if payment.status != 'pending':
+                        payment.status = 'pending'
                     payment.save()
             else:
                 payment.status = 'expired'
@@ -1266,7 +1363,9 @@ def initiate_custom_sms_purchase(request):
             if payment_response.get('success'):
                 # Store raw response for audit
                 payment_transaction.webhook_data = payment_response.get('data', {})
-                payment_transaction.status = 'processing'
+                # Keep status as pending until ZenoPay confirms COMPLETED or FAILED
+                if payment_transaction.status != 'pending':
+                    payment_transaction.status = 'pending'
                 payment_transaction.save()
 
                 return Response({
@@ -1284,7 +1383,7 @@ def initiate_custom_sms_purchase(request):
                         'active_tier': active_tier,
                         'tier_min_credits': tier_min,
                         'tier_max_credits': tier_max,
-                        'status': 'processing',
+                        'status': 'pending',
                         'mobile_money_provider': mobile_money_provider,
                         'provider_name': get_provider_name(mobile_money_provider),
                         'payment_instructions': (payment_response.get('data') or {}).get('message', ''),
@@ -1352,13 +1451,18 @@ def check_custom_sms_purchase_status(request, purchase_id):
                 custom_purchase.payment_transaction.zenopay_msisdn = status_response.get('msisdn') or custom_purchase.payment_transaction.zenopay_msisdn
                 custom_purchase.payment_transaction.save()
 
-                # Check if payment is completed
-                if result == 'SUCCESS' and payment_status == 'COMPLETED' and custom_purchase.status in ('processing', 'pending'):
+                # Map ZenoPay status directly: SUCCESS = completed, FAILED = failed, anything else = pending
+                if result == 'SUCCESS' and payment_status == 'COMPLETED':
                     custom_purchase.complete_purchase()
                     custom_purchase.payment_transaction.mark_as_completed(status_response.get('data', {}))
                 elif payment_status == 'FAILED' or result == 'FAILED':
                     custom_purchase.mark_as_failed('Payment failed via verification')
                     custom_purchase.payment_transaction.mark_as_failed('Payment failed via verification')
+                else:
+                    # Keep as pending if not explicitly SUCCESS/COMPLETED or FAILED
+                    if custom_purchase.status != 'pending':
+                        custom_purchase.status = 'pending'
+                        custom_purchase.save()
 
         return Response({
             'success': True,

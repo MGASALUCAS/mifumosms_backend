@@ -20,6 +20,7 @@ class SenderIDRequest(models.Model):
         ('pending', 'Pending'),
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
+        ('requires_changes', 'Requires Changes'),
         ('cancelled', 'Cancelled'),
     ]
     
@@ -36,7 +37,6 @@ class SenderIDRequest(models.Model):
     request_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='default')
     requested_sender_id = models.CharField(max_length=11, help_text="Requested sender ID (max 11 characters)")
     sample_content = models.TextField(max_length=170, help_text="Sample message content (max 170 characters)")
-    business_justification = models.TextField(help_text="Why do you need this sender ID?")
     
     # Status and approval
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')

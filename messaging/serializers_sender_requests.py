@@ -10,19 +10,23 @@ class SenderIDRequestSerializer(serializers.ModelSerializer):
     """Serializer for sender ID requests."""
     
     user_email = serializers.CharField(source='user.email', read_only=True)
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
     tenant_name = serializers.CharField(source='tenant.name', read_only=True)
     reviewed_by_email = serializers.CharField(source='reviewed_by.email', read_only=True)
     sms_package_name = serializers.CharField(source='sms_package.name', read_only=True)
+    sender_name = serializers.CharField(source='requested_sender_id', read_only=True)
+    use_case = serializers.CharField(source='sample_content', read_only=True)
     
     class Meta:
         model = SenderIDRequest
         fields = [
             'id', 'tenant', 'user', 'request_type', 'requested_sender_id',
-            'sample_content', 'business_justification', 'status',
+            'sample_content', 'status',
             'reviewed_by', 'reviewed_at', 'rejection_reason', 'sms_package',
             'created_at', 'updated_at',
             # Read-only fields
-            'user_email', 'tenant_name', 'reviewed_by_email', 'sms_package_name'
+            'user_email', 'user_id', 'tenant_name', 'reviewed_by_email', 'sms_package_name',
+            'sender_name', 'use_case'
         ]
         read_only_fields = ['id', 'tenant', 'user', 'status', 'reviewed_by', 'reviewed_at', 'created_at', 'updated_at']
 
@@ -37,7 +41,11 @@ class SenderIDRequestSerializer(serializers.ModelSerializer):
         if not value.replace(' ', '').replace('-', '').isalnum():
             raise serializers.ValidationError("Sender ID can only contain letters, numbers, spaces, and hyphens.")
         
-        return value.upper()
+        normalized = (value or '').strip()
+        # Preserve exact casing for the platform default sender id
+        if normalized.lower() == 'taarifa-sms':
+            return 'Taarifa-SMS'
+        return normalized.upper()
 
     def validate_sample_content(self, value):
         """Validate the sample content."""
@@ -75,8 +83,11 @@ class SenderIDRequestCreateSerializer(serializers.ModelSerializer):
         model = SenderIDRequest
         fields = [
             'request_type', 'requested_sender_id', 'sample_content',
-            'business_justification', 'sms_package'
+            'sms_package'
         ]
+        extra_kwargs = {
+            'request_type': {'required': False}
+        }
 
     def validate_requested_sender_id(self, value):
         """Validate the requested sender ID."""
@@ -89,7 +100,11 @@ class SenderIDRequestCreateSerializer(serializers.ModelSerializer):
         if not value.replace(' ', '').replace('-', '').isalnum():
             raise serializers.ValidationError("Sender ID can only contain letters, numbers, spaces, and hyphens.")
         
-        return value.upper()
+        normalized = (value or '').strip()
+        # Preserve exact casing for the platform default sender id
+        if normalized.lower() == 'taarifa-sms':
+            return 'Taarifa-SMS'
+        return normalized.upper()
 
     def validate_sample_content(self, value):
         """Validate the sample content."""
@@ -126,18 +141,28 @@ class SenderIDRequestReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = SenderIDRequest
         fields = ['status', 'rejection_reason']
+        extra_kwargs = {
+            'status': {
+                'help_text': "Set to approved, rejected, or requires_changes"
+            },
+            'rejection_reason': {
+                'help_text': 'Provide reason or required changes when rejecting or requiring changes',
+                'required': False,
+                'allow_blank': True
+            }
+        }
 
     def validate_status(self, value):
         """Validate the status change."""
-        if value not in ['approved', 'rejected']:
-            raise serializers.ValidationError("Status must be either 'approved' or 'rejected'.")
+        if value not in ['approved', 'rejected', 'requires_changes']:
+            raise serializers.ValidationError("Status must be 'approved', 'rejected', or 'requires_changes'.")
         
         return value
 
     def validate(self, data):
         """Validate the review."""
-        if data.get('status') == 'rejected' and not data.get('rejection_reason'):
-            raise serializers.ValidationError("Rejection reason is required when rejecting a request.")
+        if data.get('status') in ['rejected', 'requires_changes'] and not data.get('rejection_reason'):
+            raise serializers.ValidationError("Reason is required when rejecting or requiring changes.")
         
         return data
 

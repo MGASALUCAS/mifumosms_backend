@@ -197,7 +197,6 @@ class PaymentTransaction(models.Model):
     """
     STATUS_CHOICES = [
         ('pending', 'Pending'),
-        ('processing', 'Processing'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
         ('cancelled', 'Cancelled'),
@@ -527,7 +526,6 @@ class CustomSMSPurchase(models.Model):
         max_length=20,
         choices=[
             ('pending', 'Pending'),
-            ('processing', 'Processing'),
             ('completed', 'Completed'),
             ('failed', 'Failed'),
             ('cancelled', 'Cancelled'),

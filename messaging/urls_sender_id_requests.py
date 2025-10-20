@@ -1,10 +1,11 @@
 """
-URLs for sender ID request system.
+URLs for sender ID request system (Frontend compatibility).
+This file provides the same endpoints under /sender-id-requests/ for frontend compatibility.
 """
 from django.urls import path
 from . import views_sender_requests
 
-app_name = 'sender_id_requests'
+app_name = 'sender_id_requests_frontend'
 
 urlpatterns = [
     # Sender ID Request URLs - Root level for frontend compatibility
@@ -22,8 +23,8 @@ urlpatterns = [
     path('available/', views_sender_requests.available_sender_ids, name='available-sender-ids'),
     path('default/overview/', views_sender_requests.default_sender_overview, name='default-sender-overview'),
     path('request-default/', views_sender_requests.request_default_sender_id, name='request-default'),
-    path('cancel-default/', views_sender_requests.cancel_default_sender_id, name='cancel-default'),
     path('status/', views_sender_requests.sender_id_request_status, name='request-status'),
     path('stats/', views_sender_requests.sender_requests_stats, name='request-stats'),
     path('refresh/', views_sender_requests.refresh_sender_requests, name='request-refresh'),
 ]
+

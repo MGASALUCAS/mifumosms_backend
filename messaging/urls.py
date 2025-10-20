@@ -68,3 +68,8 @@ urlpatterns += [
 urlpatterns += [
     path('sender-requests/', include('messaging.urls_sender_requests')),
 ]
+
+# Include Sender ID Request URLs (for frontend compatibility)
+urlpatterns += [
+    path('sender-id-requests/', include('messaging.urls_sender_id_requests')),
+]

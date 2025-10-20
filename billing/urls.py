@@ -30,6 +30,7 @@ urlpatterns = [
     path('payments/transactions/', views_payment.PaymentTransactionListView.as_view(), name='payment-transaction-list'),
     path('payments/transactions/<uuid:transaction_id>/', views_payment.PaymentTransactionDetailView.as_view(), name='payment-transaction-detail'),
     path('payments/transactions/<uuid:transaction_id>/status/', views_payment.check_payment_status, name='payment-status-check'),
+    path('payments/sync/', views_payment.sync_pending_payments, name='payment-sync'),
     path('payments/transactions/<uuid:transaction_id>/progress/', views_payment.payment_progress, name='payment-progress'),
     path('payments/transactions/<uuid:transaction_id>/cancel/', views_payment.cancel_payment, name='payment-cancel'),
     path('payments/webhook/', views_payment.payment_webhook, name='payment-webhook'),
@@ -48,4 +49,5 @@ urlpatterns = [
     path('history/purchases/', views_billing_history.purchase_history_detailed, name='purchase-history-detailed'),
     path('history/payments/', views_billing_history.payment_history_detailed, name='payment-history-detailed'),
     path('history/usage/', views_billing_history.usage_history_detailed, name='usage-history-detailed'),
+    path('history/comprehensive/', views_billing_history.comprehensive_transaction_history, name='comprehensive-transaction-history'),
 ]
