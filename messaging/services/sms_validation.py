@@ -35,6 +35,58 @@ class SMSValidationService:
             logger.error(f"Failed to load SMS balance for tenant {self.tenant.id}: {e}")
             raise SMSValidationError("Failed to load SMS balance")
     
+    def calculate_sms_segments(self, message):
+        """
+        Calculate the number of SMS segments required for a message.
+        Since we only allow plain text (ASCII), all messages use 160 characters per segment.
+        
+        Args:
+            message: The SMS message content
+            
+        Returns:
+            int: Number of SMS segments required
+        """
+        if not message:
+            return 0
+        
+        # Plain text only: 160 characters per segment
+        return (len(message) + 159) // 160
+    
+    def validate_message_length(self, message):
+        """
+        Validate that the message doesn't exceed 200 SMS segments.
+        
+        Args:
+            message: The SMS message content
+            
+        Returns:
+            dict: Validation result with status and details
+            
+        Raises:
+            SMSValidationError: If message exceeds segment limit
+        """
+        try:
+            segments = self.calculate_sms_segments(message)
+            
+            if segments > 200:
+                raise SMSValidationError(
+                    f"Message too long. Your message requires {segments} SMS segments, "
+                    f"but the maximum allowed is 200 segments. Please reduce your message length."
+                )
+            
+            return {
+                'valid': True,
+                'segments': segments,
+                'message_length': len(message),
+                'max_segments': 200
+            }
+            
+        except SMSValidationError:
+            raise
+        except Exception as e:
+            logger.error(f"Error validating message length: {e}")
+            raise SMSValidationError("Failed to validate message length")
+    
     def validate_sender_id(self, sender_id):
         """
         Validate that the sender ID is active and registered.
@@ -102,13 +154,14 @@ class SMSValidationService:
             logger.error(f"Error validating credits: {e}")
             raise SMSValidationError("Failed to validate SMS credits")
     
-    def validate_sms_sending(self, sender_id, required_credits=1):
+    def validate_sms_sending(self, sender_id, required_credits=1, message=None):
         """
         Complete validation for SMS sending.
         
         Args:
             sender_id: The sender ID to validate
             required_credits: Number of credits required
+            message: Optional message content to validate length
             
         Returns:
             dict: Validation result with status and details
@@ -117,6 +170,17 @@ class SMSValidationService:
             SMSValidationError: If validation fails
         """
         try:
+            # Validate message length first (if provided)
+            if message:
+                length_result = self.validate_message_length(message)
+                if not length_result['valid']:
+                    return {
+                        'valid': False,
+                        'error': f"Message too long. Your message requires {length_result.get('segments', 0)} SMS segments, but the maximum allowed is 200 segments. Please reduce your message length.",
+                        'error_type': 'message_too_long',
+                        'reason': 'message_too_long'
+                    }
+            
             # Validate sender ID
             self.validate_sender_id(sender_id)
             
@@ -128,7 +192,8 @@ class SMSValidationService:
                 'sender_id': sender_id,
                 'available_credits': self.sms_balance.credits,
                 'required_credits': required_credits,
-                'remaining_credits': self.sms_balance.credits - required_credits
+                'remaining_credits': self.sms_balance.credits - required_credits,
+                'message_segments': length_result.get('segments', 1) if message else 1
             }
             
         except SMSValidationError as e:

@@ -14,6 +14,7 @@ import logging
 from .models import Contact, Message, Campaign, Conversation
 from .models_sms import SMSMessage, SMSDeliveryReport
 from tenants.models import Tenant
+from billing.models import SMSBalance, SMSPackage
 
 logger = logging.getLogger(__name__)
 
@@ -52,47 +53,65 @@ def dashboard_overview(request):
     """
     try:
         user = request.user
+        tenant = getattr(user, 'tenant', None)
+        
+        if not tenant:
+            return Response({
+                'success': False,
+                'message': 'User is not associated with any tenant. Please contact support.'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         now = timezone.now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = now - timedelta(days=7)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        # Message statistics
-        total_messages = Message.objects.filter(conversation__contact__created_by=user).count()
+        # Message statistics (tenant-based)
+        total_messages = Message.objects.filter(tenant=tenant).count()
         messages_today = Message.objects.filter(
-            conversation__contact__created_by=user,
+            tenant=tenant,
             created_at__gte=today_start
         ).count()
         messages_this_week = Message.objects.filter(
-            conversation__contact__created_by=user,
+            tenant=tenant,
             created_at__gte=week_start
         ).count()
         messages_this_month = Message.objects.filter(
-            conversation__contact__created_by=user,
+            tenant=tenant,
             created_at__gte=month_start
         ).count()
 
-        # Contact statistics
-        total_contacts = Contact.objects.filter(created_by=user).count()
-        active_contacts = Contact.objects.filter(created_by=user, is_active=True).count()
+        # SMS Message statistics
+        total_sms_messages = SMSMessage.objects.filter(tenant=tenant).count()
+        sms_messages_today = SMSMessage.objects.filter(
+            tenant=tenant,
+            created_at__gte=today_start
+        ).count()
+        sms_messages_this_month = SMSMessage.objects.filter(
+            tenant=tenant,
+            created_at__gte=month_start
+        ).count()
+
+        # Contact statistics (tenant-based)
+        total_contacts = Contact.objects.filter(tenant=tenant).count()
+        active_contacts = Contact.objects.filter(tenant=tenant, is_active=True).count()
         new_contacts_this_month = Contact.objects.filter(
-            created_by=user,
+            tenant=tenant,
             created_at__gte=month_start
         ).count()
 
-        # Campaign statistics
-        total_campaigns = Campaign.objects.filter(created_by=user).count()
+        # Campaign statistics (tenant-based)
+        total_campaigns = Campaign.objects.filter(tenant=tenant).count()
         completed_campaigns = Campaign.objects.filter(
-            created_by=user,
+            tenant=tenant,
             status='completed'
         ).count()
 
-        # Calculate campaign success rate
+        # Calculate campaign success rate (tenant-based)
         campaign_success_rate = 0
         if total_campaigns > 0:
             successful_campaigns = Campaign.objects.filter(
-                created_by=user,
+                tenant=tenant,
                 status='completed'
             ).aggregate(
                 total_sent=Sum('sent_count', default=0),
@@ -104,14 +123,25 @@ def dashboard_overview(request):
                     (successful_campaigns['total_delivered'] / successful_campaigns['total_sent']) * 100, 1
                 )
 
+        # SMS Delivery Rate
+        sms_delivery_rate = 0
+        if total_sms_messages > 0:
+            delivered_sms = SMSMessage.objects.filter(tenant=tenant, status='delivered').count()
+            sms_delivery_rate = round((delivered_sms / total_sms_messages) * 100, 1)
+
+        # Billing statistics
+        sms_balance = SMSBalance.objects.filter(tenant=tenant).first()
+        current_credits = sms_balance.credits if sms_balance else 0
+        total_purchased = sms_balance.total_purchased if sms_balance else 0
+
         # Sender ID calculation - count campaigns as they represent sender ID usage
         sender_ids_this_month = Campaign.objects.filter(
-            created_by=user,
+            tenant=tenant,
             created_at__gte=month_start
         ).count()
 
         # Recent campaigns (last 5)
-        recent_campaigns = Campaign.objects.filter(created_by=user).order_by('-created_at')[:5]
+        recent_campaigns = Campaign.objects.filter(tenant=tenant).order_by('-created_at')[:5]
         campaigns_data = []
 
         for campaign in recent_campaigns:
@@ -149,13 +179,27 @@ def dashboard_overview(request):
             'data': {
                 'metrics': {
                     'total_messages': total_messages,
+                    'total_sms_messages': total_sms_messages,
                     'active_contacts': active_contacts,
                     'campaign_success_rate': campaign_success_rate,
+                    'sms_delivery_rate': sms_delivery_rate,
+                    'current_credits': current_credits,
+                    'total_purchased': total_purchased,
                     'sender_ids_this_month': sender_ids_this_month
                 },
                 'recent_campaigns': campaigns_data,
                 'message_stats': message_trends,
+                'sms_stats': {
+                    'today': sms_messages_today,
+                    'this_month': sms_messages_this_month,
+                    'delivery_rate': sms_delivery_rate
+                },
                 'contact_stats': contact_trends,
+                'billing_stats': {
+                    'current_credits': current_credits,
+                    'total_purchased': total_purchased,
+                    'credits_used': total_purchased - current_credits if sms_balance else 0
+                },
                 'last_updated': now.isoformat()
             }
         })
@@ -210,34 +254,55 @@ def dashboard_metrics(request):
     """
     try:
         user = request.user
+        tenant = getattr(user, 'tenant', None)
+        
+        if not tenant:
+            return Response({
+                'success': False,
+                'message': 'User is not associated with any tenant. Please contact support.'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         now = timezone.now()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         last_month_start = (month_start - timedelta(days=1)).replace(day=1)
 
-        # Total messages (last 30 days)
+        # Total messages (last 30 days) - tenant-based
         messages_30_days = Message.objects.filter(
-            conversation__contact__created_by=user,
+            tenant=tenant,
             created_at__gte=now - timedelta(days=30)
         ).count()
 
         messages_60_days = Message.objects.filter(
-            conversation__contact__created_by=user,
+            tenant=tenant,
             created_at__gte=now - timedelta(days=60),
             created_at__lt=now - timedelta(days=30)
         ).count()
 
         messages_change = _calculate_percentage_change(messages_30_days, messages_60_days)
 
-        # Active contacts (engaged this month) - use all active contacts if no last_contacted_at
+        # SMS messages (last 30 days)
+        sms_messages_30_days = SMSMessage.objects.filter(
+            tenant=tenant,
+            created_at__gte=now - timedelta(days=30)
+        ).count()
+
+        sms_messages_60_days = SMSMessage.objects.filter(
+            tenant=tenant,
+            created_at__gte=now - timedelta(days=60),
+            created_at__lt=now - timedelta(days=30)
+        ).count()
+
+        sms_messages_change = _calculate_percentage_change(sms_messages_30_days, sms_messages_60_days)
+
+        # Active contacts (engaged this month) - tenant-based
         active_contacts = Contact.objects.filter(
-            created_by=user,
+            tenant=tenant,
             is_active=True
         ).count()
 
         # For comparison, get active contacts from last month
         last_month_active = Contact.objects.filter(
-            created_by=user,
+            tenant=tenant,
             is_active=True,
             created_at__gte=last_month_start,
             created_at__lt=month_start
@@ -245,9 +310,9 @@ def dashboard_metrics(request):
 
         contacts_change = _calculate_percentage_change(active_contacts, last_month_active)
 
-        # Campaign success rate
+        # Campaign success rate (tenant-based)
         campaigns_this_month = Campaign.objects.filter(
-            created_by=user,
+            tenant=tenant,
             created_at__gte=month_start
         )
 
@@ -258,7 +323,7 @@ def dashboard_metrics(request):
 
         # Previous month for comparison
         campaigns_last_month = Campaign.objects.filter(
-            created_by=user,
+            tenant=tenant,
             created_at__gte=last_month_start,
             created_at__lt=month_start
         )
@@ -269,37 +334,33 @@ def dashboard_metrics(request):
 
         success_change = _calculate_percentage_change(success_rate, last_month_success_rate)
 
-        # Sender ID statistics - count unique providers used in messages
-        # If no messages, show total campaigns created (as they represent sender ID usage)
-        sender_ids_this_month = Message.objects.filter(
-            conversation__contact__created_by=user,
-            created_at__gte=month_start,
-            provider__isnull=False
-        ).values('provider').distinct().count()
+        # SMS Delivery Rate
+        sms_delivered_this_month = SMSMessage.objects.filter(
+            tenant=tenant,
+            status='delivered',
+            created_at__gte=month_start
+        ).count()
 
-        # If no messages this month, count campaigns as they represent sender ID usage
-        if sender_ids_this_month == 0:
-            sender_ids_this_month = Campaign.objects.filter(
-                created_by=user,
-                created_at__gte=month_start
-            ).count()
-
-        sender_ids_last_month = Message.objects.filter(
-            conversation__contact__created_by=user,
+        sms_delivered_last_month = SMSMessage.objects.filter(
+            tenant=tenant,
+            status='delivered',
             created_at__gte=last_month_start,
-            created_at__lt=month_start,
-            provider__isnull=False
-        ).values('provider').distinct().count()
+            created_at__lt=month_start
+        ).count()
 
-        # If no messages last month, count campaigns
-        if sender_ids_last_month == 0:
-            sender_ids_last_month = Campaign.objects.filter(
-                created_by=user,
-                created_at__gte=last_month_start,
-                created_at__lt=month_start
-            ).count()
+        sms_delivery_rate = round((sms_delivered_this_month / max(1, sms_messages_30_days)) * 100, 1) if sms_messages_30_days > 0 else 0
+        last_month_sms_delivery_rate = round((sms_delivered_last_month / max(1, sms_messages_60_days)) * 100, 1) if sms_messages_60_days > 0 else 0
+        sms_delivery_change = _calculate_percentage_change(sms_delivery_rate, last_month_sms_delivery_rate)
 
-        sender_id_change = _calculate_percentage_change(sender_ids_this_month, sender_ids_last_month)
+        # Billing metrics
+        sms_balance = SMSBalance.objects.filter(tenant=tenant).first()
+        current_credits = sms_balance.credits if sms_balance else 0
+        total_purchased = sms_balance.total_purchased if sms_balance else 0
+
+        # Calculate credits used this month (approximate)
+        credits_used_this_month = max(0, total_purchased - current_credits)
+        credits_used_last_month = 0  # This would need historical tracking for accurate comparison
+        credits_change = _calculate_percentage_change(credits_used_this_month, credits_used_last_month)
 
         return Response({
             'success': True,
@@ -309,6 +370,12 @@ def dashboard_metrics(request):
                     'change': f"{messages_change['sign']}{messages_change['percentage']:.1f}%",
                     'change_type': messages_change['type'],
                     'description': 'Last 30 days'
+                },
+                'sms_messages': {
+                    'value': sms_messages_30_days,
+                    'change': f"{sms_messages_change['sign']}{sms_messages_change['percentage']:.1f}%",
+                    'change_type': sms_messages_change['type'],
+                    'description': 'SMS last 30 days'
                 },
                 'active_contacts': {
                     'value': active_contacts,
@@ -322,11 +389,17 @@ def dashboard_metrics(request):
                     'change_type': success_change['type'],
                     'description': 'Delivery rate'
                 },
-                'sender_id': {
-                    'value': sender_ids_this_month,
-                    'change': f"{sender_id_change['sign']}{sender_id_change['percentage']:.1f}%",
-                    'change_type': sender_id_change['type'],
-                    'description': 'Active this month'
+                'sms_delivery_rate': {
+                    'value': f"{sms_delivery_rate}%",
+                    'change': f"{sms_delivery_change['sign']}{sms_delivery_change['percentage']:.1f}%",
+                    'change_type': sms_delivery_change['type'],
+                    'description': 'SMS delivery rate'
+                },
+                'current_credits': {
+                    'value': current_credits,
+                    'change': f"{credits_change['sign']}{credits_change['percentage']:.1f}%",
+                    'change_type': credits_change['type'],
+                    'description': 'Available credits'
                 }
             }
         })
@@ -380,3 +453,168 @@ def _calculate_percentage_change(current, previous):
         'sign': '+' if change > 0 else '-',
         'type': 'positive' if change > 0 else 'negative' if change < 0 else 'neutral'
     }
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_comprehensive(request):
+    """
+    Get comprehensive dashboard data with all metrics.
+    
+    GET /api/messaging/dashboard/comprehensive/
+    
+    This endpoint combines overview and metrics data for a complete dashboard view.
+    """
+    try:
+        user = request.user
+        tenant = getattr(user, 'tenant', None)
+        
+        if not tenant:
+            return Response({
+                'success': False,
+                'message': 'User is not associated with any tenant. Please contact support.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = now - timedelta(days=7)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_month_start = (month_start - timedelta(days=1)).replace(day=1)
+
+        # Get all metrics in one go for better performance
+        metrics_data = {
+            # Messages
+            'total_messages': Message.objects.filter(tenant=tenant).count(),
+            'messages_today': Message.objects.filter(tenant=tenant, created_at__gte=today_start).count(),
+            'messages_this_week': Message.objects.filter(tenant=tenant, created_at__gte=week_start).count(),
+            'messages_this_month': Message.objects.filter(tenant=tenant, created_at__gte=month_start).count(),
+            
+            # SMS Messages
+            'total_sms_messages': SMSMessage.objects.filter(tenant=tenant).count(),
+            'sms_messages_today': SMSMessage.objects.filter(tenant=tenant, created_at__gte=today_start).count(),
+            'sms_messages_this_month': SMSMessage.objects.filter(tenant=tenant, created_at__gte=month_start).count(),
+            'sms_delivered': SMSMessage.objects.filter(tenant=tenant, status='delivered').count(),
+            'sms_failed': SMSMessage.objects.filter(tenant=tenant, status='failed').count(),
+            
+            # Contacts
+            'total_contacts': Contact.objects.filter(tenant=tenant).count(),
+            'active_contacts': Contact.objects.filter(tenant=tenant, is_active=True).count(),
+            'new_contacts_this_month': Contact.objects.filter(tenant=tenant, created_at__gte=month_start).count(),
+            
+            # Campaigns
+            'total_campaigns': Campaign.objects.filter(tenant=tenant).count(),
+            'completed_campaigns': Campaign.objects.filter(tenant=tenant, status='completed').count(),
+            'running_campaigns': Campaign.objects.filter(tenant=tenant, status='running').count(),
+            
+            # Billing
+            'current_credits': 0,
+            'total_purchased': 0,
+        }
+
+        # Get billing data
+        sms_balance = SMSBalance.objects.filter(tenant=tenant).first()
+        if sms_balance:
+            metrics_data['current_credits'] = sms_balance.credits
+            metrics_data['total_purchased'] = sms_balance.total_purchased
+
+        # Calculate rates
+        sms_delivery_rate = 0
+        if metrics_data['total_sms_messages'] > 0:
+            sms_delivery_rate = round((metrics_data['sms_delivered'] / metrics_data['total_sms_messages']) * 100, 1)
+
+        campaign_success_rate = 0
+        if metrics_data['total_campaigns'] > 0:
+            campaign_aggregate = Campaign.objects.filter(tenant=tenant, status='completed').aggregate(
+                total_sent=Sum('sent_count', default=0),
+                total_delivered=Sum('delivered_count', default=0)
+            )
+            if campaign_aggregate['total_sent'] > 0:
+                campaign_success_rate = round(
+                    (campaign_aggregate['total_delivered'] / campaign_aggregate['total_sent']) * 100, 1
+                )
+
+        # Recent activity
+        recent_campaigns = Campaign.objects.filter(tenant=tenant).order_by('-created_at')[:5]
+        recent_messages = Message.objects.filter(tenant=tenant).order_by('-created_at')[:10]
+
+        campaigns_data = []
+        for campaign in recent_campaigns:
+            campaigns_data.append({
+                'id': str(campaign.id),
+                'name': campaign.name,
+                'status': campaign.status,
+                'sent': campaign.sent_count or 0,
+                'delivered': campaign.delivered_count or 0,
+                'created_at': campaign.created_at.strftime('%Y-%m-%d %H:%M'),
+                'created_at_human': _get_human_time(campaign.created_at)
+            })
+
+        messages_data = []
+        for message in recent_messages:
+            messages_data.append({
+                'id': str(message.id),
+                'content': message.content[:50] + '...' if len(message.content) > 50 else message.content,
+                'direction': message.direction,
+                'status': message.status,
+                'created_at': message.created_at.strftime('%Y-%m-%d %H:%M'),
+                'created_at_human': _get_human_time(message.created_at)
+            })
+
+        return Response({
+            'success': True,
+            'data': {
+                'summary': {
+                    'total_messages': metrics_data['total_messages'],
+                    'total_sms_messages': metrics_data['total_sms_messages'],
+                    'active_contacts': metrics_data['active_contacts'],
+                    'current_credits': metrics_data['current_credits'],
+                    'sms_delivery_rate': sms_delivery_rate,
+                    'campaign_success_rate': campaign_success_rate,
+                },
+                'metrics': {
+                    'messages': {
+                        'today': metrics_data['messages_today'],
+                        'this_week': metrics_data['messages_this_week'],
+                        'this_month': metrics_data['messages_this_month'],
+                        'total': metrics_data['total_messages']
+                    },
+                    'sms': {
+                        'today': metrics_data['sms_messages_today'],
+                        'this_month': metrics_data['sms_messages_this_month'],
+                        'total': metrics_data['total_sms_messages'],
+                        'delivered': metrics_data['sms_delivered'],
+                        'failed': metrics_data['sms_failed'],
+                        'delivery_rate': sms_delivery_rate
+                    },
+                    'contacts': {
+                        'total': metrics_data['total_contacts'],
+                        'active': metrics_data['active_contacts'],
+                        'new_this_month': metrics_data['new_contacts_this_month']
+                    },
+                    'campaigns': {
+                        'total': metrics_data['total_campaigns'],
+                        'completed': metrics_data['completed_campaigns'],
+                        'running': metrics_data['running_campaigns'],
+                        'success_rate': campaign_success_rate
+                    },
+                    'billing': {
+                        'current_credits': metrics_data['current_credits'],
+                        'total_purchased': metrics_data['total_purchased'],
+                        'credits_used': max(0, metrics_data['total_purchased'] - metrics_data['current_credits'])
+                    }
+                },
+                'recent_activity': {
+                    'campaigns': campaigns_data,
+                    'messages': messages_data
+                },
+                'last_updated': now.isoformat()
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Comprehensive dashboard error: {str(e)}")
+        return Response({
+            'success': False,
+            'message': 'Failed to retrieve comprehensive dashboard data',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -22,7 +22,7 @@ TESTING = 'test' in sys.argv
 
 ALLOWED_HOSTS = config(
     'DJANGO_ALLOWED_HOSTS',
-    default='104.131.116.55,196.249.97.239,localhost,127.0.0.1,.mifumo.local,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev,testserver'
+    default='104.131.116.55,https://104.131.116.55,196.249.97.239,localhost,127.0.0.1,.mifumo.local,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev,testserver'
 ).split(',')
 
 SITE_ID = 1
@@ -242,7 +242,7 @@ SIMPLE_JWT = {
 # =============================================================================
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://104.131.116.55,http://104.131.116.55:8000,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080'
+    default='http://104.131.116.55,https://104.131.116.55,http://104.131.116.55:8000,https://104.131.116.55:8000,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080'
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = config('CORS_ALLOW_CREDENTIALS', default=True, cast=bool)
@@ -277,6 +277,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
     r"^http://127\.0\.0\.1:\d+$",
     r"^http://104\.131\.116\.55:\d+$",
+    r"^https://104\.131\.116\.55:\d+$",
     r"^http://196\.249\.97\.239:\d+$",
 ]
 
@@ -294,8 +295,11 @@ CSRF_TRUSTED_ORIGINS = [
       if origin.startswith('http://') or origin.startswith('https://')],
     # Production server IPs
     'http://104.131.116.55',
+    'https://104.131.116.55',
     'http://104.131.116.55:8000',
+    'https://104.131.116.55:8000',
     'http://104.131.116.55:80',
+    'https://104.131.116.55:443',
     'http://196.249.97.239',
     'http://196.249.97.239:8000',
     'http://196.249.97.239:80',

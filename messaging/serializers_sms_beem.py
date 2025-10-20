@@ -18,8 +18,8 @@ class SMSSendSerializer(serializers.Serializer):
     Serializer for sending single SMS via Beem
     """
     message = serializers.CharField(
-        max_length=160,
-        help_text="SMS message content (max 160 characters)"
+        max_length=32000,  # Allow up to 200 SMS parts (160 * 200)
+        help_text="SMS message content (max 32000 characters for 200 SMS segments)"
     )
     recipients = serializers.ListField(
         child=serializers.CharField(max_length=20),
@@ -53,16 +53,26 @@ class SMSSendSerializer(serializers.Serializer):
             raise serializers.ValidationError("Message cannot be empty")
         
         # Check for special characters that might cause issues
-        if len(value) > 160:
-            raise serializers.ValidationError("Message too long (max 160 characters)")
+        if len(value) > 32000:
+            raise serializers.ValidationError("Message too long (max 32000 characters for 200 SMS segments)")
         
-        # Check for Unicode characters and provide helpful message
-        has_unicode = any(ord(char) > 127 for char in value)
-        if has_unicode:
-            # Log that Unicode characters were detected
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"Unicode characters detected in message: {value[:50]}...")
+        # Calculate SMS parts for better user feedback
+        sms_parts = (len(value) + 159) // 160  # Ceiling division
+        if sms_parts > 200:
+            raise serializers.ValidationError("Message too long (max 200 SMS segments). Please reduce your message length.")
+        
+        # Check for non-ASCII characters (emojis, special characters, etc.)
+        non_ascii_chars = []
+        for i, char in enumerate(value):
+            if ord(char) > 127:  # Non-ASCII character
+                non_ascii_chars.append(f"'{char}' at position {i+1}")
+        
+        if non_ascii_chars:
+            raise serializers.ValidationError(
+                f"Message contains special characters or emojis that are not allowed. "
+                f"Please use only plain text (letters, numbers, spaces, and basic punctuation). "
+                f"Found: {', '.join(non_ascii_chars[:5])}{'...' if len(non_ascii_chars) > 5 else ''}"
+            )
         
         return value.strip()
     
@@ -146,7 +156,7 @@ class SMSScheduleSerializer(serializers.Serializer):
     """
     Serializer for scheduling SMS messages
     """
-    message = serializers.CharField(max_length=160)
+    message = serializers.CharField(max_length=32000)
     recipients = serializers.ListField(
         child=serializers.CharField(max_length=20),
         min_length=1
@@ -251,9 +261,9 @@ class BeemConnectionTestSerializer(serializers.Serializer):
     Serializer for Beem connection test
     """
     test_message = serializers.CharField(
-        max_length=160,
+        max_length=32000,
         default="Test message from Mifumo WMS",
-        help_text="Test message to send"
+        help_text="Test message to send (max 32000 characters)"
     )
     test_recipient = serializers.CharField(
         max_length=20,

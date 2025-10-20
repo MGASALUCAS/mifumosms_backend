@@ -536,7 +536,7 @@ def refresh_sender_requests(request):
 @permission_classes([IsAuthenticated])
 def sender_requests_stats(request):
     """
-    Get statistics for sender ID requests.
+    Get statistics for sender ID requests and active sender IDs.
     GET /api/messaging/sender-requests/stats/
     """
     try:
@@ -548,16 +548,37 @@ def sender_requests_stats(request):
                 'message': 'User is not associated with any tenant'
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # Import SMSSenderID model
+        from messaging.models_sms import SMSSenderID
+        
         # Get all requests for the tenant
         all_requests = SenderIDRequest.objects.filter(tenant=tenant)
         
-        # Calculate statistics
-        stats = {
+        # Get all active SMS sender IDs for the tenant
+        active_sms_sender_ids = SMSSenderID.objects.filter(tenant=tenant, status='active')
+        
+        # Calculate statistics for requests
+        request_stats = {
             'total_requests': all_requests.count(),
             'pending_requests': all_requests.filter(status='pending').count(),
             'approved_requests': all_requests.filter(status='approved').count(),
             'rejected_requests': all_requests.filter(status='rejected').count(),
             'requires_changes_requests': all_requests.filter(status='requires_changes').count(),
+        }
+        
+        # Calculate statistics for active sender IDs
+        active_stats = {
+            'total_active': active_sms_sender_ids.count(),
+            'active_sender_ids': list(active_sms_sender_ids.values('id', 'sender_id', 'status', 'created_at'))
+        }
+        
+        # Combined statistics (what frontend expects)
+        stats = {
+            'total_requests': request_stats['total_requests'] + active_stats['total_active'],
+            'pending_requests': request_stats['pending_requests'],
+            'approved_requests': request_stats['approved_requests'] + active_stats['total_active'],  # Include active SMS sender IDs
+            'rejected_requests': request_stats['rejected_requests'],
+            'requires_changes_requests': request_stats['requires_changes_requests'],
         }
         
         # Recent requests (last 5)
@@ -568,6 +589,8 @@ def sender_requests_stats(request):
             'success': True,
             'data': {
                 'stats': stats,
+                'request_stats': request_stats,
+                'active_stats': active_stats,
                 'recent_requests': recent_requests_data
             }
         }, status=status.HTTP_200_OK)

@@ -131,3 +131,4 @@ Filtered results for current user: [1 request]
 The system is working correctly on the backend - the issue is just in the frontend user ID extraction and comparison logic.
 
 
+

@@ -893,9 +893,12 @@ def comprehensive_transaction_history(request):
                 'color': 'blue'
             })
         
-        # 2. Payment Transactions
+        # 2. Payment Transactions (standalone only - exclude ones that belong to a purchase or custom purchase)
         from billing.models import PaymentTransaction
-        payment_transactions = PaymentTransaction.objects.filter(tenant=tenant)
+        payment_transactions = (
+            PaymentTransaction.objects
+            .filter(tenant=tenant, purchase__isnull=True, custom_sms_purchase__isnull=True)
+        )
         if status_filter:
             payment_transactions = payment_transactions.filter(status=status_filter)
         
@@ -924,24 +927,45 @@ def comprehensive_transaction_history(request):
                 'color': 'green'
             })
         
-        # 3. Custom SMS Purchases
+        # 3. Custom SMS Purchases (combine with their payment data into a single entry)
         from billing.models import CustomSMSPurchase
         custom_purchases = CustomSMSPurchase.objects.filter(tenant=tenant)
         if status_filter:
             custom_purchases = custom_purchases.filter(status=status_filter)
         
         for csp in custom_purchases:
+            # Prefer payment status if available (so the row reflects real payment progress)
+            combined_status = csp.status
+            payment_method_display = 'Custom Purchase'
+            payment_method = 'custom'
+            invoice_number = f"CSP-{str(csp.id)[:8].upper()}"
+            buyer_name = None
+            buyer_email = None
+            buyer_phone = None
+            order_id = None
+
+            if getattr(csp, 'payment_transaction', None):
+                pt = csp.payment_transaction
+                invoice_number = pt.invoice_number or invoice_number
+                combined_status = pt.status or combined_status
+                payment_method = pt.payment_method
+                payment_method_display = pt.get_payment_method_display()
+                buyer_name = pt.buyer_name
+                buyer_email = pt.buyer_email
+                buyer_phone = pt.buyer_phone
+                order_id = pt.order_id
+            
             transactions.append({
                 'id': str(csp.id),
                 'type': 'custom',
                 'type_display': 'Custom SMS Purchase',
-                'invoice_number': f"CSP-{str(csp.id)[:8].upper()}",
+                'invoice_number': invoice_number,
                 'amount': float(csp.total_price),
                 'currency': 'TZS',
-                'status': csp.status,
-                'status_display': csp.get_status_display(),
-                'payment_method': 'custom',
-                'payment_method_display': 'Custom Purchase',
+                'status': combined_status,
+                'status_display': combined_status.title() if isinstance(combined_status, str) else str(combined_status),
+                'payment_method': payment_method,
+                'payment_method_display': payment_method_display,
                 'credits': csp.credits,
                 'package_name': f"Custom ({csp.active_tier})",
                 'unit_price': float(csp.unit_price),
@@ -953,6 +977,10 @@ def comprehensive_transaction_history(request):
                     'min_credits': csp.tier_min_credits,
                     'max_credits': csp.tier_max_credits
                 },
+                'buyer_name': buyer_name,
+                'buyer_email': buyer_email,
+                'buyer_phone': buyer_phone,
+                'order_id': order_id,
                 'icon': '⚙️',
                 'color': 'purple'
             })

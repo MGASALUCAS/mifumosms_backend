@@ -51,6 +51,7 @@ urlpatterns = [
     # Dashboard
     path('dashboard/overview/', views_dashboard.dashboard_overview, name='dashboard-overview'),
     path('dashboard/metrics/', views_dashboard.dashboard_metrics, name='dashboard-metrics'),
+    path('dashboard/comprehensive/', views_dashboard.dashboard_comprehensive, name='dashboard-comprehensive'),
     
     # Sender IDs (for frontend compatibility)
     path('sender-ids/', views.sender_ids_list, name='sender-ids-list'),

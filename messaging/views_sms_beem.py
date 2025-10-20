@@ -120,13 +120,27 @@ def send_sms(request):
     try:
         serializer = SMSSendSerializer(data=request.data)
         if not serializer.is_valid():
-            return _error_response(
-                'Some information is missing or invalid.',
-                status.HTTP_400_BAD_REQUEST,
-                error_code='VALIDATION_ERROR',
-                errors=serializer.errors,
-                user_hint='Check the phone numbers and message, then try again.'
-            )
+            # Check if the error is related to special characters
+            errors = serializer.errors
+            has_special_chars = any('special characters' in str(error) for error in errors.get('message', []))
+            
+            if has_special_chars:
+                return _error_response(
+                    'Message contains special characters or emojis that are not allowed.',
+                    status.HTTP_400_BAD_REQUEST,
+                    error_code='INVALID_CHARACTERS',
+                    errors=errors,
+                    user_hint='Please use only plain text (letters, numbers, spaces, and basic punctuation). Remove emojis and special characters.',
+                    actions={'allowed_chars': 'Letters, numbers, spaces, and basic punctuation only'}
+                )
+            else:
+                return _error_response(
+                    'Some information is missing or invalid.',
+                    status.HTTP_400_BAD_REQUEST,
+                    error_code='VALIDATION_ERROR',
+                    errors=errors,
+                    user_hint='Check the phone numbers and message, then try again.'
+                )
 
         data = serializer.validated_data
         tenant = request.user.tenant
@@ -192,19 +206,40 @@ def send_sms(request):
         
         validation_result = validation_service.validate_sms_sending(
             sender_id_obj.sender_id,
-            required_credits=required_credits
+            required_credits=required_credits,
+            message=message_content
         )
         
         if not validation_result['valid']:
             lack_credits = 'Insufficient SMS credits' in validation_result['error'] or validation_result.get('reason') == 'no_credits'
-            return _error_response(
-                validation_result['error'],
-                status.HTTP_400_BAD_REQUEST,
-                error_code='INSUFFICIENT_CREDITS' if lack_credits else 'VALIDATION_ERROR',
-                detail=validation_result.get('error_type'),
-                user_hint='Buy SMS credits and try again.' if lack_credits else 'Please review the details and try again.',
-                actions={'purchase_url': '/api/billing/sms/purchase/'} if lack_credits else None
-            )
+            message_too_long = validation_result.get('reason') == 'message_too_long'
+            
+            if message_too_long:
+                return _error_response(
+                    validation_result['error'],
+                    status.HTTP_400_BAD_REQUEST,
+                    error_code='MESSAGE_TOO_LONG',
+                    detail=validation_result.get('error_type'),
+                    user_hint='Please reduce your message length to 200 SMS segments or less.',
+                    actions={'max_segments': 200, 'current_segments': validation_result.get('segments', 0)}
+                )
+            elif lack_credits:
+                return _error_response(
+                    validation_result['error'],
+                    status.HTTP_400_BAD_REQUEST,
+                    error_code='INSUFFICIENT_CREDITS',
+                    detail=validation_result.get('error_type'),
+                    user_hint='Buy SMS credits and try again.',
+                    actions={'purchase_url': '/api/billing/sms/purchase/'}
+                )
+            else:
+                return _error_response(
+                    validation_result['error'],
+                    status.HTTP_400_BAD_REQUEST,
+                    error_code='VALIDATION_ERROR',
+                    detail=validation_result.get('error_type'),
+                    user_hint='Please review the details and try again.'
+                )
 
         # Send SMS via Beem
         with transaction.atomic():
@@ -348,13 +383,27 @@ def send_bulk_sms(request):
     try:
         serializer = SMSBulkSendSerializer(data=request.data)
         if not serializer.is_valid():
-            return _error_response(
-                'Some information is missing or invalid.',
-                status.HTTP_400_BAD_REQUEST,
-                error_code='VALIDATION_ERROR',
-                errors=serializer.errors,
-                user_hint='Check each message block and try again.'
-            )
+            # Check if the error is related to special characters
+            errors = serializer.errors
+            has_special_chars = any('special characters' in str(error) for error in errors.get('messages', []))
+            
+            if has_special_chars:
+                return _error_response(
+                    'One or more messages contain special characters or emojis that are not allowed.',
+                    status.HTTP_400_BAD_REQUEST,
+                    error_code='INVALID_CHARACTERS',
+                    errors=errors,
+                    user_hint='Please use only plain text (letters, numbers, spaces, and basic punctuation). Remove emojis and special characters.',
+                    actions={'allowed_chars': 'Letters, numbers, spaces, and basic punctuation only'}
+                )
+            else:
+                return _error_response(
+                    'Some information is missing or invalid.',
+                    status.HTTP_400_BAD_REQUEST,
+                    error_code='VALIDATION_ERROR',
+                    errors=errors,
+                    user_hint='Check each message block and try again.'
+                )
 
         data = serializer.validated_data
         tenant = request.user.tenant
