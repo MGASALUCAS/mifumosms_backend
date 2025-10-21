@@ -1,0 +1,312 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .stats-cards {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        margin: 20px 0;
+    }
+
+    @media (max-width: 768px) {
+        .stats-cards {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 480px) {
+        .stats-cards {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .stat-card {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        transition: transform 0.2s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #007bff;
+    }
+
+    .stat-label {
+        font-size: 1rem;
+        color: #6c757d;
+        font-weight: 500;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .status-pending {
+        background: #fef3c7;
+        color: #d97706;
+    }
+
+    .status-approved {
+        background: #d1fae5;
+        color: #059669;
+    }
+
+    .status-rejected {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .status-requires-changes {
+        background: #e0e7ff;
+        color: #3730a3;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 5px;
+    }
+
+    .action-btn {
+        padding: 4px 8px;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .btn-approve {
+        background: #28a745;
+        color: white;
+    }
+
+    .btn-reject {
+        background: #dc3545;
+        color: white;
+    }
+
+    .btn-view {
+        background: #007bff;
+        color: white;
+    }
+
+    .use-case-preview {
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+</style>
+{% endblock %}
+
+{% block content_title %}
+<h1>📱 Sender Name Requests Management</h1>
+{% endblock %}
+
+{% block content %}
+<div class="stats-cards">
+    <div class="stat-card">
+        <div class="stat-number">{{ cl.result_count|default:0 }}</div>
+        <div class="stat-label">Total</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ approved_count|default:0 }}</div>
+        <div class="stat-label">Approved</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ rejected_count|default:0 }}</div>
+        <div class="stat-label">Rejected</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ requires_changes_count|default:0 }}</div>
+        <div class="stat-label">Requires Changes</div>
+    </div>
+</div>
+
+
+{{ block.super }}
+{% endblock %}
+
+{% block result_list %}
+<div class="results">
+    <table id="result_list">
+        <thead>
+            <tr>
+                <th scope="col" class="action-checkbox-column">
+                    <div class="text"><span><input type="checkbox" id="action-toggle"></span></div>
+                </th>
+                <th scope="col" class="column-sender_name">
+                    <div class="text"><a href="?o=1">Sender Name</a></div>
+                </th>
+                <th scope="col" class="column-tenant">
+                    <div class="text"><a href="?o=2">Tenant</a></div>
+                </th>
+                <th scope="col" class="column-created_by">
+                    <div class="text"><a href="?o=3">Created By</a></div>
+                </th>
+                <th scope="col" class="column-status_badge">
+                    <div class="text"><a href="?o=4">Status</a></div>
+                </th>
+                <th scope="col" class="column-supporting_docs_count">
+                    <div class="text"><a href="?o=5">Documents</a></div>
+                </th>
+                <th scope="col" class="column-created_at">
+                    <div class="text"><a href="?o=6">Created At</a></div>
+                </th>
+                <th scope="col" class="column-reviewed_by">
+                    <div class="text"><a href="?o=7">Reviewed By</a></div>
+                </th>
+                <th scope="col" class="column-admin_actions">
+                    <div class="text">Actions</div>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in cl.result_list %}
+            <tr class="{% cycle 'row1' 'row2' %}">
+                <td class="action-checkbox">
+                    <input type="checkbox" name="_selected_action" value="{{ result.pk }}" class="action-select">
+                </td>
+                <th class="field-sender_name">
+                    <a href="{% url 'admin:messaging_sendernamerequest_change' result.pk %}">{{ result.sender_name }}</a>
+                </th>
+                <td class="field-tenant">{{ result.tenant.name }}</td>
+                <td class="field-created_by">{{ result.created_by.get_full_name|default:result.created_by.email }}</td>
+                <td class="field-status_badge">
+                    <span class="status-badge status-{{ result.status }}">{{ result.get_status_display }}</span>
+                </td>
+                <td class="field-supporting_docs_count">
+                    {% if result.supporting_documents_count > 0 %}
+                        <span class="badge badge-info">{{ result.supporting_documents_count }}</span>
+                    {% else %}
+                        <span class="badge badge-secondary">0</span>
+                    {% endif %}
+                </td>
+                <td class="field-created_at">{{ result.created_at|date:"M d, Y H:i" }}</td>
+                <td class="field-reviewed_by">
+                    {% if result.reviewed_by %}
+                        {{ result.reviewed_by.get_full_name|default:result.reviewed_by.email }}
+                    {% else %}
+                        <span style="color: #6c757d;">Not reviewed</span>
+                    {% endif %}
+                </td>
+                <td class="field-admin_actions">
+                    <div class="action-buttons">
+                        <a href="{% url 'admin:messaging_sendernamerequest_change' result.pk %}"
+                           class="action-btn btn-view" title="View Details">👁️</a>
+                        {% if result.status == 'pending' or result.status == 'requires_changes' %}
+                            <a href="{% url 'admin:messaging_sendernamerequest_approve' result.pk %}"
+                               class="action-btn btn-approve"
+                               title="Approve Request"
+                               onclick="return confirm('Approve this request?')">✅</a>
+                            <a href="{% url 'admin:messaging_sendernamerequest_reject' result.pk %}"
+                               class="action-btn btn-reject"
+                               title="Reject Request"
+                               onclick="return confirm('Reject this request?')">❌</a>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 40px; color: #6c757d;">
+                    <h3>No sender name requests found</h3>
+                    <p>There are currently no sender name requests to display.</p>
+                    <a href="{% url 'admin:messaging_sendernamerequest_add' %}" class="btn btn-primary">Add New Request</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extrajs %}
+{{ block.super }}
+<script>
+// Add some interactive features
+document.addEventListener('DOMContentLoaded', function() {
+    // Add click handlers for action buttons
+    const actionButtons = document.querySelectorAll('.action-btn');
+    actionButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            if (this.classList.contains('btn-approve') || this.classList.contains('btn-reject')) {
+                if (!confirm(this.title + '?')) {
+                    e.preventDefault();
+                }
+            }
+        });
+    });
+
+    // Add hover effects
+    const rows = document.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        row.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = '#f8f9fa';
+        });
+        row.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = '';
+        });
+    });
+});
+
+// Function to mark request as requires changes
+function markAsRequiresChanges(requestId) {
+    if (confirm('Are you sure you want to mark this request as requiring changes?')) {
+        // Create a form to submit the status change
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.location.href;
+
+        // Add CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfToken) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = csrfToken.value;
+            form.appendChild(csrfInput);
+        }
+
+        // Add action input
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = 'mark_requires_changes';
+        form.appendChild(actionInput);
+
+        // Add selected request
+        const selectedInput = document.createElement('input');
+        selectedInput.type = 'hidden';
+        selectedInput.name = '_selected_action';
+        selectedInput.value = requestId;
+        form.appendChild(selectedInput);
+
+        // Submit form
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}

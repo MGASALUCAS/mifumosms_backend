@@ -84,6 +84,39 @@ class BeemSMSService(BaseSMSProvider):
             'Authorization': self._get_auth_header()
         }
     
+    def _detect_encoding(self, message: str) -> int:
+        """
+        Detect the appropriate encoding for SMS message.
+        
+        Args:
+            message: SMS message content
+            
+        Returns:
+            int: 0 for GSM7 (standard), 1 for UCS2 (Unicode/emojis)
+        """
+        try:
+            # Check if message contains emojis or non-GSM7 characters
+            # GSM7 character set includes basic Latin characters, numbers, and some symbols
+            gsm7_chars = set(
+                'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+                '0123456789@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\x1bÆæßÉ '
+                '!"#%&\'()*+,-./:;<=>?¡ÄÖÑÜ§¿äöñüà'
+            )
+            
+            # Check if any character is not in GSM7 set
+            for char in message:
+                if char not in gsm7_chars:
+                    # Character is not in GSM7 set, likely emoji or Unicode
+                    logger.info(f"Non-GSM7 character detected: '{char}' - using UCS2 encoding")
+                    return 1  # UCS2 encoding for Unicode/emojis
+            
+            # All characters are GSM7 compatible
+            return 0  # GSM7 encoding
+            
+        except Exception as e:
+            logger.warning(f"Error detecting encoding: {e} - defaulting to UCS2")
+            return 1  # Default to UCS2 for safety
+    
     def send_sms(self, to: str, message: str, sender_id: str, **kwargs) -> Dict[str, Any]:
         """
         Send SMS message via Beem Africa.
@@ -104,11 +137,14 @@ class BeemSMSService(BaseSMSProvider):
                 "dest_addr": to
             }]
             
+            # Auto-detect encoding based on message content
+            encoding = self._detect_encoding(message)
+            
             # Prepare request data
             data = {
                 "source_addr": sender_id,
                 "message": message,
-                "encoding": 0,  # Default encoding
+                "encoding": encoding,
                 "recipients": recipients
             }
             

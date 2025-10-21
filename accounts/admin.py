@@ -7,11 +7,13 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from .models import User, UserProfile
+from billing.models import SMSBalance
+from messaging.models_sender_requests import SenderIDRequest
 
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ['email', 'get_full_name', 'is_verified', 'is_active', 'get_tenant_name', 'created_at']
+    list_display = ['email', 'get_full_name', 'is_verified', 'is_active', 'get_tenant_name', 'get_sms_balance', 'get_sender_ids', 'created_at']
     list_filter = ['is_verified', 'is_active', 'is_staff', 'created_at', 'email_notifications', 'sms_notifications']
     search_fields = ['email', 'first_name', 'last_name', 'phone_number']
     ordering = ['-created_at']
@@ -69,6 +71,33 @@ class UserAdmin(BaseUserAdmin):
         return '-'
     get_tenant_name.short_description = 'Tenant'
     get_tenant_name.admin_order_field = 'memberships__tenant__name'
+
+    def get_sms_balance(self, obj):
+        tenant = obj.tenant
+        if not tenant:
+            return '-'
+        try:
+            balance = getattr(tenant, 'sms_balance', None)
+            credits = balance.credits if balance else 0
+            return format_html('<b>{}</b> credits', credits)
+        except Exception:
+            return '-'
+    get_sms_balance.short_description = 'SMS Balance'
+
+    def get_sender_ids(self, obj):
+        tenant = obj.tenant
+        if not tenant:
+            return '-'
+        try:
+            approved = SenderIDRequest.objects.filter(tenant=tenant, status='approved').values_list('requested_sender_id', flat=True)
+            items = list(approved)
+            if not items:
+                return '-'
+            badges = ' '.join([f'<span class="badge badge-info">{sid}</span>' for sid in items])
+            return mark_safe(badges)
+        except Exception:
+            return '-'
+    get_sender_ids.short_description = 'Approved Sender IDs'
 
 
 @admin.register(UserProfile)

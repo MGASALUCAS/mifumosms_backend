@@ -21,10 +21,11 @@ class Contact(models.Model):
 
     # Owner information
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_contacts', null=True, blank=True)
+    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='contacts', null=True, blank=True)
 
     # Basic information
     name = models.CharField(max_length=255)
-    phone_e164 = models.CharField(max_length=20, unique=True)  # E.164 format
+    phone_e164 = models.CharField(max_length=20)  # E.164 format - unique per user
     email = models.EmailField(blank=True)
 
     # Additional attributes (JSON field for flexibility)
@@ -49,6 +50,7 @@ class Contact(models.Model):
     class Meta:
         db_table = 'contacts'
         ordering = ['-created_at']
+        unique_together = [['tenant', 'phone_e164']]
 
     def __str__(self):
         return f"{self.name} ({self.phone_e164})"
@@ -272,6 +274,9 @@ class Message(models.Model):
     media_url = models.URLField(blank=True)
     media_type = models.CharField(max_length=50, blank=True)  # image, video, audio, document
 
+    # Recipient information
+    recipient_number = models.CharField(max_length=20, blank=True, help_text="Phone number of the recipient")
+
     # Status tracking
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='queued')
     error_message = models.TextField(blank=True)
@@ -298,7 +303,14 @@ class Message(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.direction} message to {self.conversation.contact.name}"
+        if self.conversation and self.conversation.contact:
+            return f"{self.direction} message to {self.conversation.contact.name} ({self.conversation.contact.phone_number})"
+        elif self.conversation:
+            return f"{self.direction} message in conversation {self.conversation.id}"
+        elif self.recipient_number:
+            return f"{self.direction} message to {self.recipient_number}"
+        else:
+            return f"{self.direction} message (no conversation)"
 
     @property
     def cost_dollars(self):

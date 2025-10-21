@@ -4,8 +4,8 @@ SMS-specific serializers for Mifumo WMS.
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models_sms import (
-    SMSProvider, SMSSenderID, SMSTemplate, SMSMessage, 
-    SMSDeliveryReport, SMSBulkUpload, SMSSchedule
+    SMSProvider, SMSSenderID, SMSTemplate, SMSMessage,
+    SMSDeliveryReport, SMSBulkUpload, SMSSchedule, SenderNameRequest
 )
 from .models import Contact, Campaign
 
@@ -14,7 +14,7 @@ User = get_user_model()
 
 class SMSProviderSerializer(serializers.ModelSerializer):
     """Serializer for SMS providers."""
-    
+
     class Meta:
         model = SMSProvider
         fields = [
@@ -23,7 +23,7 @@ class SMSProviderSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
-    
+
     def validate(self, data):
         """Validate provider data."""
         if data.get('is_default') and data.get('is_active'):
@@ -33,20 +33,20 @@ class SMSProviderSerializer(serializers.ModelSerializer):
                 is_default=True,
                 is_active=True
             ).exclude(id=self.instance.id if self.instance else None)
-            
+
             if existing_default.exists():
                 raise serializers.ValidationError(
                     "Only one provider can be set as default"
                 )
-        
+
         return data
 
 
 class SMSSenderIDSerializer(serializers.ModelSerializer):
     """Serializer for SMS sender IDs."""
-    
+
     provider_name = serializers.CharField(source='provider.name', read_only=True)
-    
+
     class Meta:
         model = SMSSenderID
         fields = [
@@ -55,38 +55,38 @@ class SMSSenderIDSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'provider_sender_id', 'created_at', 'updated_at']
-    
+
     def validate_sender_id(self, value):
         """Validate sender ID format."""
         if len(value) > 11:
             raise serializers.ValidationError("Sender ID cannot exceed 11 characters")
-        
+
         # Check for valid characters (letters, numbers, space, hyphen, dot)
         import re
         if not re.match(r'^[a-zA-Z0-9\s\-\.]+$', value):
             raise serializers.ValidationError(
                 "Sender ID can only contain letters, numbers, space, hyphen, and dot"
             )
-        
+
         return value
-    
+
     def validate_sample_content(self, value):
         """Validate sample content."""
         if len(value) > 170:
             raise serializers.ValidationError("Sample content cannot exceed 170 characters")
-        
+
         if len(value) < 15:
             raise serializers.ValidationError("Sample content must be at least 15 characters")
-        
+
         return value
 
 
 class SMSTemplateSerializer(serializers.ModelSerializer):
     """Serializer for SMS templates."""
-    
+
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     approved_by_name = serializers.CharField(source='approved_by.get_full_name', read_only=True)
-    
+
     class Meta:
         model = SMSTemplate
         fields = [
@@ -99,24 +99,24 @@ class SMSTemplateSerializer(serializers.ModelSerializer):
             'id', 'provider_template_id', 'approved_at', 'usage_count',
             'created_at', 'updated_at'
         ]
-    
+
     def validate_message(self, value):
         """Validate message length."""
         if len(value) > 160:
             raise serializers.ValidationError("SMS message cannot exceed 160 characters")
-        
+
         return value
 
 
 class SMSMessageSerializer(serializers.ModelSerializer):
     """Serializer for SMS messages."""
-    
+
     provider_name = serializers.CharField(source='provider.name', read_only=True)
     sender_id_value = serializers.CharField(source='sender_id.sender_id', read_only=True)
     template_name = serializers.CharField(source='template.name', read_only=True)
     contact_name = serializers.CharField(source='base_message.conversation.contact.name', read_only=True)
     contact_phone = serializers.CharField(source='base_message.conversation.contact.phone_e164', read_only=True)
-    
+
     class Meta:
         model = SMSMessage
         fields = [
@@ -134,7 +134,7 @@ class SMSMessageSerializer(serializers.ModelSerializer):
 
 class SMSDeliveryReportSerializer(serializers.ModelSerializer):
     """Serializer for SMS delivery reports."""
-    
+
     class Meta:
         model = SMSDeliveryReport
         fields = [
@@ -147,10 +147,10 @@ class SMSDeliveryReportSerializer(serializers.ModelSerializer):
 
 class SMSBulkUploadSerializer(serializers.ModelSerializer):
     """Serializer for SMS bulk uploads."""
-    
+
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     campaign_name = serializers.CharField(source='campaign.name', read_only=True)
-    
+
     class Meta:
         model = SMSBulkUpload
         fields = [
@@ -168,10 +168,10 @@ class SMSBulkUploadSerializer(serializers.ModelSerializer):
 
 class SMSScheduleSerializer(serializers.ModelSerializer):
     """Serializer for SMS schedules."""
-    
+
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     campaign_name = serializers.CharField(source='campaign.name', read_only=True)
-    
+
     class Meta:
         model = SMSSchedule
         fields = [
@@ -183,23 +183,23 @@ class SMSScheduleSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'last_run', 'next_run', 'created_at', 'updated_at'
         ]
-    
+
     def validate(self, data):
         """Validate schedule data."""
         start_date = data.get('start_date')
         end_date = data.get('end_date')
-        
+
         if start_date and end_date and start_date >= end_date:
             raise serializers.ValidationError(
                 "End date must be after start date"
             )
-        
+
         return data
 
 
 class SMSBulkSendSerializer(serializers.Serializer):
     """Serializer for bulk SMS sending."""
-    
+
     contacts = serializers.ListField(
         child=serializers.DictField(),
         help_text="List of contacts with phone numbers and optional data"
@@ -209,52 +209,52 @@ class SMSBulkSendSerializer(serializers.Serializer):
     template_id = serializers.UUIDField(required=False, allow_null=True)
     schedule_at = serializers.DateTimeField(required=False, allow_null=True)
     campaign_id = serializers.UUIDField(required=False, allow_null=True)
-    
+
     def validate_contacts(self, value):
         """Validate contacts list."""
         if not value:
             raise serializers.ValidationError("At least one contact is required")
-        
+
         if len(value) > 1000:
             raise serializers.ValidationError("Cannot send to more than 1000 contacts at once")
-        
+
         for i, contact in enumerate(value):
             if 'phone' not in contact:
                 raise serializers.ValidationError(f"Contact {i+1} missing phone number")
-            
+
             # Validate phone number format
             phone = str(contact['phone']).strip()
             if phone.startswith('+'):
                 phone = phone[1:]
-            
+
             if not phone.isdigit() or len(phone) < 10:
                 raise serializers.ValidationError(f"Invalid phone number for contact {i+1}")
-        
+
         return value
 
 
 class SMSExcelUploadSerializer(serializers.Serializer):
     """Serializer for Excel file upload."""
-    
+
     file = serializers.FileField()
     campaign_id = serializers.UUIDField(required=False, allow_null=True)
     template_id = serializers.UUIDField(required=False, allow_null=True)
     sender_id = serializers.CharField(max_length=11, required=False)
-    
+
     def validate_file(self, value):
         """Validate uploaded file."""
         if not value.name.endswith(('.xlsx', '.xls')):
             raise serializers.ValidationError("File must be an Excel file (.xlsx or .xls)")
-        
+
         if value.size > 10 * 1024 * 1024:  # 10MB limit
             raise serializers.ValidationError("File size cannot exceed 10MB")
-        
+
         return value
 
 
 class SMSBalanceSerializer(serializers.Serializer):
     """Serializer for SMS balance response."""
-    
+
     balance = serializers.DecimalField(max_digits=10, decimal_places=2)
     currency = serializers.CharField(max_length=3)
     provider_name = serializers.CharField(max_length=100)
@@ -262,7 +262,7 @@ class SMSBalanceSerializer(serializers.Serializer):
 
 class SMSStatsSerializer(serializers.Serializer):
     """Serializer for SMS statistics."""
-    
+
     total_sent = serializers.IntegerField()
     total_delivered = serializers.IntegerField()
     total_failed = serializers.IntegerField()
@@ -271,3 +271,139 @@ class SMSStatsSerializer(serializers.Serializer):
     currency = serializers.CharField(max_length=3)
     period_start = serializers.DateTimeField()
     period_end = serializers.DateTimeField()
+
+
+class SenderNameRequestSerializer(serializers.ModelSerializer):
+    """Serializer for sender name requests."""
+
+    supporting_documents_count = serializers.ReadOnlyField()
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    reviewed_by_name = serializers.CharField(source='reviewed_by.get_full_name', read_only=True)
+
+    class Meta:
+        model = SenderNameRequest
+        fields = [
+            'id', 'sender_name', 'use_case', 'supporting_documents',
+            'supporting_documents_count', 'status', 'admin_notes',
+            'reviewed_by', 'reviewed_by_name', 'reviewed_at',
+            'provider_request_id', 'provider_response',
+            'created_at', 'updated_at', 'created_by', 'created_by_name'
+        ]
+        read_only_fields = [
+            'id', 'status', 'admin_notes', 'reviewed_by', 'reviewed_at',
+            'provider_request_id', 'provider_response', 'created_at',
+            'updated_at', 'created_by', 'created_by_name'
+        ]
+
+    def validate_sender_name(self, value):
+        """Validate sender name format."""
+        if not value:
+            raise serializers.ValidationError("Sender name is required")
+
+        # Check length
+        if len(value) > 11:
+            raise serializers.ValidationError("Sender name cannot exceed 11 characters")
+
+        # Check alphanumeric only
+        if not value.isalnum():
+            raise serializers.ValidationError("Sender name must contain only alphanumeric characters")
+
+        # Check for existing request
+        if self.instance is None:  # Only check for new requests
+            tenant = self.context.get('tenant')
+            if tenant and SenderNameRequest.objects.filter(
+                tenant=tenant,
+                sender_name=value.upper()
+            ).exists():
+                raise serializers.ValidationError("A request for this sender name already exists")
+
+        return value.upper()
+
+    def validate_use_case(self, value):
+        """Validate use case description."""
+        if not value or len(value.strip()) < 10:
+            raise serializers.ValidationError("Use case description must be at least 10 characters long")
+
+        if len(value) > 1000:
+            raise serializers.ValidationError("Use case description cannot exceed 1000 characters")
+
+        return value.strip()
+
+
+class SenderNameRequestCreateSerializer(serializers.Serializer):
+    """Serializer for creating sender name requests."""
+
+    sender_name = serializers.CharField(max_length=11)
+    use_case = serializers.CharField(max_length=1000)
+    supporting_documents = serializers.ListField(
+        child=serializers.FileField(),
+        required=False,
+        allow_empty=True
+    )
+
+    def validate_sender_name(self, value):
+        """Validate sender name format."""
+        if not value:
+            raise serializers.ValidationError("Sender name is required")
+
+        # Check length
+        if len(value) > 11:
+            raise serializers.ValidationError("Sender name cannot exceed 11 characters")
+
+        # Check alphanumeric only
+        if not value.isalnum():
+            raise serializers.ValidationError("Sender name must contain only alphanumeric characters")
+
+        return value.upper()
+
+    def validate_use_case(self, value):
+        """Validate use case description."""
+        if not value or len(value.strip()) < 10:
+            raise serializers.ValidationError("Use case description must be at least 10 characters long")
+
+        if len(value) > 1000:
+            raise serializers.ValidationError("Use case description cannot exceed 1000 characters")
+
+        return value.strip()
+
+    def validate_supporting_documents(self, value):
+        """Validate supporting documents."""
+        if not value:
+            return value
+
+        # Check file count
+        if len(value) > 5:
+            raise serializers.ValidationError("Maximum 5 supporting documents allowed")
+
+        # Validate each file
+        for file in value:
+            # Check file type
+            allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png']
+            file_ext = '.' + file.name.split('.')[-1].lower()
+            if file_ext not in allowed_extensions:
+                raise serializers.ValidationError(
+                    f"File {file.name} has unsupported format. Allowed: PDF, JPEG, PNG"
+                )
+
+            # Check file size (5MB limit)
+            if file.size > 5 * 1024 * 1024:
+                raise serializers.ValidationError(
+                    f"File {file.name} exceeds 5MB size limit"
+                )
+
+        return value
+
+
+class SenderNameRequestUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating sender name requests (admin only)."""
+
+    class Meta:
+        model = SenderNameRequest
+        fields = ['status', 'admin_notes']
+
+    def validate_status(self, value):
+        """Validate status transition."""
+        if self.instance and self.instance.status == 'approved' and value != 'approved':
+            raise serializers.ValidationError("Cannot change status of approved requests")
+
+        return value

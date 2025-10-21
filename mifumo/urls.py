@@ -6,6 +6,7 @@ from django.urls import path, include
 from django.shortcuts import redirect
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import HttpResponseRedirect
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
@@ -25,20 +26,21 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('api.urls')),
     path('api/auth/', include('accounts.urls')),
     path('api/tenants/', include('tenants.urls')),
     path('api/messaging/', include('messaging.urls')),
     path('api/billing/', include('billing.urls')),
     path('webhooks/', include('messaging.webhooks')),
-    
+
     # API Documentation
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path('swagger.json', schema_view.without_ui(cache_timeout=0), name='schema-json'),
-    
+
     # Root redirect to API docs
     path('', lambda request: redirect('/swagger/')),
+    # Favicon: reuse admin favicon to avoid 404 noise
+    path('favicon.ico', lambda request: HttpResponseRedirect('/static/admin/img/favicon.ico')),
 ]
 
 if settings.DEBUG:

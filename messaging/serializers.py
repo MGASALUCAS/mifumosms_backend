@@ -40,13 +40,21 @@ class ContactCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate_phone_e164(self, value):
-        """Validate phone number format."""
+        """Validate phone number format and uniqueness per tenant."""
         import phonenumbers
         try:
             parsed = phonenumbers.parse(value, None)
             if not phonenumbers.is_valid_number(parsed):
                 raise serializers.ValidationError("Invalid phone number format.")
-            return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+            formatted_phone = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+
+            # Check for duplicate phone number within the same tenant
+            user = self.context['request'].user
+            tenant = getattr(user, 'tenant', None)
+            if tenant and Contact.objects.filter(tenant=tenant, phone_e164=formatted_phone).exists():
+                raise serializers.ValidationError("A contact with this phone number already exists in your contact list.")
+
+            return formatted_phone
         except phonenumbers.NumberParseException:
             raise serializers.ValidationError("Invalid phone number format.")
 
@@ -354,6 +362,43 @@ class AISuggestionsSerializer(serializers.Serializer):
 
     conversation_id = serializers.UUIDField()
     suggestions = serializers.ListField(child=serializers.CharField())
+
+
+# =============================================
+# PURCHASE HISTORY SERIALIZERS
+# =============================================
+
+class PurchaseHistorySerializer(serializers.Serializer):
+    """Serializer for purchase history display."""
+
+    id = serializers.UUIDField(read_only=True)
+    invoice_number = serializers.CharField(read_only=True)
+    package_name = serializers.CharField(read_only=True)
+    package_type = serializers.CharField(read_only=True)
+    credits = serializers.IntegerField(read_only=True)
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    payment_method = serializers.CharField(read_only=True)
+    payment_method_display = serializers.CharField(read_only=True)
+    payment_reference = serializers.CharField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    status_display = serializers.CharField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    completed_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+
+class PurchaseHistorySummarySerializer(serializers.Serializer):
+    """Serializer for purchase history summary statistics."""
+
+    total_purchases = serializers.IntegerField(read_only=True)
+    total_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    total_credits = serializers.IntegerField(read_only=True)
+    completed_purchases = serializers.IntegerField(read_only=True)
+    pending_purchases = serializers.IntegerField(read_only=True)
+    failed_purchases = serializers.IntegerField(read_only=True)
+    average_purchase_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    last_purchase_date = serializers.DateTimeField(read_only=True, allow_null=True)
 
 
 # =============================================

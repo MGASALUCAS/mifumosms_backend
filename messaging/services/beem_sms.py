@@ -54,13 +54,61 @@ class BeemSMSService:
         self.auth = HTTPBasicAuth(self.api_key, self.secret_key)
         self.timeout = getattr(settings, 'BEEM_API_TIMEOUT', 30)
     
+    def _detect_encoding(self, message: str) -> int:
+        """
+        Detect the appropriate encoding for SMS message.
+        
+        Args:
+            message: SMS message content
+            
+        Returns:
+            int: 0 for GSM7 (standard), 1 for UCS2 (Unicode/emojis)
+        """
+        try:
+            # Check if message contains emojis or non-GSM7 characters
+            # GSM7 character set includes basic Latin characters, numbers, and some symbols
+            gsm7_chars = set(
+                'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+                '0123456789@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\x1bÆæßÉ '
+                '!"#%&\'()*+,-./:;<=>?¡ÄÖÑÜ§¿äöñüà'
+            )
+            
+            # Check for common emoji ranges and Unicode characters
+            for char in message:
+                char_code = ord(char)
+                
+                # Check if character is in GSM7 set
+                if char in gsm7_chars:
+                    continue
+                
+                # Check for emoji ranges (common Unicode ranges for emojis)
+                if ((char_code >= 0x1F600 and char_code <= 0x1F64F) or  # Emoticons
+                    (char_code >= 0x1F300 and char_code <= 0x1F5FF) or  # Misc Symbols
+                    (char_code >= 0x1F680 and char_code <= 0x1F6FF) or  # Transport
+                    (char_code >= 0x1F1E0 and char_code <= 0x1F1FF) or  # Regional indicators
+                    (char_code >= 0x2600 and char_code <= 0x26FF) or    # Misc symbols
+                    (char_code >= 0x2700 and char_code <= 0x27BF) or    # Dingbats
+                    (char_code >= 0xFE00 and char_code <= 0xFE0F) or    # Variation selectors
+                    (char_code >= 0x1F900 and char_code <= 0x1F9FF) or  # Supplemental symbols
+                    char_code > 127):  # Any non-ASCII character
+                    logger.info(f"Unicode character detected: '{char}' (U+{char_code:04X}) - using UCS2 encoding")
+                    return 1  # UCS2 encoding for Unicode/emojis
+            
+            # All characters are GSM7 compatible
+            logger.debug("Message contains only GSM7 characters - using GSM7 encoding")
+            return 0  # GSM7 encoding
+            
+        except Exception as e:
+            logger.warning(f"Error detecting encoding: {e} - defaulting to UCS2")
+            return 1  # Default to UCS2 for safety
+    
     def send_sms(
         self,
         message: str,
         recipients: List[str],
         source_addr: str = None,
         schedule_time: Optional[datetime] = None,
-        encoding: int = 0,
+        encoding: int = None,
         recipient_ids: Optional[List[str]] = None
     ) -> Dict:
         """
@@ -81,6 +129,10 @@ class BeemSMSService:
             BeemSMSError: If API call fails or returns error
         """
         try:
+            # Auto-detect encoding if not specified
+            if encoding is None:
+                encoding = self._detect_encoding(message)
+            
             # Prepare recipients data
             recipients_data = []
             for i, recipient in enumerate(recipients):
@@ -97,6 +149,11 @@ class BeemSMSService:
                 "message": message,
                 "recipients": recipients_data
             }
+            
+            # Add Unicode support parameter if encoding is UCS2 (Unicode)
+            if encoding == 1:
+                payload["allow_unicode"] = True
+                payload["unicode"] = True
             
             # Add schedule time if provided
             if schedule_time:

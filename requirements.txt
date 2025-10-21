@@ -1,51 +1,52 @@
-# Django and DRF
-Django
-djangorestframework==3.14.0
-django-cors-headers==4.3.1
-django-allauth==0.57.0
-djangorestframework-simplejwt==5.3.0
-
-# Database
-psycopg2-binary==2.9.9
-dj-database-url==2.1.0
-
-# Redis and Celery
-redis==5.0.1
-celery==5.3.4
-django-celery-beat==2.5.0
-
-# HTTP requests
-requests==2.31.0
-httpx==0.25.2
-
-# API documentation
+amqp==5.3.1
+asgiref==3.10.0
+billiard==4.2.2
+celery==5.5.3
+certifi==2025.10.5
+charset-normalizer==3.4.4
+click==8.3.0
+click-didyoumean==0.3.1
+click-plugins==1.1.1.2
+click-repl==0.3.0
+colorama==0.4.6
+cron_descriptor==2.0.6
+dj-database-url==3.0.1
+Django==5.2.7
+django-allauth==65.12.0
+django-celery-beat==2.8.1
+django-ckeditor-5==0.2.18
+django-cors-headers==4.9.0
+django-filter==24.3
+django-jazzmin==3.0.1
+django-js-asset==3.1.2
+django-mathfilters==1.0.0
+django-timezone-field==7.1
+djangorestframework==3.16.1
+djangorestframework_simplejwt==5.5.1
 drf-yasg==1.21.7
-
-# Admin UI Enhancement
-django-jazzmin==2.6.0
-
-# Database filtering
-django-filter==23.5
-
-# WhatsApp and messaging
-phonenumbers==8.13.25
-
-# AI and ML
-transformers==4.36.2
-torch==2.1.2
-
-# Billing
-stripe==7.8.0
-
-# Monitoring and logging
-sentry-sdk==1.38.0
-structlog==23.2.0
-
-# Utilities
+idna==3.11
+inflection==0.5.1
+kombu==5.5.4
+packaging==25.0
+pillow==11.3.0
+prompt_toolkit==3.0.52
+psutil==7.1.0
+psycopg2-binary==2.9.11
+PyJWT==2.10.1
+python-crontab==3.3.0
+python-dateutil==2.9.0.post0
 python-decouple==3.8
-Pillow==10.1.0
-whitenoise==6.6.0
-gunicorn==21.2.0
-
-# Code formatting
-black==23.11.0
+python-dotenv==1.1.1
+pytz==2025.2
+PyYAML==6.0.3
+requests==2.32.5
+setuptools==80.9.0
+six==1.17.0
+sqlparse==0.5.3
+typing_extensions==4.15.0
+tzdata==2025.2
+uritemplate==4.2.0
+urllib3==2.5.0
+vine==5.1.0
+wcwidth==0.2.14
+whitenoise==6.11.0

@@ -67,9 +67,8 @@ class Command(BaseCommand):
                 user = User.objects.get(email=email)
             else:
                 # Create superuser with custom user model
-                # For custom user models, we need to pass username=email since USERNAME_FIELD is email
+                # For custom user models, we don't need username since USERNAME_FIELD is email
                 user = User.objects.create_user(
-                    username=email,  # This is required even though USERNAME_FIELD is email
                     email=email,
                     password=password,
                     first_name=first_name,
