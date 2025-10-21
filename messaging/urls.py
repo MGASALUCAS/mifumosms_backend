@@ -11,6 +11,7 @@ urlpatterns = [
     path('contacts/', views.ContactListCreateView.as_view(), name='contact-list-create'),
     path('contacts/<uuid:pk>/', views.ContactDetailView.as_view(), name='contact-detail'),
     path('contacts/bulk-import/', views.ContactBulkImportView.as_view(), name='contact-bulk-import'),
+    path('contacts/import/', views.ContactImportView.as_view(), name='contact-import'),
     path('contacts/<uuid:contact_id>/opt-in/', views.contact_opt_in, name='contact-opt-in'),
     path('contacts/<uuid:contact_id>/opt-out/', views.contact_opt_out, name='contact-opt-out'),
 

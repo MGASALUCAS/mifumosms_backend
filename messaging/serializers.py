@@ -75,6 +75,69 @@ class ContactBulkImportSerializer(serializers.Serializer):
             raise serializers.ValidationError(f"Invalid CSV format: {str(e)}")
 
 
+class ContactImportSerializer(serializers.Serializer):
+    """Serializer for importing contacts from phone contact picker."""
+
+    contacts = serializers.ListField(
+        child=serializers.DictField(),
+        min_length=1,
+        max_length=100  # Limit to prevent abuse
+    )
+
+    def validate_contacts(self, value):
+        """Validate contact data from phone picker."""
+        validated_contacts = []
+
+        for i, contact in enumerate(value):
+            # Validate required fields
+            if not contact.get('full_name') and not contact.get('phone') and not contact.get('email'):
+                raise serializers.ValidationError(f"Contact {i+1}: At least one field (name, phone, or email) is required")
+
+            # Normalize phone number if provided
+            phone = contact.get('phone', '').strip()
+            if phone:
+                phone = self._normalize_phone(phone)
+                if not phone:
+                    raise serializers.ValidationError(f"Contact {i+1}: Invalid phone number format")
+
+            validated_contact = {
+                'full_name': contact.get('full_name', '').strip(),
+                'phone': phone,
+                'email': contact.get('email', '').strip() or None,
+            }
+
+            # Only include contacts that have at least name or phone
+            if validated_contact['full_name'] or validated_contact['phone']:
+                validated_contacts.append(validated_contact)
+
+        if not validated_contacts:
+            raise serializers.ValidationError("No valid contacts found")
+
+        return validated_contacts
+
+    def _normalize_phone(self, phone):
+        """Normalize phone number to E.164 format."""
+        import re
+
+        if not phone:
+            return ""
+
+        # Remove all non-digit characters
+        digits = re.sub(r'\D', '', phone)
+
+        # Handle Tanzanian numbers
+        if digits.startswith('255') and len(digits) == 12:
+            return f"+{digits}"
+        elif digits.startswith('0') and len(digits) == 10:
+            return f"+255{digits[1:]}"
+        elif digits.startswith('+'):
+            return phone  # Already in correct format
+        elif len(digits) >= 10:
+            return f"+{digits}"
+
+        return phone  # Return original if can't normalize
+
+
 class SegmentSerializer(serializers.ModelSerializer):
     """Serializer for Segment model."""
 

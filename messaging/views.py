@@ -18,7 +18,7 @@ from .models import (
     Campaign, Flow
 )
 from .serializers import (
-    ContactSerializer, ContactCreateSerializer, ContactBulkImportSerializer,
+    ContactSerializer, ContactCreateSerializer, ContactBulkImportSerializer, ContactImportSerializer,
     SegmentSerializer, SegmentCreateSerializer,
     TemplateSerializer, TemplateCreateSerializer,
     ConversationSerializer, MessageSerializer, MessageCreateSerializer,
@@ -132,6 +132,68 @@ class ContactBulkImportView(generics.GenericAPIView):
             'imported_count': imported_count,
             'errors': errors
         })
+
+
+class ContactImportView(generics.GenericAPIView):
+    """Import contacts from phone contact picker."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = ContactImportSerializer
+
+    def post(self, request, *args, **kwargs):
+        """Import contacts from phone contact picker data."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        contacts_data = serializer.validated_data['contacts']
+        imported_count = 0
+        skipped_count = 0
+        errors = []
+
+        for i, contact_data in enumerate(contacts_data):
+            try:
+                # Check if contact already exists by phone number
+                if contact_data.get('phone'):
+                    existing_contact = Contact.objects.filter(
+                        phone_e164=contact_data['phone'],
+                        created_by=request.user
+                    ).first()
+
+                    if existing_contact:
+                        skipped_count += 1
+                        continue
+
+                # Create contact data for serializer
+                contact_serializer_data = {
+                    'name': contact_data['full_name'] or 'Unknown',
+                    'phone_e164': contact_data['phone'],
+                    'email': contact_data.get('email', ''),
+                }
+
+                # Validate and create contact
+                contact_serializer = ContactCreateSerializer(data=contact_serializer_data)
+                if contact_serializer.is_valid():
+                    contact_serializer.save(created_by=request.user)
+                    imported_count += 1
+                else:
+                    errors.append(f"Contact {i+1}: {contact_serializer.errors}")
+
+            except Exception as e:
+                errors.append(f"Contact {i+1}: {str(e)}")
+
+        response_data = {
+            'imported': imported_count,
+            'skipped': skipped_count,
+            'total_processed': len(contacts_data),
+            'errors': errors
+        }
+
+        if errors:
+            response_data['message'] = f'Imported {imported_count} contacts, skipped {skipped_count} duplicates, {len(errors)} errors'
+        else:
+            response_data['message'] = f'Successfully imported {imported_count} contacts'
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])
