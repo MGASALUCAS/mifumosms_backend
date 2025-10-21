@@ -340,6 +340,7 @@ STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
 ZENOPAY_API_KEY = config("ZENOPAY_API_KEY", default="")
 ZENOPAY_API_TIMEOUT = config("ZENOPAY_API_TIMEOUT", default=30, cast=int)
 ZENOPAY_WEBHOOK_SECRET = config("ZENOPAY_WEBHOOK_SECRET", default="")
+ZENOPAY_REQUIRE_WEBHOOK = config("ZENOPAY_REQUIRE_WEBHOOK", default=False, cast=bool)
 
 # Beem SMS
 BEEM_API_KEY = config("BEEM_API_KEY", default="")

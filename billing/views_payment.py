@@ -353,9 +353,9 @@ def check_payment_status(request, transaction_id):
 
             # Check if payment is actually completed according to ZenoPay API
             # According to ZenoPay docs: result should be "SUCCESS" and payment_status should be "COMPLETED"
-            result = (status_response.get('payment_status') or '').upper()  # This is the 'result' field from ZenoPay
+            result = (status_response.get('payment_status') or '').upper()  # This is the 'result' field from ZenoPay (SUCCESS/FAIL)
             payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
-            payment_status = payment_data.get('payment_status', '').upper()
+            payment_status = payment_data.get('payment_status', '').upper()  # This is the actual payment status (COMPLETED/FAILED/CANCELLED)
             
             # Map ZenoPay status directly: SUCCESS = completed, FAILED = failed, anything else = pending
             require_webhook = getattr(settings, 'ZENOPAY_REQUIRE_WEBHOOK', False)
@@ -373,9 +373,12 @@ def check_payment_status(request, transaction_id):
 
                 # refresh progress after state change
                 progress = _get_payment_progress(payment_transaction, {"success": True, "payment_status": "COMPLETED"})
-            elif result == 'FAILED' or payment_status == 'FAILED':
-                # Handle payment failure
-                payment_transaction.mark_as_failed('Payment failed - user did not complete payment or network issue')
+            elif result == 'FAILED' or payment_status == 'FAILED' or payment_status == 'CANCELLED':
+                # Handle payment failure or cancellation
+                if payment_status == 'CANCELLED':
+                    payment_transaction.mark_as_failed('Payment cancelled by user or expired')
+                else:
+                    payment_transaction.mark_as_failed('Payment failed - user did not complete payment or network issue')
             else:
                 # Keep as pending if not explicitly SUCCESS/COMPLETED or FAILED
                 if payment_transaction.status != 'pending':
@@ -491,11 +494,15 @@ def verify_payment(request, order_id):
                         payment_transaction.status = 'pending'
                         payment_transaction.save()
                 status_message = 'Payment verified and completed successfully! Credits have been added to your account.'
-            elif payment_status == 'FAILED' or result == 'FAILED':
-                payment_transaction.mark_as_failed('Payment failed - user did not complete payment or network issue')
+            elif payment_status == 'FAILED' or result == 'FAILED' or payment_status == 'CANCELLED':
+                if payment_status == 'CANCELLED':
+                    payment_transaction.mark_as_failed('Payment cancelled by user or expired')
+                    status_message = 'Payment was cancelled. Please try again if you want to purchase credits.'
+                else:
+                    payment_transaction.mark_as_failed('Payment failed - user did not complete payment or network issue')
+                    status_message = 'Payment failed. Please try again or contact support.'
                 if getattr(payment_transaction, 'purchase', None):
                     payment_transaction.purchase.mark_as_failed()
-                status_message = 'Payment failed. Please try again or contact support.'
             else:
                 # Keep as pending if not explicitly SUCCESS/COMPLETED or FAILED
                 if payment_transaction.status != 'pending':
@@ -578,9 +585,9 @@ def sync_pending_payments(request):
             checked += 1
             status_response = zenopay_service.check_payment_status(payment.zenopay_order_id) or {}
             if status_response.get('success'):
-                result = (status_response.get('payment_status') or '').upper()
+                result = (status_response.get('payment_status') or '').upper()  # This is the 'result' field from ZenoPay (SUCCESS/FAIL)
                 payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
-                payment_status = payment_data.get('payment_status', '').upper()
+                payment_status = payment_data.get('payment_status', '').upper()  # This is the actual payment status (COMPLETED/FAILED/CANCELLED)
 
                 if result == 'SUCCESS' and payment_status == 'COMPLETED':
                     payment.mark_as_completed(status_response.get('data', {}))
@@ -588,8 +595,11 @@ def sync_pending_payments(request):
                         payment.purchase.complete_purchase()
                     updated += 1
                     results.append({'id': str(payment.id), 'status': 'completed'})
-                elif result == 'FAILED' or payment_status == 'FAILED':
-                    payment.mark_as_failed('Payment failed via sync')
+                elif result == 'FAILED' or payment_status == 'FAILED' or payment_status == 'CANCELLED':
+                    if payment_status == 'CANCELLED':
+                        payment.mark_as_failed('Payment cancelled by user or expired via sync')
+                    else:
+                        payment.mark_as_failed('Payment failed via sync')
                     if getattr(payment, 'purchase', None):
                         payment.purchase.mark_as_failed()
                     updated += 1
@@ -671,8 +681,11 @@ def payment_webhook(request):
                             if getattr(payment_transaction, 'purchase', None):
                                 payment_transaction.purchase.complete_purchase()
                             logger.info(f"Payment transaction {payment_transaction.id} verified and completed via webhook")
-                        elif result == 'FAILED' or verified_payment_status == 'FAILED':
-                            payment_transaction.mark_as_failed('Payment failed via webhook verification')
+                        elif result == 'FAILED' or verified_payment_status == 'FAILED' or verified_payment_status == 'CANCELLED':
+                            if verified_payment_status == 'CANCELLED':
+                                payment_transaction.mark_as_failed('Payment cancelled by user or expired via webhook')
+                            else:
+                                payment_transaction.mark_as_failed('Payment failed via webhook verification')
                             if getattr(payment_transaction, 'purchase', None):
                                 payment_transaction.purchase.mark_as_failed()
                             logger.info(f"Payment transaction {payment_transaction.id} marked as failed via webhook")
@@ -820,9 +833,9 @@ def _get_payment_progress(payment_transaction, status_response):
         })
     elif status_response.get('success'):
         # Check if payment is verified but not yet completed
-        result = (status_response.get('payment_status') or '').upper()
+        result = (status_response.get('payment_status') or '').upper()  # This is the 'result' field from ZenoPay (SUCCESS/FAIL)
         payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
-        payment_status = payment_data.get('payment_status', '').upper()
+        payment_status = payment_data.get('payment_status', '').upper()  # This is the actual payment status (COMPLETED/FAILED/CANCELLED)
         
         if result == 'SUCCESS' and payment_status == 'COMPLETED':
             # Payment is completed
@@ -1440,9 +1453,9 @@ def check_custom_sms_purchase_status(request, purchase_id):
             status_response = zenopay_service.check_payment_status(custom_purchase.payment_transaction.zenopay_order_id) or {}
             
             if status_response.get('success'):
-                result = (status_response.get('payment_status') or '').upper()
+                result = (status_response.get('payment_status') or '').upper()  # This is the 'result' field from ZenoPay (SUCCESS/FAIL)
                 payment_data = status_response.get('data', {}).get('data', [{}])[0] if status_response.get('data', {}).get('data') else {}
-                payment_status = payment_data.get('payment_status', '').upper()
+                payment_status = payment_data.get('payment_status', '').upper()  # This is the actual payment status (COMPLETED/FAILED/CANCELLED)
                 
                 # Update payment transaction
                 custom_purchase.payment_transaction.zenopay_reference = status_response.get('reference') or custom_purchase.payment_transaction.zenopay_reference

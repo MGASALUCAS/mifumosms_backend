@@ -173,14 +173,16 @@ class ZenoPayService:
                 return {
                     'success': True,
                     'data': response_data,
-                    'payment_status': response_data.get('result', 'UNKNOWN'),  # This is the 'result' field
+                    'payment_status': response_data.get('result', 'UNKNOWN'),  # This is the 'result' field (SUCCESS/FAIL)
                     'reference': response_data.get('reference'),
                     'transid': payment_data.get('transid'),
                     'channel': payment_data.get('channel'),
                     'msisdn': payment_data.get('msisdn'),
                     'order_id': payment_data.get('order_id'),
                     'amount': payment_data.get('amount'),
-                    'creation_date': payment_data.get('creation_date')
+                    'creation_date': payment_data.get('creation_date'),
+                    # Add the actual payment status from the data array
+                    'actual_payment_status': payment_data.get('payment_status', 'UNKNOWN')  # COMPLETED/FAILED/CANCELLED
                 }
             else:
                 return {
