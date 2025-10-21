@@ -22,7 +22,7 @@ TESTING = 'test' in sys.argv
 
 ALLOWED_HOSTS = config(
     'DJANGO_ALLOWED_HOSTS',
-    default='104.131.116.55,mifumosms.servehttp.com,https://104.131.116.55,196.249.97.239,localhost,127.0.0.1,.mifumo.local,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev,testserver'
+    default='104.131.116.55,mifumosms.servehttp.com,https://mifumosms.servehttp.com,http://mifumosms.servehttp.com,https://104.131.116.55,196.249.97.239,localhost,127.0.0.1,.mifumo.local,ileana-unsupposed-nonmortally.ngrok-free.dev,*.ngrok-free.dev,testserver'
 ).split(',')
 
 SITE_ID = 1
