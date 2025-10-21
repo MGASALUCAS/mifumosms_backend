@@ -2,10 +2,11 @@
 Django settings for mifumo project.
 """
 
-import os
-import sys
 from pathlib import Path
 from datetime import timedelta
+import os
+import sys
+
 from decouple import config
 import dj_database_url
 
@@ -14,19 +15,17 @@ import dj_database_url
 # =============================================================================
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = config('DJANGO_SECRET_KEY', default='django-insecure-change-me')
-DEBUG = config('DJANGO_DEBUG', default=False, cast=bool)
+SECRET_KEY = config("DJANGO_SECRET_KEY", default="django-insecure-change-me")
+DEBUG = config("DJANGO_DEBUG", default=False, cast=bool)
 
-# Testing flag to disable certain signals during tests
-TESTING = 'test' in sys.argv
+# Useful flag for tests
+TESTING = "test" in sys.argv
 
-ALLOWED_HOSTS = [
-    'mifumosms.servehttp.com',
-    '104.131.116.55',
-    '127.0.0.1',
-    'localhost'
-]
-
+# Hosts / domain
+ALLOWED_HOSTS = config(
+    "DJANGO_ALLOWED_HOSTS",
+    default="mifumosms.servehttp.com,104.131.116.55,localhost,127.0.0.1"
+).split(",")
 
 SITE_ID = 1
 
@@ -34,34 +33,34 @@ SITE_ID = 1
 # APPS
 # =============================================================================
 DJANGO_APPS = [
-    'jazzmin',  # must precede django.contrib.admin
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'django.contrib.sites',
+    "jazzmin",  # keep before django.contrib.admin
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "django.contrib.sites",
 ]
 
 THIRD_PARTY_APPS = [
-    'rest_framework',
-    'rest_framework_simplejwt',
-    'corsheaders',
-    'allauth',
-    'allauth.account',
-    'django_celery_beat',
-    'django_filters',
-    'drf_yasg',
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "corsheaders",
+    "allauth",
+    "allauth.account",
+    "django_celery_beat",
+    "django_filters",
+    "drf_yasg",
 ]
 
 LOCAL_APPS = [
-    'core',
-    'tenants',
-    'accounts.apps.AccountsConfig',
-    'messaging',
-    'billing.apps.BillingConfig',
-    'api',
+    "core",
+    "tenants",
+    "accounts.apps.AccountsConfig",
+    "messaging",
+    "billing.apps.BillingConfig",
+    "api",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -70,448 +69,377 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 # MIDDLEWARE
 # =============================================================================
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'core.middleware.TenantMiddleware',
-    'core.middleware.RequestLoggingMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'allauth.account.middleware.AccountMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "core.middleware.TenantMiddleware",
+    "core.middleware.RequestLoggingMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'mifumo.urls'
+ROOT_URLCONF = "mifumo.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'mifumo.wsgi.application'
+WSGI_APPLICATION = "mifumo.wsgi.application"
 
 # =============================================================================
 # DATABASE
 # =============================================================================
 DATABASES = {
-     'default': dj_database_url.config(
-         default=config('DATABASE_URL', default='sqlite:///db.sqlite3')
-     )
- }
-
-
-# =============================================================================
-# DATABASE (from .env only)
-# =============================================================================
-# import warnings
-
-# # Prefer a single DATABASE_URL; otherwise read individual keys from .env.
-# DB_URL = config('DATABASE_URL', default='')
-# if DB_URL:
-#     DATABASES = {
-#         'default': dj_database_url.parse(DB_URL, conn_max_age=600, ssl_require=False),
-#     }
-# else:
-#     # Fall back to discrete env vars (still from .env). No hard-coded defaults.
-#     DB_NAME = config('DB_NAME')
-#     DB_USER = config('DB_USER')
-#     DB_PASSWORD = config('DB_PASSWORD')
-#     DB_HOST = config('DB_HOST', default='127.0.0.1')  # prefer IPv4
-#     DB_PORT = config('DB_PORT', default='5432')
-
-#     DATABASES = {
-#         'default': {
-#             'ENGINE': 'django.db.backends.postgresql_psycopg2',
-#             'NAME': DB_NAME,
-#             'USER': DB_USER,
-#             'PASSWORD': DB_PASSWORD,
-#             'HOST': DB_HOST,
-#             'PORT': DB_PORT,
-#             # Optional pool-ish keepalive
-#             'CONN_MAX_AGE': 600,
-#         }
-#     }
-
-# # Helpful warning if nothing was provided
-# if not DB_URL and not all(
-#     k in os.environ for k in ['DB_NAME', 'DB_USER', 'DB_PASSWORD']
-# ):
-#     warnings.warn(
-#         "No DATABASE_URL and missing one of DB_NAME/DB_USER/DB_PASSWORD in environment. "
-#         "Set them in your .env before running migrations."
-#     )
-
+    "default": dj_database_url.config(
+        default=config("DATABASE_URL", default="sqlite:///db.sqlite3"),
+        conn_max_age=600,
+    )
+}
 
 # =============================================================================
 # AUTH / USERS
 # =============================================================================
-AUTH_USER_MODEL = 'accounts.User'
+AUTH_USER_MODEL = "accounts.User"
 
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
-    'allauth.account.auth_backends.AuthenticationBackend',
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
-# Allauth
+# django-allauth (email-only login)
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_AUTHENTICATION_METHOD = 'email'
-ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-ACCOUNT_USER_MODEL_EMAIL_FIELD = 'email'
+ACCOUNT_USER_MODEL_EMAIL_FIELD = "email"
 
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/'
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/"
 
-# Password validation
 AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
 # =============================================================================
 # I18N / TZ
 # =============================================================================
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+LANGUAGE_CODE = "en-us"
+TIME_ZONE = config("DEFAULT_TIMEZONE", default="Africa/Dar_es_Salaam")
 USE_I18N = True
 USE_TZ = True
 
 # =============================================================================
 # STATIC / MEDIA
 # =============================================================================
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_URL = "/static/"
+# Use the deploy path so Nginx alias works
+STATIC_ROOT = Path("/srv/mifumosms_backend/static")
 
-# Use different static file storage based on environment
+# Keep /static in source tree if present (for dev)
+STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
+
+# Whitenoise for production
 if DEBUG:
-    # Local development - use default Django static file serving
-    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
 else:
-    # Production - use whitenoise for compressed static files
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
+MEDIA_URL = "/media/"
+MEDIA_ROOT = Path("/srv/mifumosms_backend/media")
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # =============================================================================
 # REST FRAMEWORK / JWT
 # =============================================================================
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': config('API_PAGINATION_SIZE', default=20, cast=int),
-    'DEFAULT_FILTER_BACKENDS': [
-        'django_filters.rest_framework.DjangoFilterBackend',
-        'rest_framework.filters.SearchFilter',
-        'rest_framework.filters.OrderingFilter',
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": config("API_PAGINATION_SIZE", default=20, cast=int),
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
+        "rest_framework.filters.OrderingFilter",
     ],
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(seconds=config('JWT_ACCESS_TOKEN_LIFETIME', default=3600, cast=int)),
-    'REFRESH_TOKEN_LIFETIME': timedelta(seconds=config('JWT_REFRESH_TOKEN_LIFETIME', default=604800, cast=int)),
-    'ROTATE_REFRESH_TOKENS': True,
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        seconds=config("JWT_ACCESS_TOKEN_LIFETIME", default=3600, cast=int)
+    ),
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        seconds=config("JWT_REFRESH_TOKEN_LIFETIME", default=604800, cast=int)
+    ),
+    "ROTATE_REFRESH_TOKENS": True,
 }
 
 # =============================================================================
 # CORS / CSRF
 # =============================================================================
+# Primary origins (default includes your domain + IPs + common dev ports)
 CORS_ALLOWED_ORIGINS = config(
-    'CORS_ALLOWED_ORIGINS',
-    default='http://104.131.116.55,https://104.131.116.55,http://104.131.116.55:8000,https://104.131.116.55:8000,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080'
-).split(',')
+    "CORS_ALLOWED_ORIGINS",
+    default="https://mifumosms.servehttp.com,"
+            "http://localhost:3000,http://127.0.0.1:3000,"
+            "http://localhost:8080,http://127.0.0.1:8080,"
+            "http://104.131.116.55,https://104.131.116.55"
+).split(",")
 
-CORS_ALLOW_CREDENTIALS = config('CORS_ALLOW_CREDENTIALS', default=True, cast=bool)
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # convenience for dev
+CORS_ALLOW_CREDENTIALS = config("CORS_ALLOW_CREDENTIALS", default=True, cast=bool)
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # convenience in dev
 
-# Additional CORS settings for better compatibility
 CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
 ]
-
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-
+CORS_ALLOW_METHODS = ["DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"]
 CORS_PREFLIGHT_MAX_AGE = 86400
+CORS_EXPOSE_HEADERS = ["content-type", "x-csrftoken", "authorization"]
 
-# Additional CORS settings for API endpoints
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^http://localhost:\d+$",
-    r"^http://127\.0\.0\.1:\d+$",
-    r"^http://104\.131\.116\.55:\d+$",
-    r"^https://104\.131\.116\.55:\d+$",
-    r"^http://196\.249\.97\.239:\d+$",
-]
+# CSRF must include scheme (https) for trusted hosts
+CSRF_TRUSTED_ORIGINS = list({
+    "https://mifumosms.servehttp.com",
+    "https://104.131.116.55",
+    # Pull from CORS list if schemes present
+    *[o for o in CORS_ALLOWED_ORIGINS if o.startswith(("http://", "https://"))],
+})
 
-# Expose additional headers
-CORS_EXPOSE_HEADERS = [
-    'content-type',
-    'x-csrftoken',
-    'authorization',
-]
+# Cookies secure by default in prod
+SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=not DEBUG, cast=bool)
+SESSION_COOKIE_HTTPONLY = config("SESSION_COOKIE_HTTPONLY", default=True, cast=bool)
+SESSION_COOKIE_AGE = config("SESSION_COOKIE_AGE", default=86400, cast=int)
+SESSION_COOKIE_SAMESITE = "Lax"
 
-# Useful CSRF trusted origins (must include scheme)
-CSRF_TRUSTED_ORIGINS = [
-    # keep anything you already trust via CORS:
-    *[origin for origin in CORS_ALLOWED_ORIGINS
-      if origin.startswith('http://') or origin.startswith('https://')],
-    # Production server IPs
-    'http://104.131.116.55',
-    'https://104.131.116.55',
-    'http://104.131.116.55:8000',
-    'https://104.131.116.55:8000',
-    'http://104.131.116.55:80',
-    'https://104.131.116.55:443',
-    'http://196.249.97.239',
-    'http://196.249.97.239:8000',
-    'http://196.249.97.239:80',
-    'https://196.249.97.239',
-    'https://196.249.97.239:8000',
-    'https://196.249.97.239:443',
-    # add any real domains you use (https), e.g. ngrok:
-    'https://ileana-unsupposed-nonmortally.ngrok-free.dev',
-]
-
-# Session / CSRF cookies
-# For HTTP servers, these must be False (even in production if using HTTP)
-SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
-SESSION_COOKIE_HTTPONLY = config('SESSION_COOKIE_HTTPONLY', default=True, cast=bool)
-SESSION_COOKIE_AGE = config('SESSION_COOKIE_AGE', default=86400, cast=int)
-SESSION_COOKIE_SAMESITE = 'Lax'
-
-CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
-CSRF_COOKIE_HTTPONLY = config('CSRF_COOKIE_HTTPONLY', default=False, cast=bool)
-
-# CSRF settings for API endpoints
-CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=not DEBUG, cast=bool)
+CSRF_COOKIE_HTTPONLY = config("CSRF_COOKIE_HTTPONLY", default=False, cast=bool)
+CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_USE_SESSIONS = False
+
+# Let Django know the original scheme from Nginx
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG, cast=bool)
 
 # =============================================================================
 # CELERY
 # =============================================================================
-CELERY_BROKER_URL = config('REDIS_URL', default='redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = config('REDIS_URL', default='redis://localhost:6379/0')
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
+CELERY_BROKER_URL = config("REDIS_URL", default="redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = config("REDIS_URL", default="redis://localhost:6379/0")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 
 # =============================================================================
 # INTEGRATIONS / KEYS
 # =============================================================================
 # WhatsApp
-WA_PHONE_NUMBER_ID = config('WA_PHONE_NUMBER_ID', default='')
-WA_TOKEN = config('WA_TOKEN', default='')
-WA_VERIFY_TOKEN = config('WA_VERIFY_TOKEN', default='')
-WA_API_BASE = config('WA_API_BASE', default='https://graph.facebook.com/v20.0')
+WA_PHONE_NUMBER_ID = config("WA_PHONE_NUMBER_ID", default="")
+WA_TOKEN = config("WA_TOKEN", default="")
+WA_VERIFY_TOKEN = config("WA_VERIFY_TOKEN", default="")
+WA_API_BASE = config("WA_API_BASE", default="https://graph.facebook.com/v20.0")
 
 # Hugging Face
-HF_API_URL = config('HF_API_URL', default='')
-HF_API_KEY = config('HF_API_KEY', default='')
+HF_API_URL = config("HF_API_URL", default="")
+HF_API_KEY = config("HF_API_KEY", default="")
 
 # Stripe
-STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
-STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
-STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
+STRIPE_SECRET_KEY = config("STRIPE_SECRET_KEY", default="")
+STRIPE_PUBLISHABLE_KEY = config("STRIPE_PUBLISHABLE_KEY", default="")
+STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
 
-# ZenoPay Mobile Money
-ZENOPAY_API_KEY = config('ZENOPAY_API_KEY', default='')
-ZENOPAY_API_TIMEOUT = config('ZENOPAY_API_TIMEOUT', default=30, cast=int)
-ZENOPAY_WEBHOOK_SECRET = config('ZENOPAY_WEBHOOK_SECRET', default='')
+# ZenoPay
+ZENOPAY_API_KEY = config("ZENOPAY_API_KEY", default="")
+ZENOPAY_API_TIMEOUT = config("ZENOPAY_API_TIMEOUT", default=30, cast=int)
+ZENOPAY_WEBHOOK_SECRET = config("ZENOPAY_WEBHOOK_SECRET", default="")
 
-# SMS: Beem
-BEEM_API_KEY = config('BEEM_API_KEY', default='')
-BEEM_SECRET_KEY = config('BEEM_SECRET_KEY', default='')
-BEEM_DEFAULT_SENDER_ID = config('BEEM_DEFAULT_SENDER_ID', default='MIFUMO')
-BEEM_API_TIMEOUT = config('BEEM_API_TIMEOUT', default=30, cast=int)
-BEEM_API_BASE_URL = config('BEEM_API_BASE_URL', default='https://apisms.beem.africa/v1')
-BEEM_SEND_URL = config('BEEM_SEND_URL', default='https://apisms.beem.africa/v1/send')
-BEEM_BALANCE_URL = config('BEEM_BALANCE_URL', default='https://apisms.beem.africa/public/v1/vendors/balance')
-BEEM_DELIVERY_URL = config('BEEM_DELIVERY_URL', default='https://dlrapi.beem.africa/public/v1/delivery-reports')
-BEEM_SENDER_URL = config('BEEM_SENDER_URL', default='https://apisms.beem.africa/public/v1/sender-names')
-BEEM_TEMPLATE_URL = config('BEEM_TEMPLATE_URL', default='https://apisms.beem.africa/public/v1/sms-templates')
+# Beem SMS
+BEEM_API_KEY = config("BEEM_API_KEY", default="")
+BEEM_SECRET_KEY = config("BEEM_SECRET_KEY", default="")
+BEEM_DEFAULT_SENDER_ID = config("BEEM_DEFAULT_SENDER_ID", default="MIFUMO")
+BEEM_API_TIMEOUT = config("BEEM_API_TIMEOUT", default=30, cast=int)
+BEEM_API_BASE_URL = config("BEEM_API_BASE_URL", default="https://apisms.beem.africa/v1")
+BEEM_SEND_URL = config("BEEM_SEND_URL", default="https://apisms.beem.africa/v1/send")
+BEEM_BALANCE_URL = config("BEEM_BALANCE_URL", default="https://apisms.beem.africa/public/v1/vendors/balance")
+BEEM_DELIVERY_URL = config("BEEM_DELIVERY_URL", default="https://dlrapi.beem.africa/public/v1/delivery-reports")
+BEEM_SENDER_URL = config("BEEM_SENDER_URL", default="https://apisms.beem.africa/public/v1/sender-names")
+BEEM_TEMPLATE_URL = config("BEEM_TEMPLATE_URL", default="https://apisms.beem.africa/public/v1/sms-templates")
 
 # Twilio (optional)
-TWILIO_ACCOUNT_SID = config('TWILIO_ACCOUNT_SID', default='')
-TWILIO_AUTH_TOKEN = config('TWILIO_AUTH_TOKEN', default='')
-TWILIO_PHONE_NUMBER = config('TWILIO_PHONE_NUMBER', default='')
+TWILIO_ACCOUNT_SID = config("TWILIO_ACCOUNT_SID", default="")
+TWILIO_AUTH_TOKEN = config("TWILIO_AUTH_TOKEN", default="")
+TWILIO_PHONE_NUMBER = config("TWILIO_PHONE_NUMBER", default="")
 
 # Telegram (optional)
-TELEGRAM_BOT_TOKEN = config('TELEGRAM_BOT_TOKEN', default='')
+TELEGRAM_BOT_TOKEN = config("TELEGRAM_BOT_TOKEN", default="")
 
-# Base URL (used in webhooks, etc.)
-BASE_URL = config('BASE_URL', default='http://104.131.116.55')
+# Base URL (public)
+BASE_URL = config("BASE_URL", default="https://mifumosms.servehttp.com")
 
 # Email
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
-EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
-EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-EMAIL_FROM_NAME = config('EMAIL_FROM_NAME', default='Mifumo WMS')
-EMAIL_FROM_ADDRESS = config('EMAIL_FROM_ADDRESS', default='noreply@mifumo.com')
+EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+EMAIL_FROM_NAME = config("EMAIL_FROM_NAME", default="Mifumo WMS")
+EMAIL_FROM_ADDRESS = config("EMAIL_FROM_ADDRESS", default="noreply@mifumo.com")
+DEFAULT_FROM_EMAIL = f"{EMAIL_FROM_NAME} <{EMAIL_FROM_ADDRESS}>"
 
-# Storage (S3)
-AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID', default='')
-AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY', default='')
-AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME', default='')
-AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
-AWS_S3_CUSTOM_DOMAIN = config('AWS_S3_CUSTOM_DOMAIN', default='')
-AWS_DEFAULT_ACL = config('AWS_DEFAULT_ACL', default='private')
-AWS_S3_FILE_OVERWRITE = config('AWS_S3_FILE_OVERWRITE', default=False, cast=bool)
-AWS_S3_VERIFY = config('AWS_S3_VERIFY', default=True, cast=bool)
+# S3 storage (optional)
+AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID", default="")
+AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY", default="")
+AWS_STORAGE_BUCKET_NAME = config("AWS_STORAGE_BUCKET_NAME", default="")
+AWS_S3_REGION_NAME = config("AWS_S3_REGION_NAME", default="us-east-1")
+AWS_S3_CUSTOM_DOMAIN = config("AWS_S3_CUSTOM_DOMAIN", default="")
+AWS_DEFAULT_ACL = config("AWS_DEFAULT_ACL", default="private")
+AWS_S3_FILE_OVERWRITE = config("AWS_S3_FILE_OVERWRITE", default=False, cast=bool)
+AWS_S3_VERIFY = config("AWS_S3_VERIFY", default=True, cast=bool)
 
 # Cloudinary (optional)
-CLOUDINARY_CLOUD_NAME = config('CLOUDINARY_CLOUD_NAME', default='')
-CLOUDINARY_API_KEY = config('CLOUDINARY_API_KEY', default='')
-CLOUDINARY_API_SECRET = config('CLOUDINARY_API_SECRET', default='')
+CLOUDINARY_CLOUD_NAME = config("CLOUDINARY_CLOUD_NAME", default="")
+CLOUDINARY_API_KEY = config("CLOUDINARY_API_KEY", default="")
+CLOUDINARY_API_SECRET = config("CLOUDINARY_API_SECRET", default="")
 
 # Webhooks
-WEBHOOK_SECRET_WHATSAPP = config('WEBHOOK_SECRET_WHATSAPP', default='')
-WEBHOOK_SECRET_STRIPE = config('WEBHOOK_SECRET_STRIPE', default='')
-WEBHOOK_SECRET_SMS = config('WEBHOOK_SECRET_SMS', default='')
+WEBHOOK_SECRET_WHATSAPP = config("WEBHOOK_SECRET_WHATSAPP", default="")
+WEBHOOK_SECRET_STRIPE = config("WEBHOOK_SECRET_STRIPE", default="")
+WEBHOOK_SECRET_SMS = config("WEBHOOK_SECRET_SMS", default="")
 
 # Team comms
-SLACK_BOT_TOKEN = config('SLACK_BOT_TOKEN', default='')
-SLACK_WEBHOOK_URL = config('SLACK_WEBHOOK_URL', default='')
-TEAMS_WEBHOOK_URL = config('TEAMS_WEBHOOK_URL', default='')
+SLACK_BOT_TOKEN = config("SLACK_BOT_TOKEN", default="")
+SLACK_WEBHOOK_URL = config("SLACK_WEBHOOK_URL", default="")
+TEAMS_WEBHOOK_URL = config("TEAMS_WEBHOOK_URL", default="")
 
 # Business info
-COMPANY_NAME = config('COMPANY_NAME', default='Mifumo Labs')
-COMPANY_EMAIL = config('COMPANY_EMAIL', default='hello@mifumo.com')
-COMPANY_PHONE = config('COMPANY_PHONE', default='+255700000000')
-COMPANY_ADDRESS = config('COMPANY_ADDRESS', default='Dar es Salaam, Tanzania')
-SUPPORT_EMAIL = config('SUPPORT_EMAIL', default='support@mifumo.com')
-SUPPORT_PHONE = config('SUPPORT_PHONE', default='+255700000001')
+COMPANY_NAME = config("COMPANY_NAME", default="Mifumo Labs")
+COMPANY_EMAIL = config("COMPANY_EMAIL", default="hello@mifumo.com")
+COMPANY_PHONE = config("COMPANY_PHONE", default="+255700000000")
+COMPANY_ADDRESS = config("COMPANY_ADDRESS", default="Dar es Salaam, Tanzania")
+SUPPORT_EMAIL = config("SUPPORT_EMAIL", default="support@mifumo.com")
+SUPPORT_PHONE = config("SUPPORT_PHONE", default="+255700000001")
 
 # Feature flags
-ENABLE_AI_FEATURES = config('ENABLE_AI_FEATURES', default=True, cast=bool)
-ENABLE_SMS_FEATURES = config('ENABLE_SMS_FEATURES', default=True, cast=bool)
-ENABLE_WHATSAPP_FEATURES = config('ENABLE_WHATSAPP_FEATURES', default=True, cast=bool)
-ENABLE_BILLING_FEATURES = config('ENABLE_BILLING_FEATURES', default=True, cast=bool)
-ENABLE_ANALYTICS = config('ENABLE_ANALYTICS', default=True, cast=bool)
-ENABLE_WEBHOOKS = config('ENABLE_WEBHOOKS', default=True, cast=bool)
+ENABLE_AI_FEATURES = config("ENABLE_AI_FEATURES", default=True, cast=bool)
+ENABLE_SMS_FEATURES = config("ENABLE_SMS_FEATURES", default=True, cast=bool)
+ENABLE_WHATSAPP_FEATURES = config("ENABLE_WHATSAPP_FEATURES", default=True, cast=bool)
+ENABLE_BILLING_FEATURES = config("ENABLE_BILLING_FEATURES", default=True, cast=bool)
+ENABLE_ANALYTICS = config("ENABLE_ANALYTICS", default=True, cast=bool)
+ENABLE_WEBHOOKS = config("ENABLE_WEBHOOKS", default=True, cast=bool)
 
 # API housekeeping
-API_VERSION = config('API_VERSION', default='v1')
-API_RATE_LIMIT = config('API_RATE_LIMIT', default=1000, cast=int)
-API_MAX_PAGE_SIZE = config('API_MAX_PAGE_SIZE', default=100, cast=int)
+API_VERSION = config("API_VERSION", default="v1")
+API_RATE_LIMIT = config("API_RATE_LIMIT", default=1000, cast=int)
+API_MAX_PAGE_SIZE = config("API_MAX_PAGE_SIZE", default=100, cast=int)
 
 # Notifications
-FCM_SERVER_KEY = config('FCM_SERVER_KEY', default='')
-FCM_SENDER_ID = config('FCM_SENDER_ID', default='')
-SMS_NOTIFICATION_ENABLED = config('SMS_NOTIFICATION_ENABLED', default=True, cast=bool)
-SMS_NOTIFICATION_SENDER_ID = config('SMS_NOTIFICATION_SENDER_ID', default='NOTIFY')
-EMAIL_NOTIFICATION_ENABLED = config('EMAIL_NOTIFICATION_ENABLED', default=True, cast=bool)
-EMAIL_NOTIFICATION_FROM = config('EMAIL_NOTIFICATION_FROM', default='noreply@mifumo.com')
+FCM_SERVER_KEY = config("FCM_SERVER_KEY", default="")
+FCM_SENDER_ID = config("FCM_SENDER_ID", default="")
+SMS_NOTIFICATION_ENABLED = config("SMS_NOTIFICATION_ENABLED", default=True, cast=bool)
+SMS_NOTIFICATION_SENDER_ID = config("SMS_NOTIFICATION_SENDER_ID", default="NOTIFY")
+EMAIL_NOTIFICATION_ENABLED = config("EMAIL_NOTIFICATION_ENABLED", default=True, cast=bool)
+EMAIL_NOTIFICATION_FROM = config("EMAIL_NOTIFICATION_FROM", default="noreply@mifumo.com")
 
 # Backups
-BACKUP_ENABLED = config('BACKUP_ENABLED', default=True, cast=bool)
-BACKUP_SCHEDULE = config('BACKUP_SCHEDULE', default='0 2 * * *')
-BACKUP_RETENTION_DAYS = config('BACKUP_RETENTION_DAYS', default=30, cast=int)
-BACKUP_S3_BUCKET = config('BACKUP_S3_BUCKET', default='')
+BACKUP_ENABLED = config("BACKUP_ENABLED", default=True, cast=bool)
+BACKUP_SCHEDULE = config("BACKUP_SCHEDULE", default="0 2 * * *")
+BACKUP_RETENTION_DAYS = config("BACKUP_RETENTION_DAYS", default=30, cast=int)
+BACKUP_S3_BUCKET = config("BACKUP_S3_BUCKET", default="")
 
 # Costs / Limits
-MAX_MESSAGE_LENGTH = config('MAX_MESSAGE_LENGTH', default=160, cast=int)
-MAX_BULK_MESSAGES = config('MAX_BULK_MESSAGES', default=1000, cast=int)
-MAX_CONTACTS_PER_TENANT = config('MAX_CONTACTS_PER_TENANT', default=10000, cast=int)
-SMS_COST_PER_MESSAGE = config('SMS_COST_PER_MESSAGE', default=0.05, cast=float)
-WHATSAPP_COST_PER_MESSAGE = config('WHATSAPP_COST_PER_MESSAGE', default=0.01, cast=float)
-FREE_MESSAGES_LIMIT = config('FREE_MESSAGES_LIMIT', default=100, cast=int)
+MAX_MESSAGE_LENGTH = config("MAX_MESSAGE_LENGTH", default=160, cast=int)
+MAX_BULK_MESSAGES = config("MAX_BULK_MESSAGES", default=1000, cast=int)
+MAX_CONTACTS_PER_TENANT = config("MAX_CONTACTS_PER_TENANT", default=10000, cast=int)
+SMS_COST_PER_MESSAGE = config("SMS_COST_PER_MESSAGE", default=0.05, cast=float)
+WHATSAPP_COST_PER_MESSAGE = config("WHATSAPP_COST_PER_MESSAGE", default=0.01, cast=float)
+FREE_MESSAGES_LIMIT = config("FREE_MESSAGES_LIMIT", default=100, cast=int)
 
 # Defaults
-DEFAULT_TIMEZONE = config('DEFAULT_TIMEZONE', default='Africa/Dar_es_Salaam')
-DEFAULT_CURRENCY = config('DEFAULT_CURRENCY', default='USD')
-DEFAULT_LANGUAGE = config('DEFAULT_LANGUAGE', default='en')
+DEFAULT_TIMEZONE = TIME_ZONE
+DEFAULT_CURRENCY = config("DEFAULT_CURRENCY", default="USD")
+DEFAULT_LANGUAGE = config("DEFAULT_LANGUAGE", default="en")
 
 # =============================================================================
-# CACHE (wired to your CACHE_* knobs)
+# CACHE
 # =============================================================================
 CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'mifumo-locmem',
-        'TIMEOUT': config('CACHE_TTL', default=300, cast=int),
-        'OPTIONS': {
-            'MAX_ENTRIES': config('CACHE_MAX_ENTRIES', default=1000, cast=int),
-            'CULL_FREQUENCY': config('CACHE_CULL_FREQUENCY', default=3, cast=int),
-        }
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "mifumo-locmem",
+        "TIMEOUT": config("CACHE_TTL", default=300, cast=int),
+        "OPTIONS": {
+            "MAX_ENTRIES": config("CACHE_MAX_ENTRIES", default=1000, cast=int),
+            "CULL_FREQUENCY": config("CACHE_CULL_FREQUENCY", default=3, cast=int),
+        },
     }
 }
 
 # =============================================================================
 # LOGGING
 # =============================================================================
-LOG_LEVEL = config('LOG_LEVEL', default='INFO')
+LOG_LEVEL = config("LOG_LEVEL", default="INFO")
 
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
         },
     },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "verbose"},
     },
-    'root': {'handlers': ['console'], 'level': LOG_LEVEL},
-    'loggers': {
-        'django': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
-        'mifumo': {'handlers': ['console'], 'level': 'DEBUG' if DEBUG else LOG_LEVEL, 'propagate': False},
+    "root": {"handlers": ["console"], "level": LOG_LEVEL},
+    "loggers": {
+        "django": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "mifumo": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else LOG_LEVEL,
+            "propagate": False,
+        },
     },
 }
 
 # =============================================================================
-# SENTRY (optional, no warnings when DSN empty)
+# SENTRY (optional)
 # =============================================================================
-SENTRY_DSN = config('SENTRY_DSN', default='')
+SENTRY_DSN = config("SENTRY_DSN", default="")
 if SENTRY_DSN.strip():
     try:
         import sentry_sdk
@@ -526,22 +454,20 @@ if SENTRY_DSN.strip():
         )
     except Exception as e:
         import logging as _logging
+
         _logging.getLogger(__name__).warning(f"Failed to initialize Sentry: {e}")
         _logging.getLogger(__name__).warning("Continuing without Sentry monitoring")
 
 # =============================================================================
 # SECURITY HEADERS
 # =============================================================================
-SECURE_BROWSER_XSS_FILTER = config('SECURE_BROWSER_XSS_FILTER', default=True, cast=bool)
-SECURE_CONTENT_TYPE_NOSNIFF = config('SECURE_CONTENT_TYPE_NOSNIFF', default=True, cast=bool)
-X_FRAME_OPTIONS = config('X_FRAME_OPTIONS', default='DENY')
+SECURE_BROWSER_XSS_FILTER = config("SECURE_BROWSER_XSS_FILTER", default=True, cast=bool)
+SECURE_CONTENT_TYPE_NOSNIFF = config("SECURE_CONTENT_TYPE_NOSNIFF", default=True, cast=bool)
+X_FRAME_OPTIONS = config("X_FRAME_OPTIONS", default="DENY")
 
-# Additional production security settings
-SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0, cast=int)  # Set to 31536000 for HTTPS
-SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
-SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
-SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
-SECURE_PROXY_SSL_HEADER = config('SECURE_PROXY_SSL_HEADER', default=None)
+SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=0, cast=int)  # set 31536000 when ready
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False, cast=bool)
+SECURE_HSTS_PRELOAD = config("SECURE_HSTS_PRELOAD", default=False, cast=bool)
 
 # =============================================================================
 # JAZZMIN
@@ -568,7 +494,7 @@ JAZZMIN_SETTINGS = {
     "usermenu_links": [
         {"name": "API Documentation", "url": "/swagger/", "new_window": True},
         {"name": "Support", "url": "https://github.com/mifumolabs/mifumoWMS", "new_window": True},
-        {"model": "accounts.user"}
+        {"model": "accounts.user"},
     ],
     "show_sidebar": True,
     "navigation_expanded": True,
@@ -580,14 +506,14 @@ JAZZMIN_SETTINGS = {
             "name": "SMS Management",
             "url": "/admin/messaging/smsprovider/",
             "icon": "fas fa-sms",
-            "permissions": ["messaging.view_smsprovider"]
+            "permissions": ["messaging.view_smsprovider"],
         }],
         "billing": [{
             "name": "Billing Overview",
             "url": "/admin/billing/subscription/",
             "icon": "fas fa-credit-card",
-            "permissions": ["billing.view_subscription"]
-        }]
+            "permissions": ["billing.view_subscription"],
+        }],
     },
     "icons": {
         "auth": "fas fa-users-cog",
@@ -604,7 +530,6 @@ JAZZMIN_SETTINGS = {
         "messaging.Message": "fas fa-envelope",
         "messaging.Campaign": "fas fa-bullhorn",
         "messaging.Flow": "fas fa-project-diagram",
-        # SMS Group Icons
         "messaging.SMSProvider": "fas fa-server",
         "messaging.SMSSenderID": "fas fa-id-badge",
         "messaging.SMSMessage": "fas fa-paper-plane",
@@ -658,6 +583,6 @@ JAZZMIN_UI_TWEAKS = {
         "info": "btn-info",
         "warning": "btn-warning",
         "danger": "btn-danger",
-        "success": "btn-success"
-    }
+        "success": "btn-success",
+    },
 }
