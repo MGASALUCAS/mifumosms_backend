@@ -21,11 +21,44 @@ DEBUG = config("DJANGO_DEBUG", default=False, cast=bool)
 # Useful flag for tests
 TESTING = "test" in sys.argv
 
+
+def _normalize_hosts(raw_list):
+    """
+    Clean host entries:
+      - trim spaces
+      - drop http:// or https://
+      - drop :port
+      - skip empties
+    """
+    cleaned = []
+    for h in raw_list:
+        h = (h or "").strip()
+        if not h:
+            continue
+        if h.startswith("http://"):
+            h = h[len("http://") :]
+        if h.startswith("https://"):
+            h = h[len("https://") :]
+        if ":" in h:
+            h = h.split(":", 1)[0]
+        if h:
+            cleaned.append(h)
+    return cleaned
+
+
 # Hosts / domain
-ALLOWED_HOSTS = [h.strip() for h in config(
-    "DJANGO_ALLOWED_HOSTS",
-    default="mifumosms.servehttp.com,104.131.116.55,localhost,127.0.0.1"
-).split(",")]
+ALLOWED_HOSTS = _normalize_hosts(
+    config(
+        "DJANGO_ALLOWED_HOSTS",
+        default="mifumosms.servehttp.com,104.131.116.55,localhost,127.0.0.1",
+    ).split(",")
+)
+
+# Make local dev friendlier
+if DEBUG or TESTING:
+    for _h in ["localhost", "127.0.0.1", "testserver"]:
+        if _h not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(_h)
 
 SITE_ID = 1
 
@@ -150,7 +183,9 @@ TIME_ZONE = config("DEFAULT_TIMEZONE", default="Africa/Dar_es_Salaam")
 USE_I18N = True
 USE_TZ = True
 
+# =============================================================================
 # STATIC / MEDIA
+# =============================================================================
 STATIC_URL = "/static/"
 STATIC_ROOT = Path("/srv/mifumosms_backend/static")  # where collectstatic writes to
 
@@ -202,14 +237,18 @@ SIMPLE_JWT = {
 # =============================================================================
 # CORS / CSRF
 # =============================================================================
-# Primary origins (default includes your domain + IPs + common dev ports)
-CORS_ALLOWED_ORIGINS = [o.strip() for o in config(
-    "CORS_ALLOWED_ORIGINS",
-    default="https://mifumosms.servehttp.com,"
+CORS_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in config(
+        "CORS_ALLOWED_ORIGINS",
+        default=(
+            "https://mifumosms.servehttp.com,"
             "http://localhost:3000,http://127.0.0.1:3000,"
             "http://localhost:8080,http://127.0.0.1:8080,"
             "http://104.131.116.55,https://104.131.116.55"
-).split(",")]
+        ),
+    ).split(",")
+]
 
 CORS_ALLOW_CREDENTIALS = config("CORS_ALLOW_CREDENTIALS", default=True, cast=bool)
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # convenience in dev
@@ -230,11 +269,18 @@ CORS_PREFLIGHT_MAX_AGE = 86400
 CORS_EXPOSE_HEADERS = ["content-type", "x-csrftoken", "authorization"]
 
 # CSRF must include scheme (https) for trusted hosts
-CSRF_TRUSTED_ORIGINS = sorted(set([
-    "https://mifumosms.servehttp.com",
-    "https://104.131.116.55",
-    *[o for o in CORS_ALLOWED_ORIGINS if o.startswith(("http://", "https://"))],
-]))
+CSRF_TRUSTED_ORIGINS = sorted(
+    set(
+        [
+            # auto-add HTTPS versions of allowed hosts
+            *[f"https://{h}" for h in ALLOWED_HOSTS if h and h != "*"],
+            # include any CORS entries that already have schemes
+            *[o for o in CORS_ALLOWED_ORIGINS if o.startswith(("http://", "https://"))],
+            # also include your server IP over https
+            "https://104.131.116.55",
+        ]
+    )
+)
 
 # Cookies secure by default in prod
 SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=not DEBUG, cast=bool)
@@ -291,10 +337,18 @@ BEEM_DEFAULT_SENDER_ID = config("BEEM_DEFAULT_SENDER_ID", default="MIFUMO")
 BEEM_API_TIMEOUT = config("BEEM_API_TIMEOUT", default=30, cast=int)
 BEEM_API_BASE_URL = config("BEEM_API_BASE_URL", default="https://apisms.beem.africa/v1")
 BEEM_SEND_URL = config("BEEM_SEND_URL", default="https://apisms.beem.africa/v1/send")
-BEEM_BALANCE_URL = config("BEEM_BALANCE_URL", default="https://apisms.beem.africa/public/v1/vendors/balance")
-BEEM_DELIVERY_URL = config("BEEM_DELIVERY_URL", default="https://dlrapi.beem.africa/public/v1/delivery-reports")
-BEEM_SENDER_URL = config("BEEM_SENDER_URL", default="https://apisms.beem.africa/public/v1/sender-names")
-BEEM_TEMPLATE_URL = config("BEEM_TEMPLATE_URL", default="https://apisms.beem.africa/public/v1/sms-templates")
+BEEM_BALANCE_URL = config(
+    "BEEM_BALANCE_URL", default="https://apisms.beem.africa/public/v1/vendors/balance"
+)
+BEEM_DELIVERY_URL = config(
+    "BEEM_DELIVERY_URL", default="https://dlrapi.beem.africa/public/v1/delivery-reports"
+)
+BEEM_SENDER_URL = config(
+    "BEEM_SENDER_URL", default="https://apisms.beem.africa/public/v1/sender-names"
+)
+BEEM_TEMPLATE_URL = config(
+    "BEEM_TEMPLATE_URL", default="https://apisms.beem.africa/public/v1/sms-templates"
+)
 
 # Twilio (optional)
 TWILIO_ACCOUNT_SID = config("TWILIO_ACCOUNT_SID", default="")
@@ -308,7 +362,9 @@ TELEGRAM_BOT_TOKEN = config("TELEGRAM_BOT_TOKEN", default="")
 BASE_URL = config("BASE_URL", default="https://mifumosms.servehttp.com")
 
 # Email
-EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_BACKEND = config(
+    "EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend"
+)
 EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
@@ -378,14 +434,6 @@ BACKUP_SCHEDULE = config("BACKUP_SCHEDULE", default="0 2 * * *")
 BACKUP_RETENTION_DAYS = config("BACKUP_RETENTION_DAYS", default=30, cast=int)
 BACKUP_S3_BUCKET = config("BACKUP_S3_BUCKET", default="")
 
-# Costs / Limits
-MAX_MESSAGE_LENGTH = config("MAX_MESSAGE_LENGTH", default=160, cast=int)
-MAX_BULK_MESSAGES = config("MAX_BULK_MESSAGES", default=1000, cast=int)
-MAX_CONTACTS_PER_TENANT = config("MAX_CONTACTS_PER_TENANT", default=10000, cast=int)
-SMS_COST_PER_MESSAGE = config("SMS_COST_PER_MESSAGE", default=0.05, cast=float)
-WHATSAPP_COST_PER_MESSAGE = config("WHATSAPP_COST_PER_MESSAGE", default=0.01, cast=float)
-FREE_MESSAGES_LIMIT = config("FREE_MESSAGES_LIMIT", default=100, cast=int)
-
 # Defaults
 DEFAULT_TIMEZONE = TIME_ZONE
 DEFAULT_CURRENCY = config("DEFAULT_CURRENCY", default="USD")
@@ -452,6 +500,7 @@ if SENTRY_DSN.strip():
         )
     except Exception as e:
         import logging as _logging
+
         _logging.getLogger(__name__).warning(f"Failed to initialize Sentry: {e}")
         _logging.getLogger(__name__).warning("Continuing without Sentry monitoring")
 
@@ -499,18 +548,22 @@ JAZZMIN_SETTINGS = {
     "hide_models": [],
     "order_with_respect_to": ["auth", "accounts", "tenants", "messaging", "billing"],
     "custom_links": {
-        "messaging": [{
-            "name": "SMS Management",
-            "url": "/admin/messaging/smsprovider/",
-            "icon": "fas fa-sms",
-            "permissions": ["messaging.view_smsprovider"],
-        }],
-        "billing": [{
-            "name": "Billing Overview",
-            "url": "/admin/billing/subscription/",
-            "icon": "fas fa-credit-card",
-            "permissions": ["billing.view_subscription"],
-        }],
+        "messaging": [
+            {
+                "name": "SMS Management",
+                "url": "/admin/messaging/smsprovider/",
+                "icon": "fas fa-sms",
+                "permissions": ["messaging.view_smsprovider"],
+            }
+        ],
+        "billing": [
+            {
+                "name": "Billing Overview",
+                "url": "/admin/billing/subscription/",
+                "icon": "fas fa-credit-card",
+                "permissions": ["billing.view_subscription"],
+            }
+        ],
     },
     "icons": {
         "auth": "fas fa-users-cog",
