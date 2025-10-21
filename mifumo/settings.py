@@ -150,27 +150,25 @@ TIME_ZONE = config("DEFAULT_TIMEZONE", default="Africa/Dar_es_Salaam")
 USE_I18N = True
 USE_TZ = True
 
-# =============================================================================
 # STATIC / MEDIA
-# =============================================================================
 STATIC_URL = "/static/"
-# Match your Nginx alias (/static -> /srv/mifumosms_backend/static)
-STATIC_ROOT = Path("/srv/mifumosms_backend/static")
+STATIC_ROOT = Path("/srv/mifumosms_backend/static")  # where collectstatic writes to
 
-# Keep /static in source tree if present (for dev)
-STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
-
-# Whitenoise for production
-if DEBUG:
-    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+# Only add a project source dir if it exists AND is different from STATIC_ROOT
+PROJECT_STATIC = BASE_DIR / "static"  # your source tree static (optional)
+if PROJECT_STATIC.exists() and PROJECT_STATIC.resolve() != STATIC_ROOT.resolve():
+    STATICFILES_DIRS = [PROJECT_STATIC]
 else:
-    # hashed filenames + compression
-    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    STATICFILES_DIRS = []
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = Path("/srv/mifumosms_backend/media")
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# Whitenoise
+if DEBUG:
+    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+else:
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # =============================================================================
 # REST FRAMEWORK / JWT
