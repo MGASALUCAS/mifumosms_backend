@@ -237,17 +237,24 @@ SIMPLE_JWT = {
 # =============================================================================
 # CORS / CSRF
 # =============================================================================
+# Explicit allow-list (keep what you already have and add the preview app)
 CORS_ALLOWED_ORIGINS = [
     o.strip()
     for o in config(
         "CORS_ALLOWED_ORIGINS",
         default=(
             "https://mifumosms.servehttp.com,"
+            "https://preview--mifumo-connect.lovable.app,"  # <— NEW: your Lovable preview
             "http://localhost:3000,http://127.0.0.1:3000,"
             "http://localhost:8080,http://127.0.0.1:8080,"
             "http://104.131.116.55,https://104.131.116.55"
         ),
     ).split(",")
+]
+
+# If your Lovable preview subdomain changes, allow any *.lovable.app (optional but handy)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://([a-z0-9-]+\.)*lovable\.app$",
 ]
 
 CORS_ALLOW_CREDENTIALS = config("CORS_ALLOW_CREDENTIALS", default=True, cast=bool)
@@ -268,19 +275,23 @@ CORS_ALLOW_METHODS = ["DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"]
 CORS_PREFLIGHT_MAX_AGE = 86400
 CORS_EXPOSE_HEADERS = ["content-type", "x-csrftoken", "authorization"]
 
-# CSRF must include scheme (https) for trusted hosts
+# CSRF must include scheme; add the preview origin + wildcard for *.lovable.app
 CSRF_TRUSTED_ORIGINS = sorted(
     set(
         [
-            # auto-add HTTPS versions of allowed hosts
+            # HTTPS versions of allowed hosts (from ALLOWED_HOSTS)
             *[f"https://{h}" for h in ALLOWED_HOSTS if h and h != "*"],
-            # include any CORS entries that already have schemes
+            # Any origins already listed with schemes (from CORS)
             *[o for o in CORS_ALLOWED_ORIGINS if o.startswith(("http://", "https://"))],
+            # Explicitly trust your preview domain and all lovable.app previews
+            "https://preview--mifumo-connect.lovable.app",
+            "https://*.lovable.app",  # Django supports wildcard subdomains here
             # also include your server IP over https
             "https://104.131.116.55",
         ]
     )
 )
+
 
 # Cookies secure by default in prod
 SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=not DEBUG, cast=bool)
