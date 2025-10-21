@@ -22,10 +22,10 @@ DEBUG = config("DJANGO_DEBUG", default=False, cast=bool)
 TESTING = "test" in sys.argv
 
 # Hosts / domain
-ALLOWED_HOSTS = config(
+ALLOWED_HOSTS = [h.strip() for h in config(
     "DJANGO_ALLOWED_HOSTS",
     default="mifumosms.servehttp.com,104.131.116.55,localhost,127.0.0.1"
-).split(",")
+).split(",")]
 
 SITE_ID = 1
 
@@ -154,7 +154,7 @@ USE_TZ = True
 # STATIC / MEDIA
 # =============================================================================
 STATIC_URL = "/static/"
-# Use the deploy path so Nginx alias works
+# Match your Nginx alias (/static -> /srv/mifumosms_backend/static)
 STATIC_ROOT = Path("/srv/mifumosms_backend/static")
 
 # Keep /static in source tree if present (for dev)
@@ -164,6 +164,7 @@ STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else 
 if DEBUG:
     STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
 else:
+    # hashed filenames + compression
     STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
@@ -204,13 +205,13 @@ SIMPLE_JWT = {
 # CORS / CSRF
 # =============================================================================
 # Primary origins (default includes your domain + IPs + common dev ports)
-CORS_ALLOWED_ORIGINS = config(
+CORS_ALLOWED_ORIGINS = [o.strip() for o in config(
     "CORS_ALLOWED_ORIGINS",
     default="https://mifumosms.servehttp.com,"
             "http://localhost:3000,http://127.0.0.1:3000,"
             "http://localhost:8080,http://127.0.0.1:8080,"
             "http://104.131.116.55,https://104.131.116.55"
-).split(",")
+).split(",")]
 
 CORS_ALLOW_CREDENTIALS = config("CORS_ALLOW_CREDENTIALS", default=True, cast=bool)
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # convenience in dev
@@ -231,12 +232,11 @@ CORS_PREFLIGHT_MAX_AGE = 86400
 CORS_EXPOSE_HEADERS = ["content-type", "x-csrftoken", "authorization"]
 
 # CSRF must include scheme (https) for trusted hosts
-CSRF_TRUSTED_ORIGINS = list({
+CSRF_TRUSTED_ORIGINS = sorted(set([
     "https://mifumosms.servehttp.com",
     "https://104.131.116.55",
-    # Pull from CORS list if schemes present
     *[o for o in CORS_ALLOWED_ORIGINS if o.startswith(("http://", "https://"))],
-})
+]))
 
 # Cookies secure by default in prod
 SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=not DEBUG, cast=bool)
@@ -454,7 +454,6 @@ if SENTRY_DSN.strip():
         )
     except Exception as e:
         import logging as _logging
-
         _logging.getLogger(__name__).warning(f"Failed to initialize Sentry: {e}")
         _logging.getLogger(__name__).warning("Continuing without Sentry monitoring")
 
