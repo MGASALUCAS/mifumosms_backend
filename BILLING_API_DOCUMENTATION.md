@@ -209,8 +209,10 @@ POST /api/billing/payments/custom-sms/initiate/
 ```json
 {
   "credits": 5000,
-  "mobile_money_provider": "vodacom",
-  "phone_number": "255712345678"
+  "buyer_email": "customer@example.com",
+  "buyer_name": "John Doe",
+  "buyer_phone": "0744963858",
+  "mobile_money_provider": "vodacom"
 }
 ```
 

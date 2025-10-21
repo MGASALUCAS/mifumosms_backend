@@ -238,13 +238,16 @@ const calculateCustomPricing = async (credits) => {
   return response.json();
 };
 
-const initiateCustomPurchase = async (credits, paymentMethod) => {
+const initiateCustomPurchase = async (credits, paymentMethod, buyerInfo) => {
   const response = await fetch('/api/billing/payments/custom-sms/initiate/', {
     method: 'POST',
     headers: apiHeaders,
     body: JSON.stringify({
       credits,
-      mobile_money_provider: paymentMethod
+      mobile_money_provider: paymentMethod,
+      buyer_email: buyerInfo.email,
+      buyer_name: buyerInfo.name,
+      buyer_phone: buyerInfo.phone
     })
   });
   return response.json();
