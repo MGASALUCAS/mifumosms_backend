@@ -20,7 +20,13 @@ DEBUG = config('DJANGO_DEBUG', default=False, cast=bool)
 # Testing flag to disable certain signals during tests
 TESTING = 'test' in sys.argv
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    'mifumosms.servehttp.com',
+    '104.131.116.55',
+    '127.0.0.1',
+    'localhost'
+]
+
 
 SITE_ID = 1
 
