@@ -130,7 +130,6 @@ def recent_activity(request):
         if not activity_type or activity_type == 'campaign_completed':
             recent_campaigns = Campaign.objects.filter(
                 created_by=user,
-                tenant=tenant,
                 status='completed'
             ).order_by('-updated_at')[:limit]
             
@@ -234,7 +233,6 @@ def recent_activity(request):
         if not activity_type or activity_type == 'campaign_started':
             started_campaigns = Campaign.objects.filter(
                 created_by=user,
-                tenant=tenant,
                 status='running'
             ).order_by('-created_at')[:limit]
             
@@ -357,7 +355,6 @@ def performance_overview(request):
         # Campaign success rate
         completed_campaigns = Campaign.objects.filter(
             created_by=user,
-            tenant=tenant,
             status='completed'
         )
         
@@ -472,7 +469,6 @@ def activity_statistics(request):
             ).count(),
             'campaigns_launched': Campaign.objects.filter(
                 created_by=user,
-                tenant=tenant,
                 created_at__gte=today_start
             ).count()
         }
@@ -495,7 +491,6 @@ def activity_statistics(request):
             ).count(),
             'campaigns_launched': Campaign.objects.filter(
                 created_by=user,
-                tenant=tenant,
                 created_at__gte=week_start
             ).count()
         }
@@ -518,7 +513,6 @@ def activity_statistics(request):
             ).count(),
             'campaigns_launched': Campaign.objects.filter(
                 created_by=user,
-                tenant=tenant,
                 created_at__gte=month_start
             ).count()
         }
