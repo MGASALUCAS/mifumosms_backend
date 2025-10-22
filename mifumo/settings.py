@@ -60,6 +60,10 @@ if DEBUG or TESTING:
         if _h not in ALLOWED_HOSTS:
             ALLOWED_HOSTS.append(_h)
 
+# Always add testserver for testing
+if "testserver" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append("testserver")
+
 SITE_ID = 1
 
 # =============================================================================
@@ -140,10 +144,10 @@ WSGI_APPLICATION = "mifumo.wsgi.application"
 # DATABASE
 # =============================================================================
 DATABASES = {
-    "default": dj_database_url.config(
-        default=config("DATABASE_URL", default="sqlite:///db.sqlite3"),
-        conn_max_age=600,
-    )
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
 }
 
 # =============================================================================
@@ -157,9 +161,8 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # django-allauth (email-only login)
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_LOGIN_METHODS = {'email'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
