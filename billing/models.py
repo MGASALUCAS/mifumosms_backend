@@ -18,7 +18,6 @@ class SMSPackage(models.Model):
         ('standard', 'Standard'),
         ('pro', 'Pro'),
         ('enterprise', 'Enterprise'),
-        ('custom', 'Custom'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -49,7 +48,6 @@ class SMSPackage(models.Model):
             ('none', 'No Restriction'),
             ('default_only', 'Default Sender ID Only'),
             ('allowed_list', 'Allowed List Only'),
-            ('custom_only', 'Custom Sender IDs Only'),
         ],
         default='none',
         help_text="Sender ID restriction policy"
@@ -98,9 +96,6 @@ class SMSPackage(models.Model):
         if self.sender_id_restriction == 'allowed_list':
             return sender_id in (self.allowed_sender_ids or [])
             
-        # Custom sender IDs only (for custom packages)
-        if self.sender_id_restriction == 'custom_only':
-            return self.package_type == 'custom'
             
         return False
     
@@ -130,8 +125,6 @@ class SMSPackage(models.Model):
         elif self.sender_id_restriction == 'allowed_list':
             return self.allowed_sender_ids or []
             
-        elif self.sender_id_restriction == 'custom_only':
-            return []  # Custom packages don't have predefined sender IDs
             
         return []
     
@@ -379,6 +372,9 @@ class Purchase(models.Model):
             balance, created = SMSBalance.objects.get_or_create(tenant=self.tenant)
             balance.add_credits(self.credits)
 
+            # Send notification to user about successful payment
+            self._send_payment_success_notification()
+
             return True
         return False
 
@@ -391,11 +387,59 @@ class Purchase(models.Model):
         """Mark purchase as failed."""
         self.status = 'failed'
         self.save()
+        
+        # Send notification to user about failed payment
+        self._send_payment_failed_notification()
+
+    def _send_payment_failed_notification(self):
+        """Send notification to user about failed payment."""
+        try:
+            from .services.notification_service import NotificationService
+            
+            # Get payment transaction if available
+            payment_transaction = getattr(self, 'payment_transaction', None)
+            
+            # Send notification
+            notification_service = NotificationService(tenant=self.tenant)
+            notification_service.send_payment_failed_notification(
+                user=self.user,
+                purchase=self,
+                payment_transaction=payment_transaction,
+                error_message=getattr(payment_transaction, 'error_message', None) if payment_transaction else None
+            )
+            
+        except Exception as e:
+            # Log error but don't fail the purchase failure process
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send payment failed notification for purchase {self.id}: {str(e)}")
 
     def mark_as_expired(self):
         """Mark purchase as expired."""
         self.status = 'expired'
         self.save()
+
+    def _send_payment_success_notification(self):
+        """Send notification to user about successful payment."""
+        try:
+            from .services.notification_service import NotificationService
+            
+            # Get payment transaction if available
+            payment_transaction = getattr(self, 'payment_transaction', None)
+            
+            # Send notification
+            notification_service = NotificationService(tenant=self.tenant)
+            notification_service.send_payment_success_notification(
+                user=self.user,
+                purchase=self,
+                payment_transaction=payment_transaction
+            )
+            
+        except Exception as e:
+            # Log error but don't fail the purchase completion
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send payment success notification for purchase {self.id}: {str(e)}")
 
 
 class UsageRecord(models.Model):
@@ -595,6 +639,9 @@ class CustomSMSPurchase(models.Model):
         sms_balance.credits += self.credits
         sms_balance.total_purchased += self.credits
         sms_balance.save()
+        
+        # Send notification to user about successful payment
+        self._send_payment_success_notification()
     
     def mark_as_failed(self, error_message=None):
         """Mark the purchase as failed."""
@@ -602,3 +649,51 @@ class CustomSMSPurchase(models.Model):
         if error_message:
             self.error_message = error_message
         self.save()
+        
+        # Send notification to user about failed payment
+        self._send_payment_failed_notification(error_message)
+
+    def _send_payment_success_notification(self):
+        """Send notification to user about successful payment."""
+        try:
+            from .services.notification_service import NotificationService
+            
+            # Get payment transaction if available
+            payment_transaction = getattr(self, 'payment_transaction', None)
+            
+            # Send notification
+            notification_service = NotificationService(tenant=self.tenant)
+            notification_service.send_payment_success_notification(
+                user=self.user,
+                purchase=self,
+                payment_transaction=payment_transaction
+            )
+            
+        except Exception as e:
+            # Log error but don't fail the purchase completion
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send payment success notification for custom purchase {self.id}: {str(e)}")
+
+    def _send_payment_failed_notification(self, error_message=None):
+        """Send notification to user about failed payment."""
+        try:
+            from .services.notification_service import NotificationService
+            
+            # Get payment transaction if available
+            payment_transaction = getattr(self, 'payment_transaction', None)
+            
+            # Send notification
+            notification_service = NotificationService(tenant=self.tenant)
+            notification_service.send_payment_failed_notification(
+                user=self.user,
+                purchase=self,
+                payment_transaction=payment_transaction,
+                error_message=error_message
+            )
+            
+        except Exception as e:
+            # Log error but don't fail the purchase failure process
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send payment failed notification for custom purchase {self.id}: {str(e)}")

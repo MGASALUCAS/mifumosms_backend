@@ -25,7 +25,7 @@ class ZenoPayService:
             # You can temporarily set a test API key here for testing
             # self.api_key = 'your_test_api_key_here'
         self.base_url = 'https://zenoapi.com/api/payments'
-        self.timeout = getattr(settings, 'ZENOPAY_API_TIMEOUT', 30)
+        self.timeout = getattr(settings, 'ZENOPAY_API_TIMEOUT', 60)  # Increased timeout to 60 seconds
         
     def _get_headers(self):
         """Get headers for ZenoPay API requests."""
@@ -88,7 +88,8 @@ class ZenoPayService:
                 'buyer_email': buyer_email,
                 'buyer_name': buyer_name,
                 'buyer_phone': formatted_phone,
-                'amount': int(amount)  # ZenoPay expects integer amount
+                'amount': int(amount),  # ZenoPay expects integer amount
+                'mobile_money_provider': mobile_money_provider  # Add mobile money provider
             }
             
             # Add webhook URL if provided (as per ZenoPay docs)
@@ -138,71 +139,73 @@ class ZenoPayService:
                 'error': f'Payment creation failed: {str(e)}'
             }
     
-    def check_payment_status(self, order_id):
+    def check_payment_status(self, order_id, max_retries=3):
         """
-        Check payment status with ZenoPay.
+        Check payment status with ZenoPay with retry logic.
         
         Args:
             order_id (str): Order ID to check
+            max_retries (int): Maximum number of retry attempts
             
         Returns:
             dict: Payment status response
         """
-        try:
-            # Make API request
-            response = requests.get(
-                f"{self.base_url}/order-status",
-                params={'order_id': order_id},
-                headers=self._get_headers(),
-                timeout=self.timeout
-            )
+        for attempt in range(max_retries):
+            try:
+                # Make API request
+                response = requests.get(
+                    f"{self.base_url}/order-status",
+                    params={'order_id': order_id},
+                    headers=self._get_headers(),
+                    timeout=self.timeout
+                )
             
-            # Log the request and response
-            logger.info(f"ZenoPay Status Check for Order: {order_id}")
-            logger.info(f"ZenoPay Status Response: {response.status_code}")
-            logger.info(f"ZenoPay Status Data: {response.text}")
-            
-            # Parse response
-            response_data = response.json()
-            
-            if response.status_code == 200:
-                # Parse ZenoPay response according to their API documentation
-                data_array = response_data.get('data', [])
-                payment_data = data_array[0] if data_array else {}
+                # Log the request and response
+                logger.info(f"ZenoPay Status Check for Order: {order_id}")
+                logger.info(f"ZenoPay Status Response: {response.status_code}")
+                logger.info(f"ZenoPay Status Data: {response.text}")
                 
-                return {
-                    'success': True,
-                    'data': response_data,
-                    'payment_status': response_data.get('result', 'UNKNOWN'),  # This is the 'result' field (SUCCESS/FAIL)
-                    'reference': response_data.get('reference'),
-                    'transid': payment_data.get('transid'),
-                    'channel': payment_data.get('channel'),
-                    'msisdn': payment_data.get('msisdn'),
-                    'order_id': payment_data.get('order_id'),
-                    'amount': payment_data.get('amount'),
-                    'creation_date': payment_data.get('creation_date'),
-                    # Add the actual payment status from the data array
-                    'actual_payment_status': payment_data.get('payment_status', 'UNKNOWN')  # COMPLETED/FAILED/CANCELLED
-                }
-            else:
+                # Parse response
+                response_data = response.json()
+                
+                if response.status_code == 200:
+                    # Parse ZenoPay response according to their API documentation
+                    data_array = response_data.get('data', [])
+                    payment_data = data_array[0] if data_array else {}
+                    
+                    return {
+                        'success': True,
+                        'data': response_data,
+                        'payment_status': response_data.get('result', 'UNKNOWN'),  # This is the 'result' field (SUCCESS/FAIL)
+                        'reference': response_data.get('reference'),
+                        'transid': payment_data.get('transid'),
+                        'channel': payment_data.get('channel'),
+                        'msisdn': payment_data.get('msisdn'),
+                        'order_id': payment_data.get('order_id'),
+                        'amount': payment_data.get('amount'),
+                        'creation_date': payment_data.get('creation_date'),
+                        # Add the actual payment status from the data array
+                        'actual_payment_status': payment_data.get('payment_status', 'UNKNOWN')  # COMPLETED/FAILED/CANCELLED
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'error': response_data.get('message', 'Status check failed'),
+                        'response_data': response_data
+                    }
+                
+            except requests.exceptions.RequestException as e:
+                logger.error(f"ZenoPay status check failed: {str(e)}")
                 return {
                     'success': False,
-                    'error': response_data.get('message', 'Status check failed'),
-                    'response_data': response_data
+                    'error': f'Network error: {str(e)}'
                 }
-                
-        except requests.exceptions.RequestException as e:
-            logger.error(f"ZenoPay status check failed: {str(e)}")
-            return {
-                'success': False,
-                'error': f'Network error: {str(e)}'
-            }
-        except Exception as e:
-            logger.error(f"ZenoPay status check error: {str(e)}")
-            return {
-                'success': False,
-                'error': f'Status check failed: {str(e)}'
-            }
+            except Exception as e:
+                logger.error(f"ZenoPay status check error: {str(e)}")
+                return {
+                    'success': False,
+                    'error': f'Status check failed: {str(e)}'
+                }
     
     def process_webhook(self, webhook_data):
         """

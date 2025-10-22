@@ -58,7 +58,11 @@ class SMSPackageListView(generics.ListAPIView):
 
     def get_queryset(self):
         # Safe for schema gen too – no user access here
-        return SMSPackage.objects.filter(is_active=True).order_by("price")
+        # Exclude custom packages from the regular package list
+        return SMSPackage.objects.filter(
+            is_active=True,
+            package_type__in=['lite', 'standard', 'pro', 'enterprise']
+        ).order_by("price")
 
 
 class SMSBalanceView(generics.RetrieveAPIView):
