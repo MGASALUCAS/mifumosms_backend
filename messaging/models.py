@@ -139,17 +139,37 @@ class Template(models.Model):
     Represents a message template for campaigns.
     """
     CATEGORY_CHOICES = [
-        ('AUTHENTICATION', 'Authentication'),
-        ('MARKETING', 'Marketing'),
-        ('UTILITY', 'Utility'),
-        ('OTP', 'One-time password'),
+        ('onboarding', 'Onboarding'),
+        ('promotions', 'Promotions'),
+        ('reminders', 'Reminders'),
+        ('loyalty', 'Loyalty'),
+        ('win_back', 'Win-Back'),
+        ('post_purchase', 'Post-Purchase'),
+        ('authentication', 'Authentication'),
+        ('marketing', 'Marketing'),
+        ('utility', 'Utility'),
+        ('otp', 'One-time password'),
     ]
 
     LANGUAGE_CHOICES = [
         ('en', 'English'),
-        ('sw', 'Swahili'),
+        ('sw', 'Kiswahili'),
         ('fr', 'French'),
         ('ar', 'Arabic'),
+    ]
+
+    CHANNEL_CHOICES = [
+        ('sms', 'SMS'),
+        ('whatsapp', 'WhatsApp'),
+        ('email', 'Email'),
+        ('all', 'All Channels'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('draft', 'Draft'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -158,31 +178,85 @@ class Template(models.Model):
     name = models.CharField(max_length=255)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES, default='en')
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default='sms')
     body_text = models.TextField()
+    description = models.TextField(blank=True)
 
     # Variables (JSON array of variable names)
     variables = models.JSONField(default=list, blank=True)
 
+    # Status and approval
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    approved = models.BooleanField(default=False)
+    approval_status = models.CharField(max_length=20, default='pending')
+    is_favorite = models.BooleanField(default=False)
+
     # WhatsApp specific
     wa_template_name = models.CharField(max_length=100, blank=True)
     wa_template_id = models.CharField(max_length=100, blank=True)
-    approved = models.BooleanField(default=False)
-    approval_status = models.CharField(max_length=20, default='pending')  # pending, approved, rejected
 
     # Usage tracking
     usage_count = models.PositiveIntegerField(default=0)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    # Owner information
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='templates', null=True, blank=True)
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
         db_table = 'templates'
         ordering = ['-created_at']
+        unique_together = [['tenant', 'name', 'channel']]
 
     def __str__(self):
         return f"{self.name} ({self.category})"
+
+    def extract_variables(self):
+        """Extract variables from body_text."""
+        import re
+        variables = re.findall(r'\{\{(\w+)\}\}', self.body_text)
+        return list(set(variables))  # Remove duplicates
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-extract variables."""
+        if self.body_text:
+            self.variables = self.extract_variables()
+        super().save(*args, **kwargs)
+
+    def increment_usage(self):
+        """Increment usage count and update last used timestamp."""
+        self.usage_count += 1
+        self.last_used_at = timezone.now()
+        self.save(update_fields=['usage_count', 'last_used_at'])
+
+    def toggle_favorite(self):
+        """Toggle favorite status."""
+        self.is_favorite = not self.is_favorite
+        self.save(update_fields=['is_favorite'])
+
+    @property
+    def status_display(self):
+        """Get human-readable status."""
+        return dict(self.STATUS_CHOICES).get(self.status, self.status)
+
+    @property
+    def category_display(self):
+        """Get human-readable category."""
+        return dict(self.CATEGORY_CHOICES).get(self.category, self.category)
+
+    @property
+    def language_display(self):
+        """Get human-readable language."""
+        return dict(self.LANGUAGE_CHOICES).get(self.language, self.language)
+
+    @property
+    def channel_display(self):
+        """Get human-readable channel."""
+        return dict(self.CHANNEL_CHOICES).get(self.channel, self.channel)
 
 
 class Conversation(models.Model):

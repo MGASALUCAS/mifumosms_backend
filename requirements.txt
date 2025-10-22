@@ -50,3 +50,5 @@ urllib3==2.5.0
 vine==5.1.0
 wcwidth==0.2.14
 whitenoise==6.11.0
+pandas==2.2.3
+openpyxl==3.1.5

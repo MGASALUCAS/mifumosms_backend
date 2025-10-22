@@ -450,12 +450,33 @@ def default_sender_overview(request):
 
     can_request = True
     reason = None
-    if latest_req and latest_req.status in ['pending', 'approved']:
-        can_request = False
-        reason = f'Request already {latest_req.status}.'
+    is_available = False
+    
+    # Check if default sender ID is available
     if current_sender_id == DEFAULT_SENDER:
+        is_available = True
         can_request = False
         reason = 'Default sender already attached.'
+    elif latest_req and latest_req.status == 'approved':
+        is_available = True
+        can_request = False
+        reason = 'Default sender already approved.'
+    elif latest_req and latest_req.status == 'pending':
+        can_request = False
+        reason = 'Request already pending.'
+    else:
+        # Check if there's an active SMSSenderID for the default sender
+        from messaging.models_sms import SMSSenderID
+        active_default = SMSSenderID.objects.filter(
+            tenant=tenant,
+            sender_id=DEFAULT_SENDER,
+            status='active'
+        ).first()
+        
+        if active_default:
+            is_available = True
+            can_request = False
+            reason = 'Default sender already available.'
 
     credits = 0
     needs_purchase = False
@@ -473,6 +494,7 @@ def default_sender_overview(request):
             'default_sender': DEFAULT_SENDER,
             'current_sender_id': current_sender_id,
             'active_request': SenderIDRequestSerializer(latest_req).data if latest_req else None,
+            'is_available': is_available,
             'can_request': can_request,
             'reason': reason,
             'balance': {

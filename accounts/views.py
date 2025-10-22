@@ -18,7 +18,9 @@ from .models import User, UserProfile
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer, UserSerializer,
     UserProfileSerializer, PasswordChangeSerializer, PasswordResetSerializer,
-    PasswordResetConfirmSerializer, EmailVerificationSerializer
+    PasswordResetConfirmSerializer, EmailVerificationSerializer,
+    UserProfileSettingsSerializer, UserPreferencesSerializer,
+    UserNotificationsSerializer, UserSecuritySerializer
 )
 
 User = get_user_model()
@@ -166,31 +168,54 @@ def password_reset_request(request):
     # Send reset email
     reset_url = f"{settings.BASE_URL}/reset-password/{user.verification_token}"
 
-    subject = 'Password reset request - Mifumo WMS'
+    subject = 'Password Reset Request - Mifumo WMS'
     message = f"""
     Hi {user.get_full_name()},
 
-    You requested a password reset. Click the link below to reset your password:
+    You requested a password reset for your Mifumo WMS account. Click the link below to reset your password:
 
     {reset_url}
 
-    This link will expire in 1 hour.
+    This link will expire in 1 hour for security reasons.
 
-    If you didn't request this, please ignore this email.
+    If you didn't request this password reset, please ignore this email and your password will remain unchanged.
+
+    For security reasons, please do not share this link with anyone.
 
     Best regards,
     The Mifumo Team
+
+    ---
+    This is an automated message. Please do not reply to this email.
     """
 
-    send_mail(
-        subject,
-        message,
-        settings.DEFAULT_FROM_EMAIL,
-        [user.email],
-        fail_silently=False,
-    )
+    try:
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            fail_silently=False,
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Password reset email sent successfully. Please check your inbox and follow the instructions.',
+            'email': email  # Return email for confirmation
+        })
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': 'Failed to send password reset email. Please try again later.',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    return Response({'message': 'Password reset email sent'})
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password(request):
+    """Forgot password endpoint - same as password reset but with better UX."""
+    return password_reset_request(request)
 
 
 @api_view(['POST'])
@@ -203,18 +228,37 @@ def password_reset_confirm(request):
     token = serializer.validated_data['token']
     new_password = serializer.validated_data['new_password']
 
-    user = User.objects.get(verification_token=token)
+    try:
+        user = User.objects.get(verification_token=token)
+    except User.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': 'Invalid or expired reset token. Please request a new password reset.',
+            'error': 'Invalid token'
+        }, status=status.HTTP_400_BAD_REQUEST)
 
     # Check if token is not expired (1 hour)
     if user.verification_sent_at and timezone.now() - user.verification_sent_at > timedelta(hours=1):
-        return Response({'error': 'Reset token has expired'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'success': False,
+            'message': 'Reset token has expired. Please request a new password reset.',
+            'error': 'Token expired'
+        }, status=status.HTTP_400_BAD_REQUEST)
 
     # Update password
     user.set_password(new_password)
     user.verification_token = ''
     user.save()
 
-    return Response({'message': 'Password reset successfully'})
+    return Response({
+        'success': True,
+        'message': 'Password reset successfully. You can now log in with your new password.',
+        'user': {
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name
+        }
+    })
 
 
 @api_view(['POST'])
@@ -315,3 +359,156 @@ def user_lookup(request):
             'total_count': total_count
         }
     })
+
+
+# =============================================
+# USER PROFILE SETTINGS VIEWS
+# =============================================
+
+class UserProfileSettingsView(generics.RetrieveUpdateAPIView):
+    """User profile settings management (first name, last name, phone number)."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserProfileSettingsSerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def get(self, request, *args, **kwargs):
+        """Get current user profile settings."""
+        user = self.get_object()
+        serializer = self.get_serializer(user)
+        return Response({
+            'success': True,
+            'data': serializer.data
+        })
+
+    def put(self, request, *args, **kwargs):
+        """Update user profile settings."""
+        user = self.get_object()
+        serializer = self.get_serializer(user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Profile settings updated successfully',
+            'data': serializer.data
+        })
+
+    def patch(self, request, *args, **kwargs):
+        """Partially update user profile settings."""
+        return self.put(request, *args, **kwargs)
+
+
+class UserPreferencesView(generics.RetrieveUpdateAPIView):
+    """User preferences management (language, timezone, display settings)."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserPreferencesSerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def get(self, request, *args, **kwargs):
+        """Get current user preferences."""
+        user = self.get_object()
+        serializer = self.get_serializer(user)
+        return Response({
+            'success': True,
+            'data': serializer.data
+        })
+
+    def put(self, request, *args, **kwargs):
+        """Update user preferences."""
+        user = self.get_object()
+        serializer = self.get_serializer(user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Preferences updated successfully',
+            'data': serializer.data
+        })
+
+    def patch(self, request, *args, **kwargs):
+        """Partially update user preferences."""
+        return self.put(request, *args, **kwargs)
+
+
+class UserNotificationsView(generics.RetrieveUpdateAPIView):
+    """User notification preferences management."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserNotificationsSerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def get(self, request, *args, **kwargs):
+        """Get current user notification preferences."""
+        user = self.get_object()
+        serializer = self.get_serializer(user)
+        return Response({
+            'success': True,
+            'data': serializer.data
+        })
+
+    def put(self, request, *args, **kwargs):
+        """Update user notification preferences."""
+        user = self.get_object()
+        serializer = self.get_serializer(user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Notification preferences updated successfully',
+            'data': serializer.data
+        })
+
+    def patch(self, request, *args, **kwargs):
+        """Partially update user notification preferences."""
+        return self.put(request, *args, **kwargs)
+
+
+class UserSecurityView(generics.RetrieveUpdateAPIView):
+    """User security settings management (password, 2FA)."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSecuritySerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def get(self, request, *args, **kwargs):
+        """Get current user security settings."""
+        user = self.get_object()
+        # Return basic security info for now
+        return Response({
+            'success': True,
+            'data': {
+                'has_password': bool(user.password),
+                'is_verified': user.is_verified,
+                'last_login_at': user.last_login_at.isoformat() if user.last_login_at else None,
+                'two_factor_enabled': False,  # Future implementation
+                'api_key_configured': hasattr(user, 'profile') and bool(user.profile.api_key)
+            }
+        })
+
+    def put(self, request, *args, **kwargs):
+        """Update user security settings."""
+        # For now, just return a message about future implementation
+        return Response({
+            'success': True,
+            'message': 'Security settings endpoint ready for future 2FA implementation',
+            'data': {
+                'two_factor_enabled': False,
+                'api_key_configured': hasattr(self.request.user, 'profile') and bool(self.request.user.profile.api_key)
+            }
+        })
+
+    def patch(self, request, *args, **kwargs):
+        """Partially update user security settings."""
+        return self.put(request, *args, **kwargs)

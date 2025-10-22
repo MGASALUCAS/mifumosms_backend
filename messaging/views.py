@@ -21,8 +21,10 @@ from .models import (
 )
 from .serializers import (
     ContactSerializer, ContactCreateSerializer, ContactBulkImportSerializer, ContactImportSerializer,
+    ContactBulkEditSerializer, ContactBulkDeleteSerializer,
     SegmentSerializer, SegmentCreateSerializer,
-    TemplateSerializer, TemplateCreateSerializer,
+    TemplateSerializer, TemplateCreateSerializer, TemplateUpdateSerializer, 
+    TemplateDetailSerializer, TemplateListSerializer, TemplateFilterSerializer,
     ConversationSerializer, MessageSerializer, MessageCreateSerializer,
     CampaignSerializer, CampaignCreateSerializer,
     FlowSerializer, FlowCreateSerializer,
@@ -122,17 +124,128 @@ class ContactDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class ContactBulkImportView(generics.GenericAPIView):
-    """Bulk import contacts from CSV."""
+    """Bulk import contacts from CSV/Excel or phone contacts."""
 
     permission_classes = [IsAuthenticated]
     serializer_class = ContactBulkImportSerializer
 
     def post(self, request, *args, **kwargs):
-        """Import contacts from CSV data."""
+        """Import contacts from CSV/Excel data or phone contacts."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        csv_data = serializer.validated_data['csv_data']
+        import_type = serializer.validated_data.get('import_type', 'csv')
+        skip_duplicates = serializer.validated_data.get('skip_duplicates', True)
+        update_existing = serializer.validated_data.get('update_existing', False)
+
+        if import_type == 'phone_contacts':
+            return self._import_phone_contacts(serializer.validated_data, request)
+        else:
+            return self._import_csv_excel(serializer.validated_data, request)
+
+    def _import_phone_contacts(self, validated_data, request):
+        """Import contacts from phone contact picker."""
+        contacts_data = validated_data['contacts']
+        skip_duplicates = validated_data.get('skip_duplicates', True)
+        update_existing = validated_data.get('update_existing', False)
+        
+        imported_count = 0
+        updated_count = 0
+        skipped_count = 0
+        errors = []
+
+        for i, contact_data in enumerate(contacts_data):
+            try:
+                phone = contact_data.get('phone')
+                
+                # Check for existing contact if phone is provided
+                existing_contact = None
+                if phone and skip_duplicates:
+                    existing_contact = Contact.objects.filter(
+                        phone_e164=phone,
+                        created_by=request.user,
+                        tenant=request.user.tenant
+                    ).first()
+
+                if existing_contact:
+                    if update_existing:
+                        # Update existing contact
+                        existing_contact.name = contact_data['full_name'] or existing_contact.name
+                        existing_contact.email = contact_data.get('email', '') or existing_contact.email
+                        existing_contact.save()
+                        updated_count += 1
+                    else:
+                        skipped_count += 1
+                    continue
+
+                # Create new contact
+                contact_serializer_data = {
+                    'name': contact_data['full_name'] or 'Unknown',
+                    'phone_e164': phone,
+                    'email': contact_data.get('email', ''),
+                }
+
+                contact_serializer = ContactCreateSerializer(data=contact_serializer_data)
+                if contact_serializer.is_valid():
+                    contact_serializer.save(
+                        created_by=request.user,
+                        tenant=request.user.tenant
+                    )
+                    imported_count += 1
+                else:
+                    errors.append(f"Contact {i+1}: {contact_serializer.errors}")
+
+            except Exception as e:
+                errors.append(f"Contact {i+1}: {str(e)}")
+
+        response_data = {
+            'success': True,
+            'imported': imported_count,
+            'updated': updated_count,
+            'skipped': skipped_count,
+            'total_processed': len(contacts_data),
+            'errors': errors
+        }
+
+        if errors:
+            response_data['message'] = f'Imported {imported_count}, updated {updated_count}, skipped {skipped_count} contacts with {len(errors)} errors'
+        else:
+            response_data['message'] = f'Successfully imported {imported_count}, updated {updated_count}, skipped {skipped_count} contacts'
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+    def _import_csv_excel(self, validated_data, request):
+        """Import contacts from CSV/Excel data."""
+        csv_data = validated_data.get('csv_data')
+        file = validated_data.get('file')
+        skip_duplicates = validated_data.get('skip_duplicates', True)
+        update_existing = validated_data.get('update_existing', False)
+
+        # Handle file upload
+        if file and not csv_data:
+            try:
+                # Read file content
+                if file.name.endswith('.csv'):
+                    csv_data = file.read().decode('utf-8')
+                elif file.name.endswith(('.xlsx', '.xls')):
+                    # Handle Excel files
+                    import pandas as pd
+                    df = pd.read_excel(file)
+                    csv_data = df.to_csv(index=False)
+                else:
+                    return Response({
+                        'success': False,
+                        'message': 'Unsupported file format. Please use CSV or Excel files.',
+                        'imported_count': 0,
+                        'errors': ['Unsupported file format']
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({
+                    'success': False,
+                    'message': 'Error reading file',
+                    'imported_count': 0,
+                    'errors': [f'File reading error: {str(e)}']
+                }, status=status.HTTP_400_BAD_REQUEST)
 
         # Validate CSV data is not empty
         if not csv_data or not csv_data.strip():
@@ -144,6 +257,8 @@ class ContactBulkImportView(generics.GenericAPIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         imported_count = 0
+        updated_count = 0
+        skipped_count = 0
         errors = []
 
         import csv
@@ -161,9 +276,34 @@ class ContactBulkImportView(generics.GenericAPIView):
 
         for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 for header
             try:
+                phone = row['phone_e164'].strip()
+                
+                # Check for existing contact if skip_duplicates is enabled
+                existing_contact = None
+                if skip_duplicates and phone:
+                    existing_contact = Contact.objects.filter(
+                        phone_e164=phone,
+                        created_by=request.user,
+                        tenant=request.user.tenant
+                    ).first()
+
+                if existing_contact:
+                    if update_existing:
+                        # Update existing contact
+                        existing_contact.name = row['name'].strip()
+                        existing_contact.email = row.get('email', '').strip() or existing_contact.email
+                        if row.get('tags'):
+                            existing_contact.tags = [tag.strip() for tag in row['tags'].split(',') if tag.strip()]
+                        existing_contact.save()
+                        updated_count += 1
+                    else:
+                        skipped_count += 1
+                    continue
+
+                # Create new contact
                 contact_data = {
                     'name': row['name'].strip(),
-                    'phone_e164': row['phone_e164'].strip(),
+                    'phone_e164': phone,
                     'email': row.get('email', '').strip(),
                     'tags': row.get('tags', '').split(',') if row.get('tags') else [],
                     'attributes': {}
@@ -187,11 +327,21 @@ class ContactBulkImportView(generics.GenericAPIView):
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
 
-        return Response({
-            'message': f'Imported {imported_count} contacts',
-            'imported_count': imported_count,
+        response_data = {
+            'success': True,
+            'imported': imported_count,
+            'updated': updated_count,
+            'skipped': skipped_count,
+            'total_processed': imported_count + updated_count + skipped_count,
             'errors': errors
-        })
+        }
+
+        if errors:
+            response_data['message'] = f'Imported {imported_count}, updated {updated_count}, skipped {skipped_count} contacts with {len(errors)} errors'
+        else:
+            response_data['message'] = f'Successfully imported {imported_count}, updated {updated_count}, skipped {skipped_count} contacts'
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class ContactImportView(generics.GenericAPIView):
@@ -294,6 +444,128 @@ def contact_opt_out(request, contact_id):
     return Response({'message': 'Contact opted out successfully'})
 
 
+class ContactBulkEditView(generics.GenericAPIView):
+    """Bulk edit contacts."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = ContactBulkEditSerializer
+
+    def post(self, request, *args, **kwargs):
+        """Bulk edit multiple contacts."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        contact_ids = serializer.validated_data['contact_ids']
+        updates = serializer.validated_data['updates']
+
+        # Get contacts that belong to the user
+        contacts = Contact.objects.filter(
+            id__in=contact_ids,
+            created_by=request.user,
+            tenant=request.user.tenant
+        )
+
+        if not contacts.exists():
+            return Response({
+                'success': False,
+                'message': 'No contacts found with the provided IDs',
+                'updated_count': 0
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if all requested contacts were found
+        found_ids = set(contacts.values_list('id', flat=True))
+        requested_ids = set(contact_ids)
+        missing_ids = requested_ids - found_ids
+
+        if missing_ids:
+            return Response({
+                'success': False,
+                'message': f'Some contacts not found: {list(missing_ids)}',
+                'updated_count': 0
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Apply updates
+        updated_count = 0
+        errors = []
+
+        for contact in contacts:
+            try:
+                # Update each field
+                for field, value in updates.items():
+                    if field == 'tags' and isinstance(value, str):
+                        # Handle comma-separated tags
+                        value = [tag.strip() for tag in value.split(',') if tag.strip()]
+                    setattr(contact, field, value)
+                
+                contact.save()
+                updated_count += 1
+            except Exception as e:
+                errors.append(f"Contact {contact.id}: {str(e)}")
+
+        response_data = {
+            'success': True,
+            'message': f'Successfully updated {updated_count} contacts',
+            'updated_count': updated_count,
+            'total_requested': len(contact_ids)
+        }
+
+        if errors:
+            response_data['errors'] = errors
+            response_data['message'] = f'Updated {updated_count} contacts with {len(errors)} errors'
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+class ContactBulkDeleteView(generics.GenericAPIView):
+    """Bulk delete contacts."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = ContactBulkDeleteSerializer
+
+    def post(self, request, *args, **kwargs):
+        """Bulk delete multiple contacts."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        contact_ids = serializer.validated_data['contact_ids']
+
+        # Get contacts that belong to the user
+        contacts = Contact.objects.filter(
+            id__in=contact_ids,
+            created_by=request.user,
+            tenant=request.user.tenant
+        )
+
+        if not contacts.exists():
+            return Response({
+                'success': False,
+                'message': 'No contacts found with the provided IDs',
+                'deleted_count': 0
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if all requested contacts were found
+        found_ids = set(contacts.values_list('id', flat=True))
+        requested_ids = set(contact_ids)
+        missing_ids = requested_ids - found_ids
+
+        if missing_ids:
+            return Response({
+                'success': False,
+                'message': f'Some contacts not found: {list(missing_ids)}',
+                'deleted_count': 0
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Delete contacts
+        deleted_count, _ = contacts.delete()
+
+        return Response({
+            'success': True,
+            'message': f'Successfully deleted {deleted_count} contacts',
+            'deleted_count': deleted_count,
+            'total_requested': len(contact_ids)
+        }, status=status.HTTP_200_OK)
+
+
 class SegmentListCreateView(generics.ListCreateAPIView):
     """List and create segments."""
 
@@ -342,35 +614,352 @@ def segment_update_count(request, segment_id):
     })
 
 
+class TemplateFilterSet(FilterSet):
+    """Custom filter set for Template model."""
+    
+    class Meta:
+        model = Template
+        fields = ['category', 'language', 'channel', 'status', 'approved', 'is_favorite']
+        filter_overrides = {
+            JSONField: {
+                'filter_class': CharFilter,
+                'extra': lambda f: {
+                    'lookup_expr': 'icontains',
+                },
+            },
+        }
+
+
 class TemplateListCreateView(generics.ListCreateAPIView):
-    """List and create templates."""
+    """List and create templates with advanced filtering."""
 
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category', 'language', 'approved']
-    search_fields = ['name', 'body_text']
-    ordering_fields = ['name', 'created_at', 'usage_count']
+    filterset_class = TemplateFilterSet
+    search_fields = ['name', 'body_text', 'description']
+    ordering_fields = ['name', 'created_at', 'updated_at', 'usage_count', 'last_used_at']
     ordering = ['-created_at']
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
             return TemplateCreateSerializer
-        return TemplateSerializer
+        return TemplateListSerializer
 
     def get_queryset(self):
-        """Filter templates by user and tenant."""
-        return get_tenant_queryset(Template, self.request.user)
+        """Filter templates by user and tenant with additional filtering."""
+        queryset = get_tenant_queryset(Template, self.request.user)
+        
+        # Additional filtering based on query parameters
+        favorites_only = self.request.query_params.get('favorites_only', '').lower() == 'true'
+        approved_only = self.request.query_params.get('approved_only', '').lower() == 'true'
+        
+        if favorites_only:
+            queryset = queryset.filter(is_favorite=True)
+        
+        if approved_only:
+            queryset = queryset.filter(approved=True)
+        
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Enhanced list view with filtering options."""
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Get filter options for frontend
+        filter_options = {
+            'categories': [{'value': choice[0], 'label': choice[1]} for choice in Template.CATEGORY_CHOICES],
+            'languages': [{'value': choice[0], 'label': choice[1]} for choice in Template.LANGUAGE_CHOICES],
+            'channels': [{'value': choice[0], 'label': choice[1]} for choice in Template.CHANNEL_CHOICES],
+            'statuses': [{'value': choice[0], 'label': choice[1]} for choice in Template.STATUS_CHOICES],
+        }
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response({
+                'templates': serializer.data,
+                'filter_options': filter_options,
+                'total_count': queryset.count()
+            })
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'templates': serializer.data,
+            'filter_options': filter_options,
+            'total_count': queryset.count()
+        })
 
 
 class TemplateDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update, or delete a template."""
 
     permission_classes = [IsAuthenticated]
-    serializer_class = TemplateSerializer
+    serializer_class = TemplateDetailSerializer
 
     def get_queryset(self):
         """Filter templates by user and tenant."""
         return get_tenant_queryset(Template, self.request.user)
+
+    def get_serializer_class(self):
+        """Use appropriate serializer based on method."""
+        if self.request.method in ['PUT', 'PATCH']:
+            return TemplateUpdateSerializer
+        return TemplateDetailSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        """Enhanced retrieve with additional data."""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        
+        # Add template statistics
+        data = serializer.data
+        data['statistics'] = {
+            'total_uses': instance.usage_count,
+            'last_used': instance.last_used_display,
+            'created': instance.created_at.strftime('%Y-%m-%d'),
+            'variables_count': len(instance.variables) if instance.variables else 0
+        }
+        
+        return Response(data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def template_toggle_favorite(request, template_id):
+    """Toggle favorite status of a template."""
+    template = get_object_or_404(
+        Template,
+        id=template_id,
+        created_by=request.user,
+        tenant=request.user.tenant
+    )
+    
+    template.toggle_favorite()
+    
+    return Response({
+        'message': f'Template {"added to" if template.is_favorite else "removed from"} favorites',
+        'is_favorite': template.is_favorite
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def template_increment_usage(request, template_id):
+    """Increment usage count of a template."""
+    template = get_object_or_404(
+        Template,
+        id=template_id,
+        created_by=request.user,
+        tenant=request.user.tenant
+    )
+    
+    template.increment_usage()
+    
+    return Response({
+        'message': 'Usage count updated',
+        'usage_count': template.usage_count,
+        'last_used_at': template.last_used_at.isoformat() if template.last_used_at else None
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def template_approve(request, template_id):
+    """Approve a template."""
+    template = get_object_or_404(
+        Template,
+        id=template_id,
+        created_by=request.user,
+        tenant=request.user.tenant
+    )
+    
+    template.approved = True
+    template.approval_status = 'approved'
+    template.status = 'approved'
+    template.save()
+    
+    return Response({
+        'message': 'Template approved successfully',
+        'approved': template.approved,
+        'status': template.status
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def template_reject(request, template_id):
+    """Reject a template."""
+    template = get_object_or_404(
+        Template,
+        id=template_id,
+        created_by=request.user,
+        tenant=request.user.tenant
+    )
+    
+    reason = request.data.get('reason', '')
+    template.approved = False
+    template.approval_status = 'rejected'
+    template.status = 'rejected'
+    template.save()
+    
+    return Response({
+        'message': 'Template rejected successfully',
+        'approved': template.approved,
+        'status': template.status,
+        'reason': reason
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def template_variables(request, template_id):
+    """Get variables used in a template."""
+    template = get_object_or_404(
+        Template,
+        id=template_id,
+        created_by=request.user,
+        tenant=request.user.tenant
+    )
+    
+    variables = template.variables if template.variables else []
+    
+    return Response({
+        'template_id': str(template.id),
+        'template_name': template.name,
+        'variables': variables,
+        'variables_count': len(variables)
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def template_copy(request, template_id):
+    """Copy a template."""
+    template = get_object_or_404(
+        Template,
+        id=template_id,
+        created_by=request.user,
+        tenant=request.user.tenant
+    )
+    
+    new_name = request.data.get('name', f"{template.name} (Copy)")
+    
+    # Create new template
+    new_template = Template.objects.create(
+        name=new_name,
+        category=template.category,
+        language=template.language,
+        channel=template.channel,
+        body_text=template.body_text,
+        description=template.description,
+        created_by=request.user,
+        tenant=request.user.tenant,
+        status='draft'  # Start as draft
+    )
+    
+    serializer = TemplateDetailSerializer(new_template)
+    
+    return Response({
+        'message': 'Template copied successfully',
+        'template': serializer.data
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def template_statistics(request):
+    """Get template statistics for the user."""
+    user = request.user
+    
+    # Validate user has a tenant
+    try:
+        validate_user_tenant(user)
+    except ValueError as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Template statistics
+    total_templates = Template.objects.filter(
+        created_by=user,
+        tenant=user.tenant
+    ).count()
+    
+    approved_templates = Template.objects.filter(
+        created_by=user,
+        tenant=user.tenant,
+        approved=True
+    ).count()
+    
+    draft_templates = Template.objects.filter(
+        created_by=user,
+        tenant=user.tenant,
+        status='draft'
+    ).count()
+    
+    favorite_templates = Template.objects.filter(
+        created_by=user,
+        tenant=user.tenant,
+        is_favorite=True
+    ).count()
+    
+    # Category breakdown
+    category_stats = Template.objects.filter(
+        created_by=user,
+        tenant=user.tenant
+    ).values('category').annotate(
+        count=models.Count('id')
+    ).order_by('-count')
+    
+    # Language breakdown
+    language_stats = Template.objects.filter(
+        created_by=user,
+        tenant=user.tenant
+    ).values('language').annotate(
+        count=models.Count('id')
+    ).order_by('-count')
+    
+    # Channel breakdown
+    channel_stats = Template.objects.filter(
+        created_by=user,
+        tenant=user.tenant
+    ).values('channel').annotate(
+        count=models.Count('id')
+    ).order_by('-count')
+    
+    return Response({
+        'overview': {
+            'total_templates': total_templates,
+            'approved_templates': approved_templates,
+            'draft_templates': draft_templates,
+            'favorite_templates': favorite_templates,
+            'approval_rate': (approved_templates / total_templates * 100) if total_templates > 0 else 0
+        },
+        'category_breakdown': [
+            {
+                'category': item['category'],
+                'category_display': dict(Template.CATEGORY_CHOICES).get(item['category'], item['category']),
+                'count': item['count']
+            }
+            for item in category_stats
+        ],
+        'language_breakdown': [
+            {
+                'language': item['language'],
+                'language_display': dict(Template.LANGUAGE_CHOICES).get(item['language'], item['language']),
+                'count': item['count']
+            }
+            for item in language_stats
+        ],
+        'channel_breakdown': [
+            {
+                'channel': item['channel'],
+                'channel_display': dict(Template.CHANNEL_CHOICES).get(item['channel'], item['channel']),
+                'count': item['count']
+            }
+            for item in channel_stats
+        ]
+    })
 
 
 class ConversationListCreateView(generics.ListCreateAPIView):

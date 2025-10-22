@@ -60,12 +60,50 @@ class ContactCreateSerializer(serializers.ModelSerializer):
 
 
 class ContactBulkImportSerializer(serializers.Serializer):
-    """Serializer for bulk importing contacts from CSV."""
+    """Serializer for bulk importing contacts from CSV/Excel or phone contacts."""
 
-    csv_data = serializers.CharField()
+    # CSV/Excel import
+    csv_data = serializers.CharField(required=False, allow_blank=True)
+    file = serializers.FileField(required=False, allow_null=True)
+    
+    # Phone contact import
+    contacts = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        min_length=1,
+        max_length=1000  # Increased limit for bulk operations
+    )
+    
+    # Import options
+    import_type = serializers.ChoiceField(
+        choices=['csv', 'excel', 'phone_contacts'],
+        default='csv'
+    )
+    skip_duplicates = serializers.BooleanField(default=True)
+    update_existing = serializers.BooleanField(default=False)
+
+    def validate(self, attrs):
+        """Validate import data based on type."""
+        import_type = attrs.get('import_type', 'csv')
+        
+        if import_type in ['csv', 'excel']:
+            if not attrs.get('csv_data') and not attrs.get('file'):
+                raise serializers.ValidationError(
+                    f"For {import_type} import, either csv_data or file must be provided"
+                )
+        elif import_type == 'phone_contacts':
+            if not attrs.get('contacts'):
+                raise serializers.ValidationError(
+                    "For phone contacts import, contacts data must be provided"
+                )
+        
+        return attrs
 
     def validate_csv_data(self, value):
         """Validate CSV data format."""
+        if not value:
+            return value
+            
         import csv
         from io import StringIO
 
@@ -81,6 +119,62 @@ class ContactBulkImportSerializer(serializers.Serializer):
             return value
         except Exception as e:
             raise serializers.ValidationError(f"Invalid CSV format: {str(e)}")
+
+    def validate_contacts(self, value):
+        """Validate phone contact data."""
+        if not value:
+            return value
+            
+        validated_contacts = []
+
+        for i, contact in enumerate(value):
+            # Validate required fields
+            if not contact.get('full_name') and not contact.get('phone') and not contact.get('email'):
+                raise serializers.ValidationError(f"Contact {i+1}: At least one field (name, phone, or email) is required")
+
+            # Normalize phone number if provided
+            phone = contact.get('phone', '').strip()
+            if phone:
+                phone = self._normalize_phone(phone)
+                if not phone:
+                    raise serializers.ValidationError(f"Contact {i+1}: Invalid phone number format")
+
+            validated_contact = {
+                'full_name': contact.get('full_name', '').strip(),
+                'phone': phone,
+                'email': contact.get('email', '').strip() or None,
+            }
+
+            # Only include contacts that have at least name or phone
+            if validated_contact['full_name'] or validated_contact['phone']:
+                validated_contacts.append(validated_contact)
+
+        if not validated_contacts:
+            raise serializers.ValidationError("No valid contacts found")
+
+        return validated_contacts
+
+    def _normalize_phone(self, phone):
+        """Normalize phone number to E.164 format."""
+        import re
+
+        if not phone:
+            return ""
+
+        # Remove all non-digit characters
+        digits = re.sub(r'\D', '', phone)
+
+        # Handle Tanzanian numbers
+        if digits.startswith('255') and len(digits) == 12:
+            return f"+{digits}"
+        elif digits.startswith('0') and len(digits) == 10:
+            return f"+255{digits[1:]}"
+        elif digits.startswith('+'):
+            return phone  # Already in correct format
+        elif len(digits) >= 10:
+            return f"+{digits}"
+
+        return phone  # Return original if can't normalize
 
 
 class ContactImportSerializer(serializers.Serializer):
@@ -146,6 +240,63 @@ class ContactImportSerializer(serializers.Serializer):
         return phone  # Return original if can't normalize
 
 
+class ContactBulkEditSerializer(serializers.Serializer):
+    """Serializer for bulk editing contacts."""
+
+    contact_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        max_length=100  # Limit to prevent abuse
+    )
+    updates = serializers.DictField()
+
+    def validate_contact_ids(self, value):
+        """Validate contact IDs exist and belong to user."""
+        if not value:
+            raise serializers.ValidationError("At least one contact ID is required")
+        
+        # Check if all contact IDs are unique
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError("Duplicate contact IDs are not allowed")
+        
+        return value
+
+    def validate_updates(self, value):
+        """Validate update data."""
+        if not value:
+            raise serializers.ValidationError("Updates cannot be empty")
+        
+        # Allowed fields for bulk update
+        allowed_fields = ['name', 'email', 'tags', 'attributes', 'is_active']
+        
+        for field in value.keys():
+            if field not in allowed_fields:
+                raise serializers.ValidationError(f"Field '{field}' is not allowed for bulk update")
+        
+        return value
+
+
+class ContactBulkDeleteSerializer(serializers.Serializer):
+    """Serializer for bulk deleting contacts."""
+
+    contact_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        max_length=100  # Limit to prevent abuse
+    )
+
+    def validate_contact_ids(self, value):
+        """Validate contact IDs exist and belong to user."""
+        if not value:
+            raise serializers.ValidationError("At least one contact ID is required")
+        
+        # Check if all contact IDs are unique
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError("Duplicate contact IDs are not allowed")
+        
+        return value
+
+
 class SegmentSerializer(serializers.ModelSerializer):
     """Serializer for Segment model."""
 
@@ -176,32 +327,269 @@ class SegmentCreateSerializer(serializers.ModelSerializer):
 
 class TemplateSerializer(serializers.ModelSerializer):
     """Serializer for Template model."""
-
+    
+    # Display fields
+    status_display = serializers.ReadOnlyField()
+    category_display = serializers.ReadOnlyField()
+    language_display = serializers.ReadOnlyField()
+    channel_display = serializers.ReadOnlyField()
+    created_by_name = serializers.SerializerMethodField()
+    
+    # Computed fields
+    variables_count = serializers.SerializerMethodField()
+    last_used_display = serializers.SerializerMethodField()
+    
     class Meta:
         model = Template
         fields = [
-            'id', 'name', 'category', 'language', 'body_text', 'variables',
-            'wa_template_name', 'wa_template_id', 'approved', 'approval_status',
-            'usage_count', 'created_at', 'updated_at', 'created_by'
+            'id', 'name', 'category', 'category_display', 'language', 'language_display',
+            'channel', 'channel_display', 'body_text', 'description', 'variables',
+            'variables_count', 'status', 'status_display', 'approved', 'approval_status',
+            'is_favorite', 'wa_template_name', 'wa_template_id', 'usage_count',
+            'last_used_at', 'last_used_display', 'created_at', 'updated_at',
+            'created_by', 'created_by_name'
         ]
-        read_only_fields = ['id', 'usage_count', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'variables', 'variables_count', 'usage_count', 'last_used_at',
+            'last_used_display', 'created_at', 'updated_at', 'created_by', 'created_by_name'
+        ]
+
+    def get_created_by_name(self, obj):
+        """Get creator's name."""
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.email
+        return "Unknown"
+
+    def get_variables_count(self, obj):
+        """Get count of variables."""
+        return len(obj.variables) if obj.variables else 0
+
+    def get_last_used_display(self, obj):
+        """Get formatted last used date."""
+        if obj.last_used_at:
+            return obj.last_used_at.strftime('%Y-%m-%d')
+        return "Never used"
 
 
 class TemplateCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating templates."""
-
+    
     class Meta:
         model = Template
         fields = [
-            'name', 'category', 'language', 'body_text', 'variables'
+            'name', 'category', 'language', 'channel', 'body_text', 'description',
+            'status', 'is_favorite'
         ]
+
+    def validate_name(self, value):
+        """Validate template name uniqueness within tenant."""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            tenant = getattr(request.user, 'tenant', None)
+            channel = self.initial_data.get('channel', 'sms')
+            
+            existing = Template.objects.filter(
+                name=value,
+                tenant=tenant,
+                channel=channel
+            ).exclude(id=self.instance.id if self.instance else None)
+            
+            if existing.exists():
+                raise serializers.ValidationError(
+                    f"A template with this name already exists for {channel} channel."
+                )
+        return value
+
+    def validate_body_text(self, value):
+        """Validate body text and extract variables."""
+        if not value.strip():
+            raise serializers.ValidationError("Body text cannot be empty.")
+        
+        # Check for valid variable format
+        import re
+        invalid_vars = re.findall(r'\{\{[^}]+\}\}', value)
+        if invalid_vars:
+            raise serializers.ValidationError(
+                f"Invalid variable format found: {invalid_vars}. "
+                "Variables should be in format {{variable_name}}."
+            )
+        
+        return value
 
     def create(self, validated_data):
         """Create template."""
         template = super().create(validated_data)
         template.created_by = self.context['request'].user
+        template.tenant = getattr(self.context['request'].user, 'tenant', None)
         template.save()
         return template
+
+
+class TemplateUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating templates."""
+    
+    class Meta:
+        model = Template
+        fields = [
+            'name', 'category', 'language', 'channel', 'body_text', 'description',
+            'status', 'approved', 'approval_status', 'is_favorite',
+            'wa_template_name', 'wa_template_id'
+        ]
+
+    def validate_name(self, value):
+        """Validate template name uniqueness within tenant."""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            tenant = getattr(request.user, 'tenant', None)
+            channel = self.initial_data.get('channel', self.instance.channel if self.instance else 'sms')
+            
+            existing = Template.objects.filter(
+                name=value,
+                tenant=tenant,
+                channel=channel
+            ).exclude(id=self.instance.id if self.instance else None)
+            
+            if existing.exists():
+                raise serializers.ValidationError(
+                    f"A template with this name already exists for {channel} channel."
+                )
+        return value
+
+    def validate_body_text(self, value):
+        """Validate body text and extract variables."""
+        if not value.strip():
+            raise serializers.ValidationError("Body text cannot be empty.")
+        
+        # Check for valid variable format
+        import re
+        invalid_vars = re.findall(r'\{\{[^}]+\}\}', value)
+        if invalid_vars:
+            raise serializers.ValidationError(
+                f"Invalid variable format found: {invalid_vars}. "
+                "Variables should be in format {{variable_name}}."
+            )
+        
+        return value
+
+
+class TemplateDetailSerializer(serializers.ModelSerializer):
+    """Detailed serializer for template view."""
+    
+    # Display fields
+    status_display = serializers.ReadOnlyField()
+    category_display = serializers.ReadOnlyField()
+    language_display = serializers.ReadOnlyField()
+    channel_display = serializers.ReadOnlyField()
+    created_by_name = serializers.SerializerMethodField()
+    
+    # Computed fields
+    variables_count = serializers.SerializerMethodField()
+    last_used_display = serializers.SerializerMethodField()
+    formatted_body_text = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Template
+        fields = [
+            'id', 'name', 'category', 'category_display', 'language', 'language_display',
+            'channel', 'channel_display', 'body_text', 'formatted_body_text', 'description',
+            'variables', 'variables_count', 'status', 'status_display', 'approved',
+            'approval_status', 'is_favorite', 'wa_template_name', 'wa_template_id',
+            'usage_count', 'last_used_at', 'last_used_display', 'created_at', 'updated_at',
+            'created_by', 'created_by_name'
+        ]
+
+    def get_created_by_name(self, obj):
+        """Get creator's name."""
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.email
+        return "Unknown"
+
+    def get_variables_count(self, obj):
+        """Get count of variables."""
+        return len(obj.variables) if obj.variables else 0
+
+    def get_last_used_display(self, obj):
+        """Get formatted last used date."""
+        if obj.last_used_at:
+            return obj.last_used_at.strftime('%Y-%m-%d')
+        return "Never used"
+
+    def get_formatted_body_text(self, obj):
+        """Get formatted body text with highlighted variables."""
+        import re
+        text = obj.body_text
+        
+        # Highlight variables with a different color or format
+        def replace_var(match):
+            var_name = match.group(1)
+            return f"<span class='variable'>{match.group(0)}</span>"
+        
+        formatted_text = re.sub(r'\{\{(\w+)\}\}', replace_var, text)
+        return formatted_text
+
+
+class TemplateListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for template list view."""
+    
+    # Display fields
+    category_display = serializers.ReadOnlyField()
+    language_display = serializers.ReadOnlyField()
+    channel_display = serializers.ReadOnlyField()
+    
+    # Computed fields
+    variables_count = serializers.SerializerMethodField()
+    last_used_display = serializers.SerializerMethodField()
+    preview_text = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Template
+        fields = [
+            'id', 'name', 'category', 'category_display', 'language', 'language_display',
+            'channel', 'channel_display', 'preview_text', 'variables_count',
+            'status', 'approved', 'is_favorite', 'usage_count', 'last_used_display',
+            'created_at', 'updated_at'
+        ]
+
+    def get_variables_count(self, obj):
+        """Get count of variables."""
+        return len(obj.variables) if obj.variables else 0
+
+    def get_last_used_display(self, obj):
+        """Get formatted last used date."""
+        if obj.last_used_at:
+            return obj.last_used_at.strftime('%Y-%m-%d')
+        return "Never used"
+
+    def get_preview_text(self, obj):
+        """Get preview of body text."""
+        preview = obj.body_text[:100]
+        if len(obj.body_text) > 100:
+            preview += "..."
+        return preview
+
+
+class TemplateFilterSerializer(serializers.Serializer):
+    """Serializer for template filtering options."""
+    
+    categories = serializers.ListField(
+        child=serializers.ChoiceField(choices=Template.CATEGORY_CHOICES),
+        required=False
+    )
+    languages = serializers.ListField(
+        child=serializers.ChoiceField(choices=Template.LANGUAGE_CHOICES),
+        required=False
+    )
+    channels = serializers.ListField(
+        child=serializers.ChoiceField(choices=Template.CHANNEL_CHOICES),
+        required=False
+    )
+    statuses = serializers.ListField(
+        child=serializers.ChoiceField(choices=Template.STATUS_CHOICES),
+        required=False
+    )
+    search = serializers.CharField(required=False, allow_blank=True)
+    favorites_only = serializers.BooleanField(default=False)
+    approved_only = serializers.BooleanField(default=False)
 
 
 class ConversationSerializer(serializers.ModelSerializer):

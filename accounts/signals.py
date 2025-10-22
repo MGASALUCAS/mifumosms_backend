@@ -126,21 +126,28 @@ def setup_basic_sms_config(tenant, user):
             created_by=owner.user
         )
         
-        # Check if user is admin or superadmin - give them default sender ID automatically
-        if user.is_superuser or user.is_staff:
-            # Create default sender ID for admin/superadmin users
-            sender_id = SMSSenderID.objects.create(
-                tenant=tenant,
-                sender_id="Taarifa-SMS",  # Default sender ID for admins
-                provider=sms_provider,
-                status='active',  # Auto-approve for admins
-                sample_content="A test use case for the sender name purposely used for information transfer.",
-                created_by=owner.user
-            )
-            print(f"Created default sender ID '{sender_id.sender_id}' for admin user {user.email}")
-        else:
-            # Normal users must request sender IDs (no automatic creation)
-            print(f"Normal user {user.email} - sender ID must be requested manually")
+        # Create default sender ID for all users (both admin and regular users)
+        sender_id = SMSSenderID.objects.create(
+            tenant=tenant,
+            sender_id="Taarifa-SMS",  # Default sender ID for all users
+            provider=sms_provider,
+            status='active',  # Auto-approve for all users
+            sample_content="A test use case for the sender name purposely used for information transfer.",
+            created_by=owner.user
+        )
+        print(f"Created default sender ID '{sender_id.sender_id}' for user {user.email}")
+        
+        # Also create a default sender ID request for tracking purposes
+        from messaging.models_sender_requests import SenderIDRequest
+        default_request = SenderIDRequest.objects.create(
+            tenant=tenant,
+            user=owner.user,
+            request_type='default',
+            requested_sender_id='Taarifa-SMS',
+            sample_content="A test use case for the sender name purposely used for information transfer.",
+            status='approved'  # Auto-approve since we created the sender ID
+        )
+        print(f"Created default sender ID request for user {user.email}")
         
         # Create SMS balance with zero credits (user must purchase)
         from billing.models import SMSBalance
@@ -153,7 +160,7 @@ def setup_basic_sms_config(tenant, user):
         
         print(f"Created SMS provider for tenant {tenant.name}")
         print(f"Created SMS balance with 0 credits - user must purchase SMS packages first")
-        print(f"User can request sender ID after purchasing SMS credits")
+        print(f"Created default sender ID 'Taarifa-SMS' - ready for immediate use")
             
     except Exception as e:
         print(f"Failed to setup SMS config for tenant {tenant.name}: {e}")

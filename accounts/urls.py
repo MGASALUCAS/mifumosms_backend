@@ -14,11 +14,18 @@ urlpatterns = [
     # Profile management
     path('profile/', views.UserProfileView.as_view(), name='user-profile'),
     path('profile/detail/', views.UserProfileDetailView.as_view(), name='user-profile-detail'),
+    
+    # User settings (based on screenshot)
+    path('settings/profile/', views.UserProfileSettingsView.as_view(), name='user-profile-settings'),
+    path('settings/preferences/', views.UserPreferencesView.as_view(), name='user-preferences'),
+    path('settings/notifications/', views.UserNotificationsView.as_view(), name='user-notifications'),
+    path('settings/security/', views.UserSecurityView.as_view(), name='user-security'),
 
     # Password management
     path('password/change/', views.PasswordChangeView.as_view(), name='password-change'),
     path('password/reset/', views.password_reset_request, name='password-reset'),
     path('password/reset/confirm/', views.password_reset_confirm, name='password-reset-confirm'),
+    path('forgot-password/', views.forgot_password, name='forgot-password'),
 
     # Email verification
     path('verify-email/', views.verify_email, name='verify-email'),

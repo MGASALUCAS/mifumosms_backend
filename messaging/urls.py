@@ -3,7 +3,7 @@ URL patterns for messaging functionality.
 Optimized for frontend integration.
 """
 from django.urls import path, include
-from . import views, views_dashboard, views_campaign
+from . import views, views_dashboard, views_campaign, views_activity
 
 urlpatterns = [
     # Core messaging endpoints (used by frontend)
@@ -11,6 +11,8 @@ urlpatterns = [
     path('contacts/', views.ContactListCreateView.as_view(), name='contact-list-create'),
     path('contacts/<uuid:pk>/', views.ContactDetailView.as_view(), name='contact-detail'),
     path('contacts/bulk-import/', views.ContactBulkImportView.as_view(), name='contact-bulk-import'),
+    path('contacts/bulk-edit/', views.ContactBulkEditView.as_view(), name='contact-bulk-edit'),
+    path('contacts/bulk-delete/', views.ContactBulkDeleteView.as_view(), name='contact-bulk-delete'),
     path('contacts/import/', views.ContactImportView.as_view(), name='contact-import'),
     path('contacts/<uuid:contact_id>/opt-in/', views.contact_opt_in, name='contact-opt-in'),
     path('contacts/<uuid:contact_id>/opt-out/', views.contact_opt_out, name='contact-opt-out'),
@@ -23,6 +25,13 @@ urlpatterns = [
     # Templates
     path('templates/', views.TemplateListCreateView.as_view(), name='template-list-create'),
     path('templates/<uuid:pk>/', views.TemplateDetailView.as_view(), name='template-detail'),
+    path('templates/<uuid:template_id>/toggle-favorite/', views.template_toggle_favorite, name='template-toggle-favorite'),
+    path('templates/<uuid:template_id>/increment-usage/', views.template_increment_usage, name='template-increment-usage'),
+    path('templates/<uuid:template_id>/approve/', views.template_approve, name='template-approve'),
+    path('templates/<uuid:template_id>/reject/', views.template_reject, name='template-reject'),
+    path('templates/<uuid:template_id>/variables/', views.template_variables, name='template-variables'),
+    path('templates/<uuid:template_id>/copy/', views.template_copy, name='template-copy'),
+    path('templates/statistics/', views.template_statistics, name='template-statistics'),
 
     # Conversations
     path('conversations/', views.ConversationListCreateView.as_view(), name='conversation-list-create'),
@@ -53,6 +62,11 @@ urlpatterns = [
     path('dashboard/overview/', views_dashboard.dashboard_overview, name='dashboard-overview'),
     path('dashboard/metrics/', views_dashboard.dashboard_metrics, name='dashboard-metrics'),
     path('dashboard/comprehensive/', views_dashboard.dashboard_comprehensive, name='dashboard-comprehensive'),
+    
+    # Activity & Performance
+    path('activity/recent/', views_activity.recent_activity, name='recent-activity'),
+    path('performance/overview/', views_activity.performance_overview, name='performance-overview'),
+    path('activity/statistics/', views_activity.activity_statistics, name='activity-statistics'),
     
     # Sender IDs (for frontend compatibility)
     path('sender-ids/', views.sender_ids_list, name='sender-ids-list'),

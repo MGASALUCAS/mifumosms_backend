@@ -206,3 +206,82 @@ class EmailVerificationSerializer(serializers.Serializer):
         except User.DoesNotExist:
             raise serializers.ValidationError('Invalid verification token.')
         return value
+
+
+class UserProfileSettingsSerializer(serializers.ModelSerializer):
+    """Serializer for user profile settings (first name, last name, phone number)."""
+
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'phone_number']
+    
+    def validate_first_name(self, value):
+        """Validate first name."""
+        if not value or not value.strip():
+            raise serializers.ValidationError('First name is required.')
+        return value.strip()
+    
+    def validate_last_name(self, value):
+        """Validate last name."""
+        if not value or not value.strip():
+            raise serializers.ValidationError('Last name is required.')
+        return value.strip()
+    
+    def validate_phone_number(self, value):
+        """Validate phone number."""
+        if value and len(value.strip()) > 0:
+            # Basic phone number validation
+            import re
+            phone = value.strip()
+            # Remove all non-digit characters for validation
+            digits = re.sub(r'\D', '', phone)
+            if len(digits) < 10:
+                raise serializers.ValidationError('Phone number must be at least 10 digits.')
+        return value.strip() if value else value
+
+
+class UserPreferencesSerializer(serializers.ModelSerializer):
+    """Serializer for user preferences (language, timezone, display settings)."""
+
+    class Meta:
+        model = User
+        fields = ['timezone']
+    
+    def validate_timezone(self, value):
+        """Validate timezone."""
+        if not value or not value.strip():
+            raise serializers.ValidationError('Timezone is required.')
+        return value.strip()
+
+
+class UserNotificationsSerializer(serializers.ModelSerializer):
+    """Serializer for user notification preferences."""
+
+    class Meta:
+        model = User
+        fields = ['email_notifications', 'sms_notifications']
+    
+    def validate_email_notifications(self, value):
+        """Validate email notifications field."""
+        if not isinstance(value, bool):
+            raise serializers.ValidationError('Must be a boolean value.')
+        return value
+    
+    def validate_sms_notifications(self, value):
+        """Validate SMS notifications field."""
+        if not isinstance(value, bool):
+            raise serializers.ValidationError('Must be a boolean value.')
+        return value
+
+
+class UserSecuritySerializer(serializers.ModelSerializer):
+    """Serializer for user security settings."""
+
+    class Meta:
+        model = User
+        fields = []  # No fields for now, just for future 2FA implementation
+    
+    def validate(self, attrs):
+        """Validate security settings."""
+        # Future implementation for 2FA settings
+        return attrs
