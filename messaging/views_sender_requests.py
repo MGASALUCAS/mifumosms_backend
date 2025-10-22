@@ -416,6 +416,7 @@ def default_sender_overview(request):
     Frontend-friendly overview for default sender ID CTA.
     GET /api/messaging/sender-requests/default/overview/
     """
+    from messaging.models_sms import SMSSenderID
     tenant = getattr(request.user, 'tenant', None)
     if not tenant:
         return Response({
@@ -466,7 +467,6 @@ def default_sender_overview(request):
         reason = 'Request already pending.'
     else:
         # Check if there's an active SMSSenderID for the default sender
-        from messaging.models_sms import SMSSenderID
         active_default = SMSSenderID.objects.filter(
             tenant=tenant,
             sender_id=DEFAULT_SENDER,

@@ -6,7 +6,7 @@ Simple test script to verify new endpoints are working.
 import requests
 import json
 
-BASE_URL = "http://localhost:8000/api"
+BASE_URL = "http://localhost:8001/api"
 
 def test_endpoints():
     """Test the new endpoints."""

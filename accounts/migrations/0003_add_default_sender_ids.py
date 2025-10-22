@@ -64,17 +64,26 @@ def add_default_sender_ids(apps, schema_editor):
         )
         print(f"Created default sender ID for tenant {tenant.name}")
         
-        # Create default sender ID request for tracking (if we have a user)
+        # Create default sender ID request for tracking (if we have a user and doesn't exist)
         if sms_provider.created_by:
-            default_request = SenderIDRequest.objects.create(
+            # Check if request already exists
+            existing_request = SenderIDRequest.objects.filter(
                 tenant=tenant,
-                user=sms_provider.created_by,
-                request_type='default',
-                requested_sender_id='Taarifa-SMS',
-                sample_content="A test use case for the sender name purposely used for information transfer.",
-                status='approved'
-            )
-            print(f"Created default sender ID request for tenant {tenant.name}")
+                requested_sender_id='Taarifa-SMS'
+            ).first()
+            
+            if not existing_request:
+                default_request = SenderIDRequest.objects.create(
+                    tenant=tenant,
+                    user=sms_provider.created_by,
+                    request_type='default',
+                    requested_sender_id='Taarifa-SMS',
+                    sample_content="A test use case for the sender name purposely used for information transfer.",
+                    status='approved'
+                )
+                print(f"Created default sender ID request for tenant {tenant.name}")
+            else:
+                print(f"Default sender ID request already exists for tenant {tenant.name}")
         else:
             print(f"Skipped sender ID request for tenant {tenant.name} - no owner found")
 

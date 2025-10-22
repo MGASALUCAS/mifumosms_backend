@@ -16,7 +16,7 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config("DJANGO_SECRET_KEY", default="django-insecure-change-me")
-DEBUG = config("DJANGO_DEBUG", default=False, cast=bool)
+DEBUG = config("DJANGO_DEBUG", default=True, cast=bool)  # Default to True for development
 
 # Useful flag for tests
 TESTING = "test" in sys.argv
@@ -309,7 +309,7 @@ CSRF_USE_SESSIONS = False
 
 # Let Django know the original scheme from Nginx
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG, cast=bool)
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)  # Default to False for development
 
 # =============================================================================
 # CELERY

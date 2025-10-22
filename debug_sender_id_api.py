@@ -10,7 +10,7 @@ import sys
 import os
 
 # Configuration
-BASE_URL = "http://localhost:8000/api"
+BASE_URL = "http://localhost:8001/api"
 TEST_USER_EMAIL = "test-sender-debug@example.com"
 TEST_USER_PASSWORD = "testpass123"
 
