@@ -97,6 +97,7 @@ LOCAL_APPS = [
     "accounts.apps.AccountsConfig",
     "messaging",
     "billing.apps.BillingConfig",
+    "notifications",
     "api",
 ]
 
@@ -161,12 +162,14 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # django-allauth (email-only login)
-ACCOUNT_LOGIN_METHODS = {'email'}
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+ACCOUNT_LOGIN_METHODS = ['email']
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_USER_MODEL_EMAIL_FIELD = "email"
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
 
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
@@ -190,7 +193,7 @@ USE_TZ = True
 # STATIC / MEDIA
 # =============================================================================
 STATIC_URL = "/static/"
-STATIC_ROOT = Path("/srv/mifumosms_backend/static")  # where collectstatic writes to
+STATIC_ROOT = BASE_DIR / "staticfiles"  # where collectstatic writes to
 
 # Only add a project source dir if it exists AND is different from STATIC_ROOT
 PROJECT_STATIC = BASE_DIR / "static"  # your source tree static (optional)
@@ -203,10 +206,8 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = Path("/srv/mifumosms_backend/media")
 
 # Whitenoise
-if DEBUG:
-    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
-else:
-    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# Force simple static storage for development to avoid manifest issues
+STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
 
 # =============================================================================
 # REST FRAMEWORK / JWT
@@ -249,7 +250,6 @@ CORS_ALLOWED_ORIGINS = [
             "https://mifumosms.servehttp.com,"
             "https://preview--mifumo-connect.lovable.app,"  # <— NEW: your Lovable preview
             "http://localhost:3000,http://127.0.0.1:3000,"
-            "http://localhost:8080,http://127.0.0.1:8080,"
             "http://104.131.116.55,https://104.131.116.55"
         ),
     ).split(",")
@@ -640,7 +640,7 @@ JAZZMIN_UI_TWEAKS = {
     "sidebar_nav_compact_style": False,
     "sidebar_nav_legacy_style": False,
     "sidebar_nav_flat_style": False,
-    "theme": "default",
+    "theme": "flatly",
     "dark_mode_theme": None,
     "button_classes": {
         "primary": "btn-primary",

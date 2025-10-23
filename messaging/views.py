@@ -276,13 +276,24 @@ class ContactBulkImportView(generics.GenericAPIView):
 
         for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 for header
             try:
-                phone = row['phone_e164'].strip()
+                # Handle the new format: name, phone, local_number
+                name = row['name'].strip()
+                phone = row['phone'].strip()
+                local_number = row.get('local_number', '').strip()
+                email = row.get('email', '').strip()
+                
+                # Normalize phone number to E.164 format
+                phone_e164 = self._normalize_phone_to_e164(phone)
+                if not phone_e164:
+                    errors.append(f"Row {row_num}: Invalid phone number format: {phone}")
+                    skipped_count += 1
+                    continue
                 
                 # Check for existing contact if skip_duplicates is enabled
                 existing_contact = None
-                if skip_duplicates and phone:
+                if skip_duplicates and phone_e164:
                     existing_contact = Contact.objects.filter(
-                        phone_e164=phone,
+                        phone_e164=phone_e164,
                         created_by=request.user,
                         tenant=request.user.tenant
                     ).first()
@@ -290,8 +301,8 @@ class ContactBulkImportView(generics.GenericAPIView):
                 if existing_contact:
                     if update_existing:
                         # Update existing contact
-                        existing_contact.name = row['name'].strip()
-                        existing_contact.email = row.get('email', '').strip() or existing_contact.email
+                        existing_contact.name = name
+                        existing_contact.email = email or existing_contact.email
                         if row.get('tags'):
                             existing_contact.tags = [tag.strip() for tag in row['tags'].split(',') if tag.strip()]
                         existing_contact.save()
@@ -302,30 +313,26 @@ class ContactBulkImportView(generics.GenericAPIView):
 
                 # Create new contact
                 contact_data = {
-                    'name': row['name'].strip(),
-                    'phone_e164': phone,
-                    'email': row.get('email', '').strip(),
-                    'tags': row.get('tags', '').split(',') if row.get('tags') else [],
-                    'attributes': {}
+                    'name': name,
+                    'phone_e164': phone_e164,
+                    'email': email or '',  # Use empty string instead of None
+                    'created_by': request.user,
+                    'tenant': request.user.tenant
                 }
-
-                # Parse additional attributes
-                for key, value in row.items():
-                    if key not in ['name', 'phone_e164', 'email', 'tags'] and value.strip():
-                        contact_data['attributes'][key] = value.strip()
-
-                contact_serializer = ContactCreateSerializer(data=contact_data)
-                if contact_serializer.is_valid():
-                    contact_serializer.save(
-                        created_by=request.user,
-                        tenant=request.user.tenant
-                    )
-                    imported_count += 1
-                else:
-                    errors.append(f"Row {row_num}: {contact_serializer.errors}")
-
+                
+                # Add tags if provided
+                if row.get('tags'):
+                    contact_data['tags'] = [tag.strip() for tag in row['tags'].split(',') if tag.strip()]
+                
+                contact = Contact.objects.create(**contact_data)
+                imported_count += 1
+                
+            except KeyError as e:
+                errors.append(f"Row {row_num}: Missing required field: {str(e)}")
+                skipped_count += 1
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
+                skipped_count += 1
 
         response_data = {
             'success': True,
@@ -342,6 +349,33 @@ class ContactBulkImportView(generics.GenericAPIView):
             response_data['message'] = f'Successfully imported {imported_count}, updated {updated_count}, skipped {skipped_count} contacts'
 
         return Response(response_data, status=status.HTTP_201_CREATED)
+    
+    def _normalize_phone_to_e164(self, phone):
+        """Normalize phone number to E.164 format for Tanzania."""
+        import re
+        
+        if not phone:
+            return None
+            
+        # Remove any non-digit characters except +
+        phone = re.sub(r'[^\d+]', '', phone)
+        
+        # Handle different formats
+        if phone.startswith('+255'):
+            # Already in E.164 format
+            return phone
+        elif phone.startswith('255'):
+            # Add + prefix
+            return f'+{phone}'
+        elif phone.startswith('0'):
+            # Remove leading 0 and add +255
+            return f'+255{phone[1:]}'
+        else:
+            # Assume it's a local number without country code
+            if len(phone) == 9:
+                return f'+255{phone}'
+            else:
+                return None
 
 
 class ContactImportView(generics.GenericAPIView):

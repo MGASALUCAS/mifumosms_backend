@@ -106,22 +106,35 @@ def recent_activity(request):
         if not activity_type or activity_type == 'conversation_reply':
             recent_messages = Message.objects.filter(
                 tenant=tenant,
-                direction='in'  # Incoming messages (replies)
+                direction__in=['in', 'out']  # Both incoming and outgoing messages
             ).select_related('conversation__contact').order_by('-created_at')[:limit]
             
             for message in recent_messages:
+                contact_name = "Unknown"
+                if message.conversation and message.conversation.contact:
+                    contact_name = message.conversation.contact.name
+                elif message.recipient_number:
+                    contact_name = message.recipient_number
+                
+                if message.direction == 'in':
+                    title = f"{contact_name} replied to conversation {message.conversation.subject or 'Untitled' if message.conversation else 'SMS'}"
+                    activity_type_name = 'conversation_reply'
+                else:
+                    title = f"Message sent to {contact_name}"
+                    activity_type_name = 'message_sent'
+                
                 activities.append({
                     'id': f"msg_{message.id}",
-                    'type': 'conversation_reply',
-                    'title': f"{message.conversation.contact.name} replied to conversation {message.conversation.subject or 'Untitled'}",
+                    'type': activity_type_name,
+                    'title': title,
                     'description': f"New message: {message.text[:50]}{'...' if len(message.text) > 50 else ''}",
                     'timestamp': message.created_at.isoformat(),
                     'time_ago': _get_human_time(message.created_at),
                     'is_live': (timezone.now() - message.created_at).seconds < 300,  # Live if within 5 minutes
                     'metadata': {
-                        'conversation_id': str(message.conversation.id),
-                        'contact_name': message.conversation.contact.name,
-                        'conversation_subject': message.conversation.subject or 'Untitled',
+                        'conversation_id': str(message.conversation.id) if message.conversation else None,
+                        'contact_name': contact_name,
+                        'conversation_subject': message.conversation.subject or 'Untitled' if message.conversation else 'SMS',
                         'message_id': str(message.id)
                     }
                 })

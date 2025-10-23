@@ -1,0 +1,300 @@
+{
+  "Dashboard Metrics - Main Cards Data": {
+    "success": true,
+    "data": {
+      "total_messages": {
+        "value": 2,
+        "change": "+100.0%",
+        "change_type": "positive",
+        "description": "Last 30 days"
+      },
+      "sms_messages": {
+        "value": 1,
+        "change": "+100.0%",
+        "change_type": "positive",
+        "description": "SMS last 30 days"
+      },
+      "active_contacts": {
+        "value": 1,
+        "change": "+100.0%",
+        "change_type": "positive",
+        "description": "Engaged this month"
+      },
+      "campaign_success": {
+        "value": "98.0%",
+        "change": "+100.0%",
+        "change_type": "positive",
+        "description": "Delivery rate"
+      },
+      "sms_delivery_rate": {
+        "value": "0.0%",
+        "change": "0.0%",
+        "change_type": "neutral",
+        "description": "SMS delivery rate"
+      },
+      "current_credits": {
+        "value": 9999,
+        "change": "+100.0%",
+        "change_type": "positive",
+        "description": "Available credits"
+      }
+    }
+  },
+  "Dashboard Overview - Complete Dashboard Data": {
+    "success": true,
+    "data": {
+      "metrics": {
+        "total_messages": 2,
+        "total_sms_messages": 1,
+        "active_contacts": 1,
+        "campaign_success_rate": 98.0,
+        "sms_delivery_rate": 0.0,
+        "current_credits": 9999,
+        "total_purchased": 10000,
+        "sender_ids_this_month": 2
+      },
+      "recent_campaigns": [
+        {
+          "id": "75cd9c85-8d71-4f18-aa7d-2388b6990591",
+          "name": "Welcome Campaign",
+          "type": "WhatsApp",
+          "status": "completed",
+          "sent": 100,
+          "delivered": 98,
+          "opened": 0,
+          "progress": 100,
+          "created_at": "2025-10-22 20:06",
+          "created_at_human": "1 hour ago"
+        }
+      ],
+      "message_stats": {
+        "today": 2,
+        "this_week": 2,
+        "this_month": 2,
+        "growth_rate": 0.0
+      },
+      "sms_stats": {
+        "today": 1,
+        "this_month": 1,
+        "delivery_rate": 0.0
+      },
+      "contact_stats": {
+        "total": 1,
+        "active": 1,
+        "new_this_month": 1,
+        "growth_rate": 0.0
+      },
+      "billing_stats": {
+        "current_credits": 9999,
+        "total_purchased": 10000,
+        "credits_used": 1
+      },
+      "last_updated": "2025-10-22T21:50:25.532649+00:00"
+    }
+  },
+  "Dashboard Comprehensive - All Metrics Combined": {
+    "success": true,
+    "data": {
+      "summary": {
+        "total_messages": 2,
+        "total_sms_messages": 1,
+        "active_contacts": 1,
+        "current_credits": 9999,
+        "sms_delivery_rate": 0.0,
+        "campaign_success_rate": 98.0
+      },
+      "metrics": {
+        "messages": {
+          "today": 2,
+          "this_week": 2,
+          "this_month": 2,
+          "total": 2
+        },
+        "sms": {
+          "today": 1,
+          "this_month": 1,
+          "total": 1,
+          "delivered": 0,
+          "failed": 0,
+          "delivery_rate": 0.0
+        },
+        "contacts": {
+          "total": 1,
+          "active": 1,
+          "new_this_month": 1
+        },
+        "campaigns": {
+          "total": 1,
+          "completed": 1,
+          "running": 0,
+          "success_rate": 98.0
+        },
+        "billing": {
+          "current_credits": 9999,
+          "total_purchased": 10000,
+          "credits_used": 1
+        }
+      },
+      "recent_activity": {
+        "campaigns": [
+          {
+            "id": "75cd9c85-8d71-4f18-aa7d-2388b6990591",
+            "name": "Welcome Campaign",
+            "status": "completed",
+            "sent": 100,
+            "delivered": 98,
+            "created_at": "2025-10-22 20:06",
+            "created_at_human": "1 hour ago"
+          }
+        ],
+        "messages": [
+          {
+            "id": "756d7148-b2ef-476d-8dc7-001892a80129",
+            "content": "Welcome to Mifumo WMS!",
+            "direction": "out",
+            "status": "delivered",
+            "created_at": "2025-10-22 20:06",
+            "created_at_human": "1 hour ago"
+          },
+          {
+            "id": "476074f2-6a4a-467a-b8d4-db0c21f8b3dd",
+            "content": "Hello, this is me ivan 0614853618",
+            "direction": "out",
+            "status": "sent",
+            "created_at": "2025-10-22 20:02",
+            "created_at_human": "1 hour ago"
+          }
+        ]
+      },
+      "last_updated": "2025-10-22T21:50:25.672368+00:00"
+    }
+  },
+  "Recent Activity - Activity Feed": {
+    "success": true,
+    "data": {
+      "activities": [
+        {
+          "id": "msg_756d7148-b2ef-476d-8dc7-001892a80129",
+          "type": "message_sent",
+          "title": "Message sent to Mgasa Engineer",
+          "description": "New message: Welcome to Mifumo WMS!",
+          "timestamp": "2025-10-22T20:06:48.669446+00:00",
+          "time_ago": "1 hour ago",
+          "is_live": false,
+          "metadata": {
+            "conversation_id": "0921c374-4b4d-4889-9990-ae6962885fa6",
+            "contact_name": "Mgasa Engineer",
+            "conversation_subject": "Welcome Conversation",
+            "message_id": "756d7148-b2ef-476d-8dc7-001892a80129"
+          }
+        },
+        {
+          "id": "camp_75cd9c85-8d71-4f18-aa7d-2388b6990591",
+          "type": "campaign_completed",
+          "title": "System completed campaign Welcome Campaign",
+          "description": "98% delivered",
+          "timestamp": "2025-10-22T20:06:30.144879+00:00",
+          "time_ago": "1 hour ago",
+          "is_live": false,
+          "metadata": {
+            "campaign_id": "75cd9c85-8d71-4f18-aa7d-2388b6990591",
+            "campaign_name": "Welcome Campaign",
+            "delivery_rate": 98,
+            "sent_count": 100,
+            "delivered_count": 98
+          }
+        },
+        {
+          "id": "contact_3f83f7dd-d09c-454a-8fdc-36de7967546d",
+          "type": "contact_added",
+          "title": "Mgasa Engineer added to contacts",
+          "description": "New contact: +255689726060",
+          "timestamp": "2025-10-22T20:06:30.072215+00:00",
+          "time_ago": "1 hour ago",
+          "is_live": false,
+          "metadata": {
+            "contact_id": "3f83f7dd-d09c-454a-8fdc-36de7967546d",
+            "contact_name": "Mgasa Engineer",
+            "phone": "+255689726060"
+          }
+        },
+        {
+          "id": "msg_476074f2-6a4a-467a-b8d4-db0c21f8b3dd",
+          "type": "message_sent",
+          "title": "Message sent to 255614853618",
+          "description": "New message: Hello, this is me ivan 0614853618",
+          "timestamp": "2025-10-22T20:02:35.075755+00:00",
+          "time_ago": "1 hour ago",
+          "is_live": false,
+          "metadata": {
+            "conversation_id": null,
+            "contact_name": "255614853618",
+            "conversation_subject": "SMS",
+            "message_id": "476074f2-6a4a-467a-b8d4-db0c21f8b3dd"
+          }
+        }
+      ],
+      "has_more": false,
+      "total_count": 4,
+      "live_count": 0
+    }
+  },
+  "Campaigns Summary - Recent Campaigns": {
+    "success": true,
+    "summary": {
+      "status_counts": {
+        "completed": 1
+      },
+      "total_stats": {
+        "total_campaigns": 1,
+        "total_recipients": 100,
+        "total_sent": 100,
+        "total_delivered": 98,
+        "total_read": 0,
+        "total_failed": 0,
+        "total_estimated_cost": 0.0,
+        "total_actual_cost": 0.0
+      },
+      "recent_campaigns": [
+        {
+          "id": "75cd9c85-8d71-4f18-aa7d-2388b6990591",
+          "name": "Welcome Campaign",
+          "description": "",
+          "campaign_type": "sms",
+          "campaign_type_display": "SMS",
+          "message_text": "",
+          "template": null,
+          "status": "completed",
+          "status_display": "Completed",
+          "scheduled_at": null,
+          "started_at": null,
+          "completed_at": null,
+          "total_recipients": 100,
+          "sent_count": 100,
+          "delivered_count": 98,
+          "read_count": 0,
+          "failed_count": 0,
+          "estimated_cost": "0.00",
+          "actual_cost": "0.00",
+          "progress_percentage": 100,
+          "delivery_rate": 98.0,
+          "read_rate": 0.0,
+          "is_active": false,
+          "can_edit": false,
+          "can_start": false,
+          "can_pause": false,
+          "can_cancel": false,
+          "is_recurring": false,
+          "recurring_schedule": {},
+          "settings": {},
+          "created_by": 2,
+          "created_by_name": "Admin User",
+          "created_at": "2025-10-22T23:06:30.144813+03:00",
+          "updated_at": "2025-10-22T23:06:30.144879+03:00",
+          "target_contact_count": 0,
+          "target_segment_names": []
+        }
+      ]
+    }
+  }
+}

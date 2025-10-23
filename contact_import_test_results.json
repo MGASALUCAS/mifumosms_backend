@@ -1,0 +1,149 @@
+{
+  "csv_import": {
+    "success": true,
+    "imported": 0,
+    "updated": 0,
+    "skipped": 5,
+    "total_processed": 5,
+    "errors": [],
+    "message": "Successfully imported 0, updated 0, skipped 5 contacts"
+  },
+  "excel_import": {
+    "success": true,
+    "imported": 0,
+    "updated": 0,
+    "skipped": 3,
+    "total_processed": 3,
+    "errors": [],
+    "message": "Successfully imported 0, updated 0, skipped 3 contacts"
+  },
+  "mobile_import": {
+    "success": true,
+    "imported": 0,
+    "updated": 0,
+    "skipped": 3,
+    "total_processed": 3,
+    "errors": [],
+    "message": "Successfully imported 0, updated 0, skipped 3 contacts"
+  },
+  "contact_list": {
+    "count": 6,
+    "next": null,
+    "previous": null,
+    "results": [
+      {
+        "id": "e9080f75-a862-4e8c-af4d-173d8503bf0f",
+        "name": "Hassan Ndallahwa",
+        "phone_e164": "+255766684630",
+        "email": "",
+        "attributes": {},
+        "tags": [],
+        "opt_in_at": null,
+        "opt_out_at": null,
+        "opt_out_reason": "",
+        "is_active": true,
+        "last_contacted_at": null,
+        "is_opted_in": null,
+        "created_by": "admin@mifumo.com",
+        "created_by_id": 2,
+        "created_at": "2025-10-23T01:46:58.232919+03:00",
+        "updated_at": "2025-10-23T01:46:58.232919+03:00"
+      },
+      {
+        "id": "0bbb63f5-b9fe-4f9d-8da6-10dee0903d4b",
+        "name": "Gloria Kimaro",
+        "phone_e164": "+255754865908",
+        "email": "",
+        "attributes": {},
+        "tags": [],
+        "opt_in_at": null,
+        "opt_out_at": null,
+        "opt_out_reason": "",
+        "is_active": true,
+        "last_contacted_at": null,
+        "is_opted_in": null,
+        "created_by": "admin@mifumo.com",
+        "created_by_id": 2,
+        "created_at": "2025-10-23T01:46:58.132045+03:00",
+        "updated_at": "2025-10-23T01:46:58.132045+03:00"
+      },
+      {
+        "id": "5298f2d5-cc1c-459f-8064-4b0786de7a6b",
+        "name": "Juma Shaaban",
+        "phone_e164": "+255601709528",
+        "email": "",
+        "attributes": {},
+        "tags": [],
+        "opt_in_at": null,
+        "opt_out_at": null,
+        "opt_out_reason": "",
+        "is_active": true,
+        "last_contacted_at": null,
+        "is_opted_in": null,
+        "created_by": "admin@mifumo.com",
+        "created_by_id": 2,
+        "created_at": "2025-10-23T01:46:58.036666+03:00",
+        "updated_at": "2025-10-23T01:46:58.036666+03:00"
+      },
+      {
+        "id": "cd0eee5c-df5f-467a-ac2b-1be8a9ffec36",
+        "name": "Fatma Mbwana",
+        "phone_e164": "+255771978307",
+        "email": "",
+        "attributes": {},
+        "tags": [],
+        "opt_in_at": null,
+        "opt_out_at": null,
+        "opt_out_reason": "",
+        "is_active": true,
+        "last_contacted_at": null,
+        "is_opted_in": null,
+        "created_by": "admin@mifumo.com",
+        "created_by_id": 2,
+        "created_at": "2025-10-23T01:46:57.939261+03:00",
+        "updated_at": "2025-10-23T01:46:57.939261+03:00"
+      },
+      {
+        "id": "5ae86f51-d7b3-4eae-ace9-da3cf98464d6",
+        "name": "John Mkumbo",
+        "phone_e164": "+255672883530",
+        "email": "",
+        "attributes": {},
+        "tags": [],
+        "opt_in_at": null,
+        "opt_out_at": null,
+        "opt_out_reason": "",
+        "is_active": true,
+        "last_contacted_at": null,
+        "is_opted_in": null,
+        "created_by": "admin@mifumo.com",
+        "created_by_id": 2,
+        "created_at": "2025-10-23T01:46:57.841554+03:00",
+        "updated_at": "2025-10-23T01:46:57.841554+03:00"
+      },
+      {
+        "id": "3f83f7dd-d09c-454a-8fdc-36de7967546d",
+        "name": "Mgasa Engineer",
+        "phone_e164": "+255689726060",
+        "email": "admin@example.com",
+        "attributes": {
+          "company": "Quantum Intelligence",
+          "department": ""
+        },
+        "tags": [
+          "vip"
+        ],
+        "opt_in_at": null,
+        "opt_out_at": null,
+        "opt_out_reason": "",
+        "is_active": true,
+        "last_contacted_at": null,
+        "is_opted_in": null,
+        "created_by": "admin@mifumo.com",
+        "created_by_id": 2,
+        "created_at": "2025-10-22T23:06:30.072215+03:00",
+        "updated_at": "2025-10-22T23:08:05.129219+03:00"
+      }
+    ]
+  }
+}

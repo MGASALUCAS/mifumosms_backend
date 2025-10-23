@@ -134,10 +134,11 @@ def dashboard_overview(request):
         current_credits = sms_balance.credits if sms_balance else 0
         total_purchased = sms_balance.total_purchased if sms_balance else 0
 
-        # Sender ID calculation - count campaigns as they represent sender ID usage
-        sender_ids_this_month = Campaign.objects.filter(
-            created_by=user,
-            created_at__gte=month_start
+        # Sender ID calculation - count active sender IDs for the tenant
+        from messaging.models_sms import SMSSenderID
+        sender_ids_this_month = SMSSenderID.objects.filter(
+            tenant=tenant,
+            status='active'
         ).count()
 
         # Recent campaigns (last 5)
@@ -509,6 +510,9 @@ def dashboard_comprehensive(request):
             # Billing
             'current_credits': 0,
             'total_purchased': 0,
+            
+            # Sender IDs
+            'active_sender_ids': 0,
         }
 
         # Get billing data
@@ -516,6 +520,13 @@ def dashboard_comprehensive(request):
         if sms_balance:
             metrics_data['current_credits'] = sms_balance.credits
             metrics_data['total_purchased'] = sms_balance.total_purchased
+
+        # Get sender ID count
+        from messaging.models_sms import SMSSenderID
+        metrics_data['active_sender_ids'] = SMSSenderID.objects.filter(
+            tenant=tenant,
+            status='active'
+        ).count()
 
         # Calculate rates
         sms_delivery_rate = 0
@@ -553,7 +564,7 @@ def dashboard_comprehensive(request):
         for message in recent_messages:
             messages_data.append({
                 'id': str(message.id),
-                'content': message.content[:50] + '...' if len(message.content) > 50 else message.content,
+                'content': message.text[:50] + '...' if len(message.text) > 50 else message.text,
                 'direction': message.direction,
                 'status': message.status,
                 'created_at': message.created_at.strftime('%Y-%m-%d %H:%M'),

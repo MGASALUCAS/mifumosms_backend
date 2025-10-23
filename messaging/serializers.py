@@ -109,16 +109,45 @@ class ContactBulkImportSerializer(serializers.Serializer):
 
         try:
             csv_reader = csv.DictReader(StringIO(value))
-            required_fields = ['name', 'phone_e164']
+            required_fields = ['name', 'phone']
+            optional_fields = ['local_number', 'email']
 
             for row in csv_reader:
+                # Check required fields
                 for field in required_fields:
                     if field not in row or not row[field].strip():
                         raise serializers.ValidationError(f"Missing required field: {field}")
+                
+                # Validate phone number format
+                phone = row.get('phone', '').strip()
+                if phone and not self._is_valid_phone_format(phone):
+                    raise serializers.ValidationError(f"Invalid phone number format: {phone}")
+                
+                # If local_number is provided, validate it matches phone (optional validation)
+                local_number = row.get('local_number', '').strip()
+                if local_number and phone:
+                    # Normalize both numbers for comparison
+                    phone_normalized = phone.replace('+255', '').replace('255', '').lstrip('0')
+                    local_normalized = local_number.lstrip('0')
+                    if phone_normalized != local_normalized:
+                        # This is just a warning, not an error
+                        pass  # We'll allow it but log it
 
             return value
         except Exception as e:
             raise serializers.ValidationError(f"Invalid CSV format: {str(e)}")
+    
+    def _is_valid_phone_format(self, phone):
+        """Check if phone number is in valid format."""
+        import re
+        # Accept formats: +255XXXXXXXXX, 255XXXXXXXXX, 0XXXXXXXXX, XXXXXXXXX
+        patterns = [
+            r'^\+255[0-9]{9}$',  # +255XXXXXXXXX
+            r'^255[0-9]{9}$',    # 255XXXXXXXXX
+            r'^0[0-9]{9}$',      # 0XXXXXXXXX
+            r'^[0-9]{9}$'        # XXXXXXXXX (local format)
+        ]
+        return any(re.match(pattern, phone) for pattern in patterns)
 
     def validate_contacts(self, value):
         """Validate phone contact data."""

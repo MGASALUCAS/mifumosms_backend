@@ -50,10 +50,14 @@ class SenderIDRequestListCreateView(generics.ListCreateAPIView):
         if not tenant:
             raise ValueError("No tenant found for this user")
         
-        serializer.save(
+        sender_id_request = serializer.save(
             tenant=tenant,
             user=self.request.user
         )
+        
+        # Auto-approve for admin users
+        if self.request.user.is_staff or self.request.user.is_superuser:
+            sender_id_request.approve(self.request.user)
 
 
 class SenderIDRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -294,10 +298,16 @@ def request_default_sender_id(request):
             user=request.user
         )
         
-        # Do NOT auto-approve; leave as pending for admin review
+        # Auto-approve for admin users
+        if request.user.is_staff or request.user.is_superuser:
+            sender_id_request.approve(request.user)
+            message = "Default sender ID request submitted and automatically approved"
+        else:
+            message = "Default sender ID request submitted and pending approval"
+        
         return Response(
             {
-                "message": "Default sender ID request submitted and pending approval",
+                "message": message,
                 "sender_id_request": SenderIDRequestSerializer(sender_id_request).data
             },
             status=status.HTTP_201_CREATED

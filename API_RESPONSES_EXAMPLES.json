@@ -1,0 +1,361 @@
+{
+  "authentication": {
+    "login": {
+      "endpoint": "POST /api/auth/login/",
+      "request": {
+        "email": "test@example.com",
+        "password": "testpass123"
+      },
+      "response": {
+        "message": "Login successful",
+        "tokens": {
+          "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+          "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        },
+        "user": {
+          "id": 63,
+          "email": "test@example.com",
+          "first_name": "Test",
+          "last_name": "User",
+          "is_staff": false,
+          "is_superuser": false
+        }
+      }
+    },
+    "profile": {
+      "endpoint": "GET /api/auth/settings/profile/",
+      "response": {
+        "id": 63,
+        "email": "test@example.com",
+        "first_name": "Test",
+        "last_name": "User",
+        "is_staff": false,
+        "is_superuser": false,
+        "date_joined": "2025-10-19T15:39:18.588437Z",
+        "last_login": "2025-10-22T20:08:45.662467+03:00"
+      }
+    }
+  },
+  "dashboard": {
+    "overview": {
+      "endpoint": "GET /api/messaging/dashboard/overview/",
+      "response": {
+        "success": true,
+        "data": {
+          "metrics": {
+            "total_messages": 2,
+            "total_sms_messages": 0,
+            "active_contacts": 1,
+            "campaign_success_rate": 96.0,
+            "sms_delivery_rate": 0,
+            "current_credits": 95,
+            "total_purchased": 0,
+            "sender_ids_this_month": 1
+          },
+          "recent_campaigns": [
+            {
+              "id": "84274522-52ae-4820-81d8-10588c0ae1f5",
+              "name": "Test Campaign",
+              "type": "WhatsApp",
+              "status": "completed",
+              "sent": 50,
+              "delivered": 48,
+              "opened": 0,
+              "progress": 100,
+              "created_at": "2025-10-22 20:09",
+              "created_at_human": "Just now"
+            }
+          ],
+          "message_stats": {
+            "today": 2,
+            "this_week": 2,
+            "this_month": 2,
+            "growth_rate": 0.0
+          },
+          "sms_stats": {
+            "today": 0,
+            "this_month": 0,
+            "delivery_rate": 0
+          },
+          "contact_stats": {
+            "total": 1,
+            "active": 1,
+            "new_this_month": 1,
+            "growth_rate": 0.0
+          },
+          "billing_stats": {
+            "current_credits": 95,
+            "total_purchased": 0,
+            "credits_used": -95
+          },
+          "last_updated": "2025-10-22T20:09:58.245364+00:00"
+        }
+      }
+    },
+    "metrics": {
+      "endpoint": "GET /api/messaging/dashboard/metrics/",
+      "response": {
+        "success": true,
+        "data": {
+          "message_volume": {
+            "today": 2,
+            "this_week": 2,
+            "this_month": 2,
+            "last_month": 0,
+            "growth_rate": 0.0
+          },
+          "contact_growth": {
+            "total": 1,
+            "new_this_month": 1,
+            "growth_rate": 0.0
+          },
+          "campaign_performance": {
+            "total_campaigns": 1,
+            "completed_campaigns": 1,
+            "success_rate": 96.0
+          },
+          "sms_usage": {
+            "total_sent": 0,
+            "delivered": 0,
+            "failed": 0,
+            "delivery_rate": 0.0
+          }
+        }
+      }
+    }
+  },
+  "activity": {
+    "recent": {
+      "endpoint": "GET /api/messaging/activity/recent/",
+      "response": {
+        "success": true,
+        "data": {
+          "activities": [
+            {
+              "id": "msg_f5dc6c0b-c718-4958-aa19-7edca14e8910",
+              "type": "message_sent",
+              "title": "Message sent to Sarah Mwangi",
+              "description": "New message: Thank you for using our service!",
+              "timestamp": "2025-10-22T20:09:49.612068+00:00",
+              "time_ago": "Just now",
+              "is_live": true,
+              "metadata": {
+                "conversation_id": "4fdea49d-5e2a-45a5-be9b-21aaa4515931",
+                "contact_name": "Sarah Mwangi",
+                "conversation_subject": "Test Conversation",
+                "message_id": "f5dc6c0b-c718-4958-aa19-7edca14e8910"
+              }
+            },
+            {
+              "id": "msg_0bd8b94b-74e6-48ee-9d8d-22d5e2779105",
+              "type": "message_sent",
+              "title": "Message sent to Sarah Mwangi",
+              "description": "New message: Hello from Mifumo WMS!",
+              "timestamp": "2025-10-22T20:09:49.547979+00:00",
+              "time_ago": "Just now",
+              "is_live": true,
+              "metadata": {
+                "conversation_id": "4fdea49d-5e2a-45a5-be9b-21aaa4515931",
+                "contact_name": "Sarah Mwangi",
+                "conversation_subject": "Test Conversation",
+                "message_id": "0bd8b94b-74e6-48ee-9d8d-22d5e2779105"
+              }
+            },
+            {
+              "id": "camp_84274522-52ae-4820-81d8-10588c0ae1f5",
+              "type": "campaign_completed",
+              "title": "System completed campaign Test Campaign",
+              "description": "96% delivered",
+              "timestamp": "2025-10-22T20:09:31.204334+00:00",
+              "time_ago": "Just now",
+              "is_live": false,
+              "metadata": {
+                "campaign_id": "84274522-52ae-4820-81d8-10588c0ae1f5",
+                "campaign_name": "Test Campaign",
+                "delivery_rate": 96,
+                "sent_count": 50,
+                "delivered_count": 48
+              }
+            },
+            {
+              "id": "contact_e0f56ffe-1171-4361-8b96-994c6826ac9c",
+              "type": "contact_added",
+              "title": "Sarah Mwangi added to contacts",
+              "description": "New contact: +255700000001",
+              "timestamp": "2025-10-22T20:09:31.102024+00:00",
+              "time_ago": "Just now",
+              "is_live": false,
+              "metadata": {
+                "contact_id": "e0f56ffe-1171-4361-8b96-994c6826ac9c",
+                "contact_name": "Sarah Mwangi",
+                "phone": "+255700000001"
+              }
+            }
+          ],
+          "has_more": false,
+          "total_count": 4,
+          "live_count": 2
+        }
+      }
+    }
+  },
+  "performance": {
+    "overview": {
+      "endpoint": "GET /api/messaging/performance/overview/",
+      "response": {
+        "success": true,
+        "data": {
+          "metrics": {
+            "total_messages": 2,
+            "delivery_rate": 100.0,
+            "response_rate": 0.0,
+            "active_conversations": 1,
+            "campaign_success_rate": 96.0
+          },
+          "charts": {
+            "message_volume": {
+              "labels": ["Jan", "Feb", "Mar", "Apr", "May"],
+              "data": [100, 150, 200, 180, 220]
+            },
+            "delivery_rates": {
+              "labels": ["Jan", "Feb", "Mar", "Apr", "May"],
+              "data": [95, 96, 97, 96, 98]
+            }
+          },
+          "coming_soon": true
+        }
+      }
+    }
+  },
+  "sender_ids": {
+    "stats": {
+      "endpoint": "GET /api/messaging/sender-requests/stats/",
+      "response": {
+        "success": true,
+        "data": {
+          "stats": {
+            "total_requests": 2,
+            "pending_requests": 0,
+            "approved_requests": 2,
+            "rejected_requests": 0,
+            "requires_changes_requests": 0
+          },
+          "request_stats": {
+            "total_requests": 1,
+            "pending_requests": 0,
+            "approved_requests": 1,
+            "rejected_requests": 0,
+            "requires_changes_requests": 0
+          },
+          "active_stats": {
+            "total_active": 1,
+            "active_sender_ids": [
+              {
+                "id": "22a40828-20b7-486c-a167-932bb202cd7c",
+                "sender_id": "Taarifa-SMS",
+                "status": "active",
+                "created_at": "2025-10-19T15:39:18.588437Z"
+              }
+            ]
+          },
+          "recent_requests": [
+            {
+              "id": "f8256635-aa91-4f7e-9e83-cd465bb8c8ef",
+              "tenant": "950555b7-e162-482f-a115-2a4600dd1fd3",
+              "user": 63,
+              "request_type": "default",
+              "requested_sender_id": "Taarifa-SMS",
+              "sample_content": "A test use case for the sender name purposely used for information transfer.",
+              "status": "approved",
+              "reviewed_by": null,
+              "reviewed_at": null,
+              "rejection_reason": "",
+              "sms_package": null,
+              "created_at": "2025-10-22T20:08:45.662467+03:00",
+              "updated_at": "2025-10-22T20:08:45.662491+03:00",
+              "user_email": "test@example.com",
+              "user_id": 63,
+              "tenant_name": "Test Tenant",
+              "sender_name": "Taarifa-SMS",
+              "use_case": "A test use case for the sender name purposely used for information transfer."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "billing": {
+    "sms_balance": {
+      "endpoint": "GET /api/billing/sms/balance/",
+      "response": {
+        "id": "af98501d-1e17-4801-8aa6-6484be5f9b5c",
+        "tenant": "Test Tenant",
+        "credits": 95,
+        "total_purchased": 0,
+        "total_used": 5,
+        "last_updated": "2025-10-19T18:09:05.138637+03:00",
+        "created_at": "2025-10-19T18:09:05.093642+03:00"
+      }
+    }
+  },
+  "contacts": {
+    "list": {
+      "endpoint": "GET /api/messaging/contacts/",
+      "response": {
+        "count": 1,
+        "next": null,
+        "previous": null,
+        "results": [
+          {
+            "id": "e0f56ffe-1171-4361-8b96-994c6826ac9c",
+            "name": "Sarah Mwangi",
+            "phone_e164": "+255700000001",
+            "email": "sarah@example.com",
+            "attributes": {},
+            "tags": [],
+            "opt_in_at": null,
+            "opt_out_at": null,
+            "opt_out_reason": "",
+            "is_active": true,
+            "last_contacted_at": null,
+            "is_opted_in": true,
+            "created_by": "test@example.com",
+            "created_by_id": 63,
+            "created_at": "2025-10-22T20:09:31.102024+00:00",
+            "updated_at": "2025-10-22T20:09:31.102024+00:00"
+          }
+        ]
+      }
+    }
+  },
+  "errors": {
+    "400_bad_request": {
+      "response": {
+        "success": false,
+        "message": "User is not associated with any tenant. Please contact support."
+      }
+    },
+    "401_unauthorized": {
+      "response": {
+        "detail": "Authentication credentials were not provided."
+      }
+    },
+    "403_forbidden": {
+      "response": {
+        "detail": "You do not have permission to perform this action."
+      }
+    },
+    "404_not_found": {
+      "response": {
+        "detail": "Not found."
+      }
+    },
+    "500_internal_server_error": {
+      "response": {
+        "success": false,
+        "message": "Failed to retrieve dashboard data",
+        "error": "Error details here"
+      }
+    }
+  }
+}

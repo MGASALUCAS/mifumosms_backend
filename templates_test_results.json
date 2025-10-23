@@ -1,0 +1,134 @@
+{
+  "templates_list": {
+    "count": 1,
+    "next": null,
+    "previous": null,
+    "results": {
+      "templates": [
+        {
+          "id": "ca4403a6-f51b-48bf-8f5c-8a0921096c67",
+          "name": "Test Welcome Template",
+          "category": "onboarding",
+          "category_display": "Onboarding",
+          "language": "en",
+          "language_display": "English",
+          "channel": "sms",
+          "channel_display": "SMS",
+          "preview_text": "Hello, welcome to our service! Your account is ready.",
+          "variables_count": 0,
+          "status": "draft",
+          "approved": false,
+          "is_favorite": false,
+          "usage_count": 0,
+          "last_used_display": "Never used",
+          "created_at": "2025-10-23T03:28:45.889638+03:00",
+          "updated_at": "2025-10-23T03:28:45.952538+03:00"
+        }
+      ],
+      "filter_options": {
+        "categories": [
+          {
+            "value": "onboarding",
+            "label": "Onboarding"
+          },
+          {
+            "value": "promotions",
+            "label": "Promotions"
+          },
+          {
+            "value": "reminders",
+            "label": "Reminders"
+          },
+          {
+            "value": "loyalty",
+            "label": "Loyalty"
+          },
+          {
+            "value": "win_back",
+            "label": "Win-Back"
+          },
+          {
+            "value": "post_purchase",
+            "label": "Post-Purchase"
+          },
+          {
+            "value": "authentication",
+            "label": "Authentication"
+          },
+          {
+            "value": "marketing",
+            "label": "Marketing"
+          },
+          {
+            "value": "utility",
+            "label": "Utility"
+          },
+          {
+            "value": "otp",
+            "label": "One-time password"
+          }
+        ],
+        "languages": [
+          {
+            "value": "en",
+            "label": "English"
+          },
+          {
+            "value": "sw",
+            "label": "Kiswahili"
+          },
+          {
+            "value": "fr",
+            "label": "French"
+          },
+          {
+            "value": "ar",
+            "label": "Arabic"
+          }
+        ],
+        "channels": [
+          {
+            "value": "sms",
+            "label": "SMS"
+          },
+          {
+            "value": "whatsapp",
+            "label": "WhatsApp"
+          },
+          {
+            "value": "email",
+            "label": "Email"
+          },
+          {
+            "value": "all",
+            "label": "All Channels"
+          }
+        ],
+        "statuses": [
+          {
+            "value": "pending",
+            "label": "Pending"
+          },
+          {
+            "value": "approved",
+            "label": "Approved"
+          },
+          {
+            "value": "rejected",
+            "label": "Rejected"
+          },
+          {
+            "value": "draft",
+            "label": "Draft"
+          }
+        ]
+      },
+      "total_count": 1
+    }
+  },
+  "template_create": {
+    "body_text": [
+      "Invalid variable format found: ['{{name}}', '{{order_id}}']. Variables should be in format {{variable_name}}."
+    ]
+  }
+}

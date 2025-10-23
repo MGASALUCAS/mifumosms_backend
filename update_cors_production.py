@@ -58,7 +58,7 @@ def update_production_env():
                         required_origins = [
                             'https://mifumosms.servehttp.com',
                             'https://preview--mifumo-connect.lovable.app',
-                            'http://localhost:8080',
+                            'http://localhost:3000',
                             'http://127.0.0.1:8080'
                         ]
                         
@@ -81,7 +81,7 @@ def update_production_env():
                 
             else:
                 # Add CORS_ALLOWED_ORIGINS if it doesn't exist
-                cors_line = "CORS_ALLOWED_ORIGINS=https://mifumosms.servehttp.com,https://preview--mifumo-connect.lovable.app,http://104.131.116.55,http://104.131.116.55:8000,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080"
+                cors_line = "CORS_ALLOWED_ORIGINS=https://mifumosms.servehttp.com,https://preview--mifumo-connect.lovable.app,http://104.131.116.55,http://104.131.116.55:8000,http://localhost:3000,http://127.0.0.1:3000"
                 
                 with open(env_file, 'a') as f:
                     f.write(f"\n# CORS Settings\n{cors_line}\n")

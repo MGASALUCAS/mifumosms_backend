@@ -1,233 +1,157 @@
 #!/usr/bin/env python3
 """
-Test frontend endpoints to debug issues.
+Test script to verify frontend API endpoints that are failing.
 """
-import os
-import sys
-import django
+
 import requests
 import json
+import sys
 from datetime import datetime
 
-# Setup Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mifumo.settings')
-django.setup()
+# Test configuration
+BASE_URL = "http://127.0.0.1:8001"
+TEST_USER = {
+    "email": "test@example.com",
+    "password": "testpass123"
+}
 
-from django.contrib.auth import get_user_model
-from tenants.models import Tenant, Membership
-from billing.models import SMSBalance
-from messaging.models import Contact
-from messaging.models_sms import SMSSenderID, SMSProvider
-from messaging.models_sender_requests import SenderIDRequest
-
-User = get_user_model()
-
-def test_frontend_endpoints():
-    """Test frontend endpoints to debug issues."""
-    base_url = "http://127.0.0.1:8000"
+def test_login():
+    """Test login to get a valid token."""
+    print("🔐 Testing login...")
     
-    print("Testing Frontend Endpoints")
-    print("=" * 50)
-    
-    # Setup test user
-    print("\n1. Setting up test user...")
-    
-    # Create test tenant
-    tenant, created = Tenant.objects.get_or_create(
-        name="Frontend Test Organization",
-        defaults={
-            'subdomain': 'frontend-test'
-        }
-    )
-    print(f"   Tenant: {tenant.name} ({'created' if created else 'exists'})")
-    
-    # Create test user
-    user, created = User.objects.get_or_create(
-        email="frontendtest@example.com",
-        defaults={
-            'first_name': 'Frontend',
-            'last_name': 'Test User',
-            'is_active': True
-        }
-    )
-    
-    # Set password for the user
-    user.set_password('testpassword123')
-    user.save()
-    print(f"   User: {user.email} ({'created' if created else 'exists'})")
-    
-    # Create membership
-    membership, created = Membership.objects.get_or_create(
-        user=user,
-        tenant=tenant,
-        defaults={'role': 'admin'}
-    )
-    print(f"   Membership: {membership.role} ({'created' if created else 'exists'})")
-    
-    # Get user's actual tenant
-    user_tenant = user.tenant
-    if user_tenant and user_tenant != tenant:
-        print(f"   User's actual tenant: {user_tenant.name}")
-        tenant = user_tenant
-    
-    # Create SMS balance
-    sms_balance, created = SMSBalance.objects.get_or_create(tenant=tenant)
-    sms_balance.credits = 5
-    sms_balance.total_purchased = 5
-    sms_balance.save()
-    print(f"   SMS Balance: {sms_balance.credits} credits")
-    
-    # Get authentication token
-    print("\n2. Getting authentication token...")
-    auth_url = f"{base_url}/api/auth/login/"
-    auth_data = {
-        "email": user.email,
-        "password": "testpassword123"
+    login_url = f"{BASE_URL}/api/auth/login/"
+    login_data = {
+        "email": TEST_USER["email"],
+        "password": TEST_USER["password"]
     }
     
     try:
-        auth_response = requests.post(auth_url, json=auth_data)
-        if auth_response.status_code == 200:
-            auth_result = auth_response.json()
-            if 'tokens' in auth_result:
-                token = auth_result['tokens']['access']
-                print(f"   Token obtained: {token[:20]}...")
+        response = requests.post(login_url, json=login_data, timeout=10)
+        print(f"Login Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            if 'tokens' in data and 'access' in data['tokens']:
+                token = data['tokens']['access']
+                print(f"✅ Login successful, token: {token[:20]}...")
+                return token
             else:
-                print(f"   Auth failed: {auth_result.get('message', 'Unknown error')}")
-                return
+                print(f"❌ Login failed: {data}")
+                return None
         else:
-            print(f"   Auth failed with status: {auth_response.status_code}")
-            return
+            print(f"❌ Login failed with status {response.status_code}: {response.text}")
+            return None
+            
     except Exception as e:
-        print(f"   Auth error: {e}")
-        return
+        print(f"❌ Login error: {e}")
+        return None
+
+def test_endpoint(url, token, method="GET", data=None):
+    """Test a specific endpoint."""
+    print(f"\n🧪 Testing: {method} {url}")
     
     headers = {
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json'
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
     }
     
-    # Test stats endpoint
-    print("\n3. Testing sender requests stats endpoint...")
     try:
-        response = requests.get(f"{base_url}/api/messaging/sender-requests/stats/", headers=headers)
-        print(f"   Status: {response.status_code}")
-        print(f"   Response: {response.text}")
+        if method == "GET":
+            response = requests.get(url, headers=headers, timeout=10)
+        elif method == "POST":
+            response = requests.post(url, headers=headers, json=data, timeout=10)
+        elif method == "PUT":
+            response = requests.put(url, headers=headers, json=data, timeout=10)
+        
+        print(f"Status: {response.status_code}")
+        print(f"Response: {response.text[:500]}...")
         
         if response.status_code == 200:
-            data = response.json()
-            if data.get('success'):
-                stats = data.get('data', {}).get('stats', {})
-                print(f"   SUCCESS: Stats retrieved!")
-                print(f"   Total Requests: {stats.get('total_requests', 0)}")
-                print(f"   Pending: {stats.get('pending_requests', 0)}")
-                print(f"   Approved: {stats.get('approved_requests', 0)}")
-            else:
-                print(f"   WARNING: {data.get('message', 'Unknown error')}")
+            try:
+                json_data = response.json()
+                print(f"✅ Success: {json_data.get('success', 'Unknown')}")
+                return True
+            except:
+                print(f"✅ Success (non-JSON response)")
+                return True
         else:
-            print(f"   ERROR: Stats endpoint failed with status: {response.status_code}")
+            print(f"❌ Failed with status {response.status_code}")
+            return False
+            
     except Exception as e:
-        print(f"   ERROR: {e}")
-    
-    # Test submit endpoint with different data formats
-    print("\n4. Testing sender request submit endpoint...")
-    
-    # Test data 1: Minimal data
-    print("\n   a) Testing with minimal data...")
-    try:
-        submit_data = {
-            "requested_sender_id": "TEST-SMS",
-            "sample_content": "This is a test message for sender ID validation."
-        }
-        
-        response = requests.post(f"{base_url}/api/messaging/sender-requests/submit/", 
-                               json=submit_data, headers=headers)
-        print(f"      Status: {response.status_code}")
-        print(f"      Response: {response.text}")
-        
-        if response.status_code in [200, 201]:
-            data = response.json()
-            if data.get('success'):
-                print(f"      SUCCESS: Sender request submitted!")
-            else:
-                print(f"      WARNING: {data.get('message', 'Unknown error')}")
-        else:
-            print(f"      ERROR: Submit failed with status: {response.status_code}")
-    except Exception as e:
-        print(f"      ERROR: {e}")
-    
-    # Test data 2: Full data
-    print("\n   b) Testing with full data...")
-    try:
-        submit_data = {
-            "requested_sender_id": "FULL-TEST",
-            "sample_content": "This is a comprehensive test message for sender ID validation with full data.",
-            "business_name": "Test Business",
-            "business_type": "Technology",
-            "contact_person": "Test Person",
-            "contact_phone": "+255700000000",
-            "contact_email": "test@example.com",
-            "purpose": "Testing and validation",
-            "expected_volume": 1000,
-            "compliance_agreement": True
-        }
-        
-        response = requests.post(f"{base_url}/api/messaging/sender-requests/submit/", 
-                               json=submit_data, headers=headers)
-        print(f"      Status: {response.status_code}")
-        print(f"      Response: {response.text}")
-        
-        if response.status_code in [200, 201]:
-            data = response.json()
-            if data.get('success'):
-                print(f"      SUCCESS: Sender request submitted!")
-            else:
-                print(f"      WARNING: {data.get('message', 'Unknown error')}")
-        else:
-            print(f"      ERROR: Submit failed with status: {response.status_code}")
-    except Exception as e:
-        print(f"      ERROR: {e}")
-    
-    # Test data 3: Invalid data to see validation errors
-    print("\n   c) Testing with invalid data...")
-    try:
-        submit_data = {
-            "requested_sender_id": "",  # Empty sender ID
-            "sample_content": ""  # Empty content
-        }
-        
-        response = requests.post(f"{base_url}/api/messaging/sender-requests/submit/", 
-                               json=submit_data, headers=headers)
-        print(f"      Status: {response.status_code}")
-        print(f"      Response: {response.text}")
-        
-        if response.status_code == 400:
-            data = response.json()
-            print(f"      EXPECTED: Validation errors - {data.get('errors', {})}")
-        else:
-            print(f"      UNEXPECTED: Status {response.status_code}")
-    except Exception as e:
-        print(f"      ERROR: {e}")
-    
-    # Test regular sender requests endpoint for comparison
-    print("\n5. Testing regular sender requests endpoint...")
-    try:
-        response = requests.get(f"{base_url}/api/messaging/sender-requests/", headers=headers)
-        print(f"   Status: {response.status_code}")
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('success'):
-                requests_list = data.get('data', [])
-                print(f"   SUCCESS: {len(requests_list)} requests found")
-            else:
-                print(f"   WARNING: {data.get('message', 'Unknown error')}")
-        else:
-            print(f"   ERROR: Regular endpoint failed with status: {response.status_code}")
-    except Exception as e:
-        print(f"   ERROR: {e}")
-    
-    print("\n6. Frontend endpoints test completed!")
+        print(f"❌ Error: {e}")
+        return False
+
+def main():
+    """Main test function."""
+    print("🚀 Testing Frontend API Endpoints")
     print("=" * 50)
+    
+    # Get authentication token
+    token = test_login()
+    if not token:
+        print("❌ Cannot proceed without authentication token")
+        return
+    
+    # Test the failing endpoints
+    endpoints = [
+        {
+            "url": f"{BASE_URL}/api/auth/settings/profile/",
+            "method": "GET",
+            "description": "User Profile Settings (Correct URL)"
+        },
+        {
+            "url": f"{BASE_URL}/api/accounts/settings/profile/",
+            "method": "GET",
+            "description": "User Profile Settings (Wrong URL - Frontend Issue)"
+        },
+        {
+            "url": f"{BASE_URL}/api/messaging/dashboard/overview/",
+            "method": "GET", 
+            "description": "Dashboard Overview"
+        },
+        {
+            "url": f"{BASE_URL}/api/messaging/dashboard/metrics/",
+            "method": "GET",
+            "description": "Dashboard Metrics"
+        },
+        {
+            "url": f"{BASE_URL}/api/messaging/sender-requests/stats/",
+            "method": "GET",
+            "description": "Sender Requests Stats"
+        }
+    ]
+    
+    results = []
+    for endpoint in endpoints:
+        print(f"\n{'='*60}")
+        print(f"Testing: {endpoint['description']}")
+        print(f"URL: {endpoint['url']}")
+        success = test_endpoint(endpoint['url'], token, endpoint['method'])
+        results.append({
+            "endpoint": endpoint['description'],
+            "url": endpoint['url'],
+            "success": success
+        })
+    
+    # Summary
+    print(f"\n{'='*60}")
+    print("📊 TEST SUMMARY")
+    print("=" * 60)
+    
+    for result in results:
+        status = "✅ PASS" if result['success'] else "❌ FAIL"
+        print(f"{status} {result['endpoint']}")
+        print(f"    URL: {result['url']}")
+    
+    passed = sum(1 for r in results if r['success'])
+    total = len(results)
+    print(f"\nResults: {passed}/{total} endpoints working")
+    
+    if passed == total:
+        print("🎉 All endpoints are working correctly!")
+    else:
+        print("⚠️  Some endpoints need attention")
 
 if __name__ == "__main__":
-    test_frontend_endpoints()
+    main()

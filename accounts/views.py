@@ -512,3 +512,457 @@ class UserSecurityView(generics.RetrieveUpdateAPIView):
     def patch(self, request, *args, **kwargs):
         """Partially update user security settings."""
         return self.put(request, *args, **kwargs)
+
+
+# =============================================
+# SMS VERIFICATION ENDPOINTS
+# =============================================
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_verification_code(request):
+    """Send SMS verification code to phone number."""
+    phone_number = request.data.get('phone_number')
+    message_type = request.data.get('message_type', 'verification')
+    
+    # If phone number provided, find user by phone
+    user = None
+    if phone_number:
+        user = User.objects.filter(phone_number=phone_number).first()
+        if not user:
+            return Response({
+                'success': False,
+                'error': 'No account found with this phone number.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    elif request.user.is_authenticated:
+        user = request.user
+    else:
+        return Response({
+            'success': False,
+            'error': 'Phone number or authentication required.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Send verification code
+    from .services.sms_verification import SMSVerificationService
+    sms_service = SMSVerificationService(str(user.get_tenant().id))
+    result = sms_service.send_verification_code(user, message_type)
+    
+    if result['success']:
+        response_data = {
+            'success': True,
+            'message': 'Verification code sent successfully',
+            'phone_number': result.get('phone_number')
+        }
+        # Include bypassed flag if present
+        if result.get('bypassed'):
+            response_data['bypassed'] = True
+        return Response(response_data)
+    else:
+        return Response({
+            'success': False,
+            'error': result.get('error', 'Failed to send verification code')
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_phone_code(request):
+    """Verify SMS verification code."""
+    phone_number = request.data.get('phone_number')
+    verification_code = request.data.get('verification_code')
+    
+    # Find user
+    user = None
+    if phone_number:
+        user = User.objects.filter(phone_number=phone_number).first()
+        if not user:
+            return Response({
+                'success': False,
+                'error': 'No account found with this phone number.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    elif request.user.is_authenticated:
+        user = request.user
+    else:
+        return Response({
+            'success': False,
+            'error': 'Phone number or authentication required.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Verify code
+    from .services.sms_verification import SMSVerificationService
+    sms_service = SMSVerificationService(str(user.get_tenant().id))
+    result = sms_service.verify_code(user, verification_code)
+    
+    if result['success']:
+        response_data = {
+            'success': True,
+            'message': 'Phone number verified successfully',
+            'phone_verified': user.phone_verified
+        }
+        # Include bypassed flag if present
+        if result.get('bypassed'):
+            response_data['bypassed'] = True
+        return Response(response_data)
+    else:
+        return Response({
+            'success': False,
+            'error': result.get('error', 'Verification failed'),
+            'attempts_remaining': result.get('attempts_remaining', 0)
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password_sms(request):
+    """Send password reset code via SMS."""
+    phone_number = request.data.get('phone_number')
+    
+    if not phone_number:
+        return Response({
+            'success': False,
+            'error': 'Phone number is required.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Normalize phone number for database lookup
+    normalized_phone = normalize_phone_number(phone_number)
+    user = User.objects.filter(phone_number=normalized_phone).first()
+    if not user:
+        return Response({
+            'success': False,
+            'error': 'No account found with this phone number.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Send password reset code
+    from .services.sms_verification import SMSVerificationService
+    sms_service = SMSVerificationService(str(user.get_tenant().id))
+    result = sms_service.send_verification_code(user, "password_reset")
+    
+    if result['success']:
+        response_data = {
+            'success': True,
+            'message': 'Password reset code sent to your phone number',
+            'phone_number': result.get('phone_number')
+        }
+        # Include bypassed flag if present
+        if result.get('bypassed'):
+            response_data['bypassed'] = True
+        return Response(response_data)
+    else:
+        return Response({
+            'success': False,
+            'error': result.get('error', 'Failed to send reset code')
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+def normalize_phone_number(phone_number):
+    """Normalize phone number to local format for database lookup."""
+    if not phone_number:
+        return phone_number
+    
+    # Remove all non-digit characters except +
+    cleaned = ''.join(c for c in phone_number if c.isdigit() or c == '+')
+    
+    # Remove leading +
+    if cleaned.startswith('+'):
+        cleaned = cleaned[1:]
+    
+    # Convert international format to local format
+    if cleaned.startswith('255') and len(cleaned) == 12:
+        # 255689726060 -> 0689726060
+        cleaned = '0' + cleaned[3:]
+    elif len(cleaned) == 9 and cleaned.startswith('6'):
+        # 689726060 -> 0689726060
+        cleaned = '0' + cleaned
+    
+    return cleaned
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password_sms(request):
+    """Reset password using SMS verification code."""
+    phone_number = request.data.get('phone_number')
+    verification_code = request.data.get('verification_code')
+    new_password = request.data.get('new_password')
+    
+    if not phone_number or not verification_code or not new_password:
+        return Response({
+            'success': False,
+            'error': 'Phone number, verification code, and new password are required.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Normalize phone number for database lookup
+    normalized_phone = normalize_phone_number(phone_number)
+    user = User.objects.filter(phone_number=normalized_phone).first()
+    if not user:
+        return Response({
+            'success': False,
+            'error': 'No account found with this phone number.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Verify code (don't clear code yet, will be cleared after password reset)
+    from .services.sms_verification import SMSVerificationService
+    sms_service = SMSVerificationService(str(user.get_tenant().id))
+    verify_result = sms_service.verify_code(user, verification_code, clear_code=False)
+    
+    if not verify_result['success']:
+        return Response({
+            'success': False,
+            'error': verify_result.get('error', 'Invalid verification code'),
+            'attempts_remaining': verify_result.get('attempts_remaining', 0)
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Reset password
+    user.set_password(new_password)
+    
+    # Clear verification code after successful password reset
+    user.refresh_from_db()  # Refresh to get latest data
+    user.phone_verification_code = ''
+    user.phone_verification_sent_at = None
+    user.save(update_fields=['phone_verification_code', 'phone_verification_sent_at'])
+    
+    return Response({
+        'success': True,
+        'message': 'Password reset successfully. You can now login with your new password.'
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def confirm_account_sms(request):
+    """Confirm account using SMS verification code."""
+    verification_code = request.data.get('verification_code')
+    user = request.user
+    
+    if not verification_code:
+        return Response({
+            'success': False,
+            'error': 'Verification code is required.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Verify code
+    from .services.sms_verification import SMSVerificationService
+    sms_service = SMSVerificationService(str(user.get_tenant().id))
+    result = sms_service.verify_code(user, verification_code)
+    
+    if result['success']:
+        # Mark account as verified
+        user.is_verified = True
+        user.save(update_fields=['is_verified'])
+        
+        response_data = {
+            'success': True,
+            'message': 'Account confirmed successfully',
+            'is_verified': user.is_verified,
+            'phone_verified': user.phone_verified
+        }
+        # Include bypassed flag if present
+        if result.get('bypassed'):
+            response_data['bypassed'] = True
+        return Response(response_data)
+    else:
+        return Response({
+            'success': False,
+            'error': result.get('error', 'Verification failed'),
+            'attempts_remaining': result.get('attempts_remaining', 0)
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# =============================================
+# SMS VERIFICATION LINK ENDPOINTS
+# =============================================
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_verification_link_sms(request):
+    """Send account verification link via SMS."""
+    phone_number = request.data.get('phone_number')
+    
+    if not phone_number:
+        return Response({
+            'success': False,
+            'error': 'Phone number is required.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Normalize phone number for database lookup
+    normalized_phone = normalize_phone_number(phone_number)
+    user = User.objects.filter(phone_number=normalized_phone).first()
+    if not user:
+        return Response({
+            'success': False,
+            'error': 'No account found with this phone number.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Bypass for superadmin users
+    if user.is_superuser or user.is_staff:
+        return Response({
+            'success': True,
+            'message': 'Account verification not required for admin users',
+            'bypassed': True,
+            'phone_number': normalized_phone
+        })
+    
+    # Generate verification token
+    verification_token = get_random_string(32)
+    user.verification_token = verification_token
+    user.verification_sent_at = timezone.now()
+    user.save(update_fields=['verification_token', 'verification_sent_at'])
+    
+    # Create verification link
+    base_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    verification_link = f"{base_url}/verify-account?token={verification_token}&phone={normalized_phone}"
+    
+    # Send SMS with verification link
+    from .services.sms_verification import SMSVerificationService
+    sms_service = SMSVerificationService(str(user.get_tenant().id))
+    
+    # Create SMS message with link
+    message = f"Your Mifumo WMS account verification link: {verification_link}. This link expires in 1 hour. Do not share this link with anyone."
+    
+    result = sms_service.send_verification_sms(
+        user.phone_number,
+        message,
+        "account_verification"
+    )
+    
+    if result['success']:
+        return Response({
+            'success': True,
+            'message': 'Verification link sent to your phone number',
+            'phone_number': normalized_phone,
+            'verification_link': verification_link  # For testing purposes
+        })
+    else:
+        return Response({
+            'success': False,
+            'error': result.get('error', 'Failed to send verification link')
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_account_link(request):
+    """Verify account using verification link from SMS."""
+    token = request.data.get('token')
+    phone_number = request.data.get('phone_number')
+    
+    if not token or not phone_number:
+        return Response({
+            'success': False,
+            'error': 'Token and phone number are required.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Normalize phone number
+    normalized_phone = normalize_phone_number(phone_number)
+    
+    try:
+        user = User.objects.get(
+            verification_token=token,
+            phone_number=normalized_phone
+        )
+    except User.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': 'Invalid verification link or phone number.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if token is not expired (1 hour)
+    if user.verification_sent_at and timezone.now() - user.verification_sent_at > timedelta(hours=1):
+        return Response({
+            'success': False,
+            'error': 'Verification link has expired. Please request a new one.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Verify account
+    user.is_verified = True
+    user.phone_verified = True
+    user.verification_token = ''
+    user.save(update_fields=['is_verified', 'phone_verified', 'verification_token'])
+    
+    return Response({
+        'success': True,
+        'message': 'Account verified successfully',
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'is_verified': user.is_verified,
+            'phone_verified': user.phone_verified
+        }
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def resend_verification_link(request):
+    """Resend verification link via SMS."""
+    phone_number = request.data.get('phone_number')
+    
+    if not phone_number:
+        return Response({
+            'success': False,
+            'error': 'Phone number is required.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Normalize phone number for database lookup
+    normalized_phone = normalize_phone_number(phone_number)
+    user = User.objects.filter(phone_number=normalized_phone).first()
+    if not user:
+        return Response({
+            'success': False,
+            'error': 'No account found with this phone number.'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Bypass for superadmin users
+    if user.is_superuser or user.is_staff:
+        return Response({
+            'success': True,
+            'message': 'Account verification not required for admin users',
+            'bypassed': True,
+            'phone_number': normalized_phone
+        })
+    
+    # Check if user is already verified
+    if user.is_verified and user.phone_verified:
+        return Response({
+            'success': True,
+            'message': 'Account is already verified',
+            'phone_number': normalized_phone
+        })
+    
+    # Generate new verification token
+    verification_token = get_random_string(32)
+    user.verification_token = verification_token
+    user.verification_sent_at = timezone.now()
+    user.save(update_fields=['verification_token', 'verification_sent_at'])
+    
+    # Create verification link
+    base_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    verification_link = f"{base_url}/verify-account?token={verification_token}&phone={normalized_phone}"
+    
+    # Send SMS with verification link
+    from .services.sms_verification import SMSVerificationService
+    sms_service = SMSVerificationService(str(user.get_tenant().id))
+    
+    # Create SMS message with link
+    message = f"Your new Mifumo WMS account verification link: {verification_link}. This link expires in 1 hour. Do not share this link with anyone."
+    
+    result = sms_service.send_verification_sms(
+        user.phone_number,
+        message,
+        "account_verification"
+    )
+    
+    if result['success']:
+        return Response({
+            'success': True,
+            'message': 'New verification link sent to your phone number',
+            'phone_number': normalized_phone,
+            'verification_link': verification_link  # For testing purposes
+        })
+    else:
+        return Response({
+            'success': False,
+            'error': result.get('error', 'Failed to send verification link')
+        }, status=status.HTTP_400_BAD_REQUEST)

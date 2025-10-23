@@ -1,0 +1,140 @@
+{
+  "Recent Activity - Activity Feed": {
+    "success": true,
+    "data": {
+      "activities": [
+        {
+          "id": "msg_756d7148-b2ef-476d-8dc7-001892a80129",
+          "type": "message_sent",
+          "title": "Message sent to Mgasa Engineer",
+          "description": "New message: Welcome to Mifumo WMS!",
+          "timestamp": "2025-10-22T20:06:48.669446+00:00",
+          "time_ago": "2 hours ago",
+          "is_live": false,
+          "metadata": {
+            "conversation_id": "0921c374-4b4d-4889-9990-ae6962885fa6",
+            "contact_name": "Mgasa Engineer",
+            "conversation_subject": "Welcome Conversation",
+            "message_id": "756d7148-b2ef-476d-8dc7-001892a80129"
+          }
+        },
+        {
+          "id": "camp_75cd9c85-8d71-4f18-aa7d-2388b6990591",
+          "type": "campaign_completed",
+          "title": "System completed campaign Welcome Campaign",
+          "description": "98% delivered",
+          "timestamp": "2025-10-22T20:06:30.144879+00:00",
+          "time_ago": "2 hours ago",
+          "is_live": false,
+          "metadata": {
+            "campaign_id": "75cd9c85-8d71-4f18-aa7d-2388b6990591",
+            "campaign_name": "Welcome Campaign",
+            "delivery_rate": 98,
+            "sent_count": 100,
+            "delivered_count": 98
+          }
+        },
+        {
+          "id": "contact_3f83f7dd-d09c-454a-8fdc-36de7967546d",
+          "type": "contact_added",
+          "title": "Mgasa Engineer added to contacts",
+          "description": "New contact: +255689726060",
+          "timestamp": "2025-10-22T20:06:30.072215+00:00",
+          "time_ago": "2 hours ago",
+          "is_live": false,
+          "metadata": {
+            "contact_id": "3f83f7dd-d09c-454a-8fdc-36de7967546d",
+            "contact_name": "Mgasa Engineer",
+            "phone": "+255689726060"
+          }
+        },
+        {
+          "id": "msg_476074f2-6a4a-467a-b8d4-db0c21f8b3dd",
+          "type": "message_sent",
+          "title": "Message sent to 255614853618",
+          "description": "New message: Hello, this is me ivan 0614853618",
+          "timestamp": "2025-10-22T20:02:35.075755+00:00",
+          "time_ago": "2 hours ago",
+          "is_live": false,
+          "metadata": {
+            "conversation_id": null,
+            "contact_name": "255614853618",
+            "conversation_subject": "SMS",
+            "message_id": "476074f2-6a4a-467a-b8d4-db0c21f8b3dd"
+          }
+        }
+      ],
+      "has_more": false,
+      "total_count": 4,
+      "live_count": 0
+    }
+  },
+  "Performance Overview - Analytics": {
+    "success": true,
+    "data": {
+      "metrics": {
+        "total_messages": 2,
+        "delivery_rate": 50.0,
+        "response_rate": 0.0,
+        "active_conversations": 1,
+        "campaign_success_rate": 98.0
+      },
+      "charts": {
+        "message_volume": {
+          "labels": [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May"
+          ],
+          "data": [
+            100,
+            150,
+            200,
+            180,
+            220
+          ]
+        },
+        "delivery_rates": {
+          "labels": [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May"
+          ],
+          "data": [
+            95,
+            96,
+            97,
+            96,
+            98
+          ]
+        }
+      },
+      "coming_soon": true
+    }
+  },
+  "Sender IDs - Accepted Sender IDs": {
+    "success": true,
+    "data": [
+      {
+        "id": "174f79cc-f1c8-4784-a139-49ab317a5f64",
+        "sender_id": "Taarifa-SMS",
+        "sample_content": "A test use case for the sender name purposely used for information transfer.",
+        "status": "active",
+        "created_at": "2025-10-22T20:02:35.010387+00:00",
+        "updated_at": "2025-10-22T20:02:35.010472+00:00"
+      },
+      {
+        "id": "ac6f9f83-4713-436b-838a-1dc685424a9d",
+        "sender_id": "MIFUMO",
+        "sample_content": "Welcome to Mifumo WMS! Your SMS messaging solution.",
+        "status": "active",
+        "created_at": "2025-10-22T20:00:42.584116+00:00",
+        "updated_at": "2025-10-22T20:00:42.584227+00:00"
+      }
+    ]
+  }
+}

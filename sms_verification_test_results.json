@@ -1,0 +1,31 @@
+{
+  "user_registration": {
+    "email": [
+      "user with this email already exists."
+    ]
+  },
+  "send_verification_code": {
+    "success": true,
+    "message": "Verification code sent successfully",
+    "phone_number": "0689726060"
+  },
+  "verify_phone_code": {
+    "success": true,
+    "message": "Phone number verified successfully",
+    "phone_verified": true
+  },
+  "forgot_password_sms": {
+    "success": true,
+    "message": "Password reset code sent to your phone number",
+    "phone_number": "0689726060"
+  },
+  "reset_password_sms": {
+    "success": true,
+    "message": "Password reset successfully. You can now login with your new password."
+  },
+  "confirm_account_sms": {
+    "success": false,
+    "error": "No verification code found. Please request a new code.",
+    "attempts_remaining": 0
+  }
+}

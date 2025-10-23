@@ -80,9 +80,9 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'full_name', 'short_name',
             'phone_number', 'timezone', 'avatar', 'bio', 'is_verified',
             'email_notifications', 'sms_notifications', 'created_at', 'updated_at',
-            'last_login_at'
+            'last_login_at', 'is_superuser', 'is_staff', 'phone_verified'
         ]
-        read_only_fields = ['id', 'is_verified', 'created_at', 'updated_at', 'last_login_at']
+        read_only_fields = ['id', 'is_verified', 'created_at', 'updated_at', 'last_login_at', 'is_superuser', 'is_staff', 'phone_verified']
 
     def validate_email(self, value):
         """Validate email uniqueness during updates."""
@@ -285,3 +285,67 @@ class UserSecuritySerializer(serializers.ModelSerializer):
         """Validate security settings."""
         # Future implementation for 2FA settings
         return attrs
+
+
+class PhoneVerificationSerializer(serializers.Serializer):
+    """Serializer for phone verification code."""
+    
+    phone_number = serializers.CharField(max_length=20, required=False)
+    verification_code = serializers.CharField(max_length=6, min_length=6)
+    
+    def validate_verification_code(self, value):
+        """Validate verification code format."""
+        if not value.isdigit():
+            raise serializers.ValidationError("Verification code must contain only digits.")
+        return value
+
+
+class SendVerificationCodeSerializer(serializers.Serializer):
+    """Serializer for sending verification code."""
+    
+    phone_number = serializers.CharField(max_length=20, required=False)
+    message_type = serializers.ChoiceField(
+        choices=['verification', 'password_reset', 'account_confirmation'],
+        default='verification'
+    )
+    
+    def validate_phone_number(self, value):
+        """Validate phone number format."""
+        if value:
+            # Basic phone number validation
+            if not value.replace('+', '').replace(' ', '').replace('-', '').isdigit():
+                raise serializers.ValidationError("Invalid phone number format.")
+        return value
+
+
+class PasswordResetSMSSerializer(serializers.Serializer):
+    """Serializer for password reset via SMS."""
+    
+    phone_number = serializers.CharField(max_length=20)
+    verification_code = serializers.CharField(max_length=6, min_length=6)
+    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    new_password_confirm = serializers.CharField(write_only=True)
+    
+    def validate(self, attrs):
+        """Validate password confirmation."""
+        if attrs['new_password'] != attrs['new_password_confirm']:
+            raise serializers.ValidationError("Passwords don't match.")
+        return attrs
+    
+    def validate_verification_code(self, value):
+        """Validate verification code format."""
+        if not value.isdigit():
+            raise serializers.ValidationError("Verification code must contain only digits.")
+        return value
+
+
+class AccountConfirmationSerializer(serializers.Serializer):
+    """Serializer for account confirmation via SMS."""
+    
+    verification_code = serializers.CharField(max_length=6, min_length=6)
+    
+    def validate_verification_code(self, value):
+        """Validate verification code format."""
+        if not value.isdigit():
+            raise serializers.ValidationError("Verification code must contain only digits.")
+        return value

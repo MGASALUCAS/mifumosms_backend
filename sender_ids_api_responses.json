@@ -1,0 +1,98 @@
+{
+  "Sender IDs List - Active Sender IDs": {
+    "success": true,
+    "data": [
+      {
+        "id": "174f79cc-f1c8-4784-a139-49ab317a5f64",
+        "sender_id": "Taarifa-SMS",
+        "sample_content": "A test use case for the sender name purposely used for information transfer.",
+        "status": "active",
+        "created_at": "2025-10-22T20:02:35.010387+00:00",
+        "updated_at": "2025-10-22T20:02:35.010472+00:00"
+      },
+      {
+        "id": "ac6f9f83-4713-436b-838a-1dc685424a9d",
+        "sender_id": "MIFUMO",
+        "sample_content": "Welcome to Mifumo WMS! Your SMS messaging solution.",
+        "status": "active",
+        "created_at": "2025-10-22T20:00:42.584116+00:00",
+        "updated_at": "2025-10-22T20:00:42.584227+00:00"
+      }
+    ]
+  },
+  "Available Sender IDs - Approved Sender IDs": {
+    "available_sender_ids": [
+      {
+        "requested_sender_id": "Taarifa-SMS",
+        "sample_content": "A test use case for the sender name purposely used for information transfer."
+      },
+      {
+        "requested_sender_id": "MIFUMO",
+        "sample_content": "Welcome to Mifumo WMS! Your SMS messaging solution."
+      }
+    ],
+    "provider": {
+      "name": "Beem Africa",
+      "active_sender_ids": []
+    }
+  },
+  "Sender ID Request Statistics": {
+    "success": true,
+    "data": {
+      "stats": {
+        "total_requests": 3,
+        "pending_requests": 0,
+        "approved_requests": 3,
+        "rejected_requests": 0,
+        "requires_changes_requests": 0
+      },
+      "request_stats": {
+        "total_requests": 1,
+        "pending_requests": 0,
+        "approved_requests": 1,
+        "rejected_requests": 0,
+        "requires_changes_requests": 0
+      },
+      "active_stats": {
+        "total_active": 2,
+        "active_sender_ids": [
+          {
+            "id": "174f79cc-f1c8-4784-a139-49ab317a5f64",
+            "sender_id": "Taarifa-SMS",
+            "status": "active",
+            "created_at": "2025-10-22T20:02:35.010387Z"
+          },
+          {
+            "id": "ac6f9f83-4713-436b-838a-1dc685424a9d",
+            "sender_id": "MIFUMO",
+            "status": "active",
+            "created_at": "2025-10-22T20:00:42.584116Z"
+          }
+        ]
+      },
+      "recent_requests": [
+        {
+          "id": "ca80f38d-51f1-4173-84f9-e3b963be71d5",
+          "tenant": "e745958e-282d-45b8-9f3c-630509d28928",
+          "user": 2,
+          "request_type": "default",
+          "requested_sender_id": "Taarifa-SMS",
+          "sample_content": "A test use case for the sender name purposely used for information transfer.",
+          "status": "approved",
+          "reviewed_by": 2,
+          "reviewed_at": "2025-10-22T22:56:06.314954+03:00",
+          "rejection_reason": "",
+          "sms_package": null,
+          "created_at": "2025-10-22T22:51:59.116188+03:00",
+          "updated_at": "2025-10-22T22:56:06.315158+03:00",
+          "user_email": "admin@mifumo.com",
+          "user_id": 2,
+          "tenant_name": "Test Organization",
+          "reviewed_by_email": "admin@mifumo.com",
+          "sender_name": "Taarifa-SMS",
+          "use_case": "A test use case for the sender name purposely used for information transfer."
+        }
+      ]
+    }
+  }
+}

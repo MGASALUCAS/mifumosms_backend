@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/tenants/', include('tenants.urls')),
     path('api/messaging/', include('messaging.urls')),
     path('api/billing/', include('billing.urls')),
+    path('api/notifications/', include('notifications.urls')),
     path('webhooks/', include('messaging.webhooks')),
 
     # API Documentation

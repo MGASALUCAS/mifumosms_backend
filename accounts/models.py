@@ -62,6 +62,13 @@ class User(AbstractUser):
     verification_token = models.CharField(max_length=100, blank=True)
     verification_sent_at = models.DateTimeField(null=True, blank=True)
     
+    # Phone verification
+    phone_verified = models.BooleanField(default=False)
+    phone_verification_code = models.CharField(max_length=6, blank=True)
+    phone_verification_sent_at = models.DateTimeField(null=True, blank=True)
+    phone_verification_attempts = models.PositiveIntegerField(default=0)
+    phone_verification_locked_until = models.DateTimeField(null=True, blank=True)
+    
     # Preferences
     email_notifications = models.BooleanField(default=True)
     sms_notifications = models.BooleanField(default=False)
