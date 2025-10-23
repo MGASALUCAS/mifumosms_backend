@@ -52,3 +52,5 @@ wcwidth==0.2.14
 whitenoise==6.11.0
 pandas==2.2.3
 openpyxl==3.1.5
+pyotp==2.9.0
+phonenumbers==8.13.25

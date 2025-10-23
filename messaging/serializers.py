@@ -65,7 +65,7 @@ class ContactBulkImportSerializer(serializers.Serializer):
     # CSV/Excel import
     csv_data = serializers.CharField(required=False, allow_blank=True)
     file = serializers.FileField(required=False, allow_null=True)
-    
+
     # Phone contact import
     contacts = serializers.ListField(
         child=serializers.DictField(),
@@ -73,7 +73,7 @@ class ContactBulkImportSerializer(serializers.Serializer):
         min_length=1,
         max_length=1000  # Increased limit for bulk operations
     )
-    
+
     # Import options
     import_type = serializers.ChoiceField(
         choices=['csv', 'excel', 'phone_contacts'],
@@ -85,7 +85,7 @@ class ContactBulkImportSerializer(serializers.Serializer):
     def validate(self, attrs):
         """Validate import data based on type."""
         import_type = attrs.get('import_type', 'csv')
-        
+
         if import_type in ['csv', 'excel']:
             if not attrs.get('csv_data') and not attrs.get('file'):
                 raise serializers.ValidationError(
@@ -96,47 +96,45 @@ class ContactBulkImportSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     "For phone contacts import, contacts data must be provided"
                 )
-        
+
         return attrs
 
     def validate_csv_data(self, value):
-        """Validate CSV data format."""
+        """Validate CSV data format with flexible column names."""
         if not value:
             return value
-            
-        import csv
-        from io import StringIO
 
-        try:
-            csv_reader = csv.DictReader(StringIO(value))
-            required_fields = ['name', 'phone']
-            optional_fields = ['local_number', 'email']
+        # Just check that we have at least one data row (not just headers)
+        lines = value.strip().split('\n')
+        if len(lines) < 2:  # At least header + 1 data row
+            raise serializers.ValidationError("CSV file is empty")
 
-            for row in csv_reader:
-                # Check required fields
-                for field in required_fields:
-                    if field not in row or not row[field].strip():
-                        raise serializers.ValidationError(f"Missing required field: {field}")
-                
-                # Validate phone number format
-                phone = row.get('phone', '').strip()
-                if phone and not self._is_valid_phone_format(phone):
-                    raise serializers.ValidationError(f"Invalid phone number format: {phone}")
-                
-                # If local_number is provided, validate it matches phone (optional validation)
-                local_number = row.get('local_number', '').strip()
-                if local_number and phone:
-                    # Normalize both numbers for comparison
-                    phone_normalized = phone.replace('+255', '').replace('255', '').lstrip('0')
-                    local_normalized = local_number.lstrip('0')
-                    if phone_normalized != local_normalized:
-                        # This is just a warning, not an error
-                        pass  # We'll allow it but log it
+        return value
 
-            return value
-        except Exception as e:
-            raise serializers.ValidationError(f"Invalid CSV format: {str(e)}")
-    
+    def _map_csv_columns(self, columns):
+        """Map flexible column names to standard names."""
+        column_mapping = {}
+
+        # Common variations for name field
+        name_variations = ['name', 'full_name', 'fullname', 'contact_name', 'first_name', 'last_name']
+        phone_variations = ['phone', 'phone_number', 'mobile', 'mobile_number', 'tel', 'telephone', 'phone_e164']
+        email_variations = ['email', 'email_address', 'e_mail']
+
+        for col in columns:
+            col_lower = col.lower().strip()
+
+            # Map name variations
+            if any(var in col_lower for var in name_variations):
+                column_mapping[col] = 'name'
+            # Map phone variations
+            elif any(var in col_lower for var in phone_variations):
+                column_mapping[col] = 'phone'
+            # Map email variations
+            elif any(var in col_lower for var in email_variations):
+                column_mapping[col] = 'email'
+
+        return column_mapping
+
     def _is_valid_phone_format(self, phone):
         """Check if phone number is in valid format."""
         import re
@@ -153,7 +151,7 @@ class ContactBulkImportSerializer(serializers.Serializer):
         """Validate phone contact data."""
         if not value:
             return value
-            
+
         validated_contacts = []
 
         for i, contact in enumerate(value):
@@ -184,26 +182,57 @@ class ContactBulkImportSerializer(serializers.Serializer):
         return validated_contacts
 
     def _normalize_phone(self, phone):
-        """Normalize phone number to E.164 format."""
+        """Normalize phone number to E.164 format with comprehensive format support."""
         import re
+        import phonenumbers
+        from phonenumbers import NumberParseException
 
         if not phone:
             return ""
 
-        # Remove all non-digit characters
-        digits = re.sub(r'\D', '', phone)
+        # Clean the phone number - remove spaces, dashes, parentheses
+        cleaned_phone = re.sub(r'[\s\-\(\)]', '', phone.strip())
 
-        # Handle Tanzanian numbers
+        # If it's already in E.164 format, return as is
+        if cleaned_phone.startswith('+') and len(cleaned_phone) >= 12:
+            try:
+                parsed = phonenumbers.parse(cleaned_phone, None)
+                if phonenumbers.is_valid_number(parsed):
+                    return cleaned_phone
+            except NumberParseException:
+                pass
+
+        # Try to parse with different country codes
+        country_codes = ['TZ', 'KE', 'UG', 'RW', 'BI']  # East African countries
+
+        for country in country_codes:
+            try:
+                parsed = phonenumbers.parse(cleaned_phone, country)
+                if phonenumbers.is_valid_number(parsed):
+                    return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+            except NumberParseException:
+                continue
+
+        # Fallback to manual normalization for Tanzanian numbers
+        digits = re.sub(r'\D', '', cleaned_phone)
+
+        # Handle Tanzanian number patterns
         if digits.startswith('255') and len(digits) == 12:
             return f"+{digits}"
         elif digits.startswith('0') and len(digits) == 10:
             return f"+255{digits[1:]}"
-        elif digits.startswith('+'):
-            return phone  # Already in correct format
-        elif len(digits) >= 10:
+        elif len(digits) == 9 and digits.startswith(('6', '7', '8', '9')):
+            # Local format without leading 0
+            return f"+255{digits}"
+        elif len(digits) == 10 and digits.startswith('0'):
+            # Local format with leading 0
+            return f"+255{digits[1:]}"
+        elif len(digits) == 12 and digits.startswith('255'):
+            # International format without +
             return f"+{digits}"
 
-        return phone  # Return original if can't normalize
+        # If we can't normalize, return the cleaned version
+        return cleaned_phone if cleaned_phone else phone
 
 
 class ContactImportSerializer(serializers.Serializer):
@@ -283,25 +312,25 @@ class ContactBulkEditSerializer(serializers.Serializer):
         """Validate contact IDs exist and belong to user."""
         if not value:
             raise serializers.ValidationError("At least one contact ID is required")
-        
+
         # Check if all contact IDs are unique
         if len(value) != len(set(value)):
             raise serializers.ValidationError("Duplicate contact IDs are not allowed")
-        
+
         return value
 
     def validate_updates(self, value):
         """Validate update data."""
         if not value:
             raise serializers.ValidationError("Updates cannot be empty")
-        
+
         # Allowed fields for bulk update
         allowed_fields = ['name', 'email', 'tags', 'attributes', 'is_active']
-        
+
         for field in value.keys():
             if field not in allowed_fields:
                 raise serializers.ValidationError(f"Field '{field}' is not allowed for bulk update")
-        
+
         return value
 
 
@@ -318,11 +347,54 @@ class ContactBulkDeleteSerializer(serializers.Serializer):
         """Validate contact IDs exist and belong to user."""
         if not value:
             raise serializers.ValidationError("At least one contact ID is required")
-        
+
         # Check if all contact IDs are unique
         if len(value) != len(set(value)):
             raise serializers.ValidationError("Duplicate contact IDs are not allowed")
-        
+
+        return value
+
+
+class ContactBulkAddTagsSerializer(serializers.Serializer):
+    """Serializer for bulk adding tags to contacts."""
+
+    contact_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        max_length=100  # Limit to prevent abuse
+    )
+    tags = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        min_length=1,
+        max_length=20  # Limit number of tags
+    )
+
+    def validate_contact_ids(self, value):
+        """Validate contact IDs exist and belong to user."""
+        if not value:
+            raise serializers.ValidationError("At least one contact ID is required")
+
+        # Check if all contact IDs are unique
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError("Duplicate contact IDs are not allowed")
+
+        return value
+
+    def validate_tags(self, value):
+        """Validate tags."""
+        if not value:
+            raise serializers.ValidationError("At least one tag is required")
+
+        # Check for duplicate tags
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError("Duplicate tags are not allowed")
+
+        # Validate tag format (alphanumeric, spaces, hyphens, underscores)
+        import re
+        for tag in value:
+            if not re.match(r'^[a-zA-Z0-9\s\-_]+$', tag):
+                raise serializers.ValidationError(f"Invalid tag format: '{tag}'. Tags can only contain letters, numbers, spaces, hyphens, and underscores.")
+
         return value
 
 
@@ -356,18 +428,18 @@ class SegmentCreateSerializer(serializers.ModelSerializer):
 
 class TemplateSerializer(serializers.ModelSerializer):
     """Serializer for Template model."""
-    
+
     # Display fields
     status_display = serializers.ReadOnlyField()
     category_display = serializers.ReadOnlyField()
     language_display = serializers.ReadOnlyField()
     channel_display = serializers.ReadOnlyField()
     created_by_name = serializers.SerializerMethodField()
-    
+
     # Computed fields
     variables_count = serializers.SerializerMethodField()
     last_used_display = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Template
         fields = [
@@ -402,7 +474,7 @@ class TemplateSerializer(serializers.ModelSerializer):
 
 class TemplateCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating templates."""
-    
+
     class Meta:
         model = Template
         fields = [
@@ -416,13 +488,13 @@ class TemplateCreateSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             tenant = getattr(request.user, 'tenant', None)
             channel = self.initial_data.get('channel', 'sms')
-            
+
             existing = Template.objects.filter(
                 name=value,
                 tenant=tenant,
                 channel=channel
             ).exclude(id=self.instance.id if self.instance else None)
-            
+
             if existing.exists():
                 raise serializers.ValidationError(
                     f"A template with this name already exists for {channel} channel."
@@ -433,7 +505,7 @@ class TemplateCreateSerializer(serializers.ModelSerializer):
         """Validate body text and extract variables."""
         if not value.strip():
             raise serializers.ValidationError("Body text cannot be empty.")
-        
+
         # Check for valid variable format
         import re
         invalid_vars = re.findall(r'\{\{[^}]+\}\}', value)
@@ -442,7 +514,7 @@ class TemplateCreateSerializer(serializers.ModelSerializer):
                 f"Invalid variable format found: {invalid_vars}. "
                 "Variables should be in format {{variable_name}}."
             )
-        
+
         return value
 
     def create(self, validated_data):
@@ -456,7 +528,7 @@ class TemplateCreateSerializer(serializers.ModelSerializer):
 
 class TemplateUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating templates."""
-    
+
     class Meta:
         model = Template
         fields = [
@@ -471,13 +543,13 @@ class TemplateUpdateSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             tenant = getattr(request.user, 'tenant', None)
             channel = self.initial_data.get('channel', self.instance.channel if self.instance else 'sms')
-            
+
             existing = Template.objects.filter(
                 name=value,
                 tenant=tenant,
                 channel=channel
             ).exclude(id=self.instance.id if self.instance else None)
-            
+
             if existing.exists():
                 raise serializers.ValidationError(
                     f"A template with this name already exists for {channel} channel."
@@ -488,7 +560,7 @@ class TemplateUpdateSerializer(serializers.ModelSerializer):
         """Validate body text and extract variables."""
         if not value.strip():
             raise serializers.ValidationError("Body text cannot be empty.")
-        
+
         # Check for valid variable format
         import re
         invalid_vars = re.findall(r'\{\{[^}]+\}\}', value)
@@ -497,25 +569,25 @@ class TemplateUpdateSerializer(serializers.ModelSerializer):
                 f"Invalid variable format found: {invalid_vars}. "
                 "Variables should be in format {{variable_name}}."
             )
-        
+
         return value
 
 
 class TemplateDetailSerializer(serializers.ModelSerializer):
     """Detailed serializer for template view."""
-    
+
     # Display fields
     status_display = serializers.ReadOnlyField()
     category_display = serializers.ReadOnlyField()
     language_display = serializers.ReadOnlyField()
     channel_display = serializers.ReadOnlyField()
     created_by_name = serializers.SerializerMethodField()
-    
+
     # Computed fields
     variables_count = serializers.SerializerMethodField()
     last_used_display = serializers.SerializerMethodField()
     formatted_body_text = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Template
         fields = [
@@ -547,29 +619,29 @@ class TemplateDetailSerializer(serializers.ModelSerializer):
         """Get formatted body text with highlighted variables."""
         import re
         text = obj.body_text
-        
+
         # Highlight variables with a different color or format
         def replace_var(match):
             var_name = match.group(1)
             return f"<span class='variable'>{match.group(0)}</span>"
-        
+
         formatted_text = re.sub(r'\{\{(\w+)\}\}', replace_var, text)
         return formatted_text
 
 
 class TemplateListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for template list view."""
-    
+
     # Display fields
     category_display = serializers.ReadOnlyField()
     language_display = serializers.ReadOnlyField()
     channel_display = serializers.ReadOnlyField()
-    
+
     # Computed fields
     variables_count = serializers.SerializerMethodField()
     last_used_display = serializers.SerializerMethodField()
     preview_text = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Template
         fields = [
@@ -599,7 +671,7 @@ class TemplateListSerializer(serializers.ModelSerializer):
 
 class TemplateFilterSerializer(serializers.Serializer):
     """Serializer for template filtering options."""
-    
+
     categories = serializers.ListField(
         child=serializers.ChoiceField(choices=Template.CATEGORY_CHOICES),
         required=False

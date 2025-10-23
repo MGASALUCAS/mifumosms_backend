@@ -7,15 +7,16 @@ from . import views, views_dashboard, views_campaign, views_activity
 
 urlpatterns = [
     # Core messaging endpoints (used by frontend)
-    # Contacts
-    path('contacts/', views.ContactListCreateView.as_view(), name='contact-list-create'),
-    path('contacts/<uuid:pk>/', views.ContactDetailView.as_view(), name='contact-detail'),
+    # Contacts - more specific paths MUST come before less specific ones
     path('contacts/bulk-import/', views.ContactBulkImportView.as_view(), name='contact-bulk-import'),
     path('contacts/bulk-edit/', views.ContactBulkEditView.as_view(), name='contact-bulk-edit'),
     path('contacts/bulk-delete/', views.ContactBulkDeleteView.as_view(), name='contact-bulk-delete'),
+    path('contacts/bulk-add-tags/', views.ContactBulkAddTagsView.as_view(), name='contact-bulk-add-tags'),
     path('contacts/import/', views.ContactImportView.as_view(), name='contact-import'),
     path('contacts/<uuid:contact_id>/opt-in/', views.contact_opt_in, name='contact-opt-in'),
     path('contacts/<uuid:contact_id>/opt-out/', views.contact_opt_out, name='contact-opt-out'),
+    path('contacts/', views.ContactListCreateView.as_view(), name='contact-list-create'),
+    path('contacts/<uuid:pk>/', views.ContactDetailView.as_view(), name='contact-detail'),
 
     # Segments
     path('segments/', views.SegmentListCreateView.as_view(), name='segment-list-create'),
@@ -62,12 +63,12 @@ urlpatterns = [
     path('dashboard/overview/', views_dashboard.dashboard_overview, name='dashboard-overview'),
     path('dashboard/metrics/', views_dashboard.dashboard_metrics, name='dashboard-metrics'),
     path('dashboard/comprehensive/', views_dashboard.dashboard_comprehensive, name='dashboard-comprehensive'),
-    
+
     # Activity & Performance
     path('activity/recent/', views_activity.recent_activity, name='recent-activity'),
     path('performance/overview/', views_activity.performance_overview, name='performance-overview'),
     path('activity/statistics/', views_activity.activity_statistics, name='activity-statistics'),
-    
+
     # Sender IDs (for frontend compatibility)
     path('sender-ids/', views.sender_ids_list, name='sender-ids-list'),
     path('sender-ids/request/', views.request_sender_id, name='sender-ids-request'),

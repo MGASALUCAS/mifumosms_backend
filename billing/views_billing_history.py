@@ -13,7 +13,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 from .models import (
-    Purchase, PaymentTransaction, UsageRecord, SMSBalance, 
+    Purchase, PaymentTransaction, UsageRecord, SMSBalance,
     CustomSMSPurchase, BillingPlan, Subscription
 )
 from .serializers import (
@@ -27,17 +27,22 @@ class BillingHistoryView(generics.ListAPIView):
     Get comprehensive billing history for the tenant.
     Includes purchases, payments, usage, and custom purchases.
     """
+    serializer_class = PurchaseSerializer
     permission_classes = [IsAuthenticated]
-    
+
     def get_queryset(self):
         """Get all billing-related records for the tenant."""
+        # Handle Swagger schema generation with AnonymousUser
+        if not self.request.user.is_authenticated:
+            return Purchase.objects.none()
+
         tenant = getattr(self.request.user, 'tenant', None)
         if not tenant:
             return Purchase.objects.none()
-        
+
         # Get all purchases for the tenant
         return Purchase.objects.filter(tenant=tenant).order_by('-created_at')
-    
+
     def list(self, request, *args, **kwargs):
         """Return comprehensive billing history."""
         try:
@@ -50,11 +55,11 @@ class BillingHistoryView(generics.ListAPIView):
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            
+
             # Get date range filters
             start_date = request.query_params.get('start_date')
             end_date = request.query_params.get('end_date')
-            
+
             # Build date filter
             date_filter = Q()
             if start_date:
@@ -69,32 +74,32 @@ class BillingHistoryView(generics.ListAPIView):
                     date_filter &= Q(created_at__date__lte=end_dt)
                 except ValueError:
                     pass
-            
+
             # Get purchases
             purchases = Purchase.objects.filter(tenant=tenant).filter(date_filter).order_by('-created_at')
             purchase_data = PurchaseSerializer(purchases, many=True).data
-            
+
             # Get payment transactions
             payments = PaymentTransaction.objects.filter(tenant=tenant).filter(date_filter).order_by('-created_at')
             payment_data = PaymentTransactionSerializer(payments, many=True).data
-            
+
             # Get usage records
             usage_records = UsageRecord.objects.filter(tenant=tenant).filter(date_filter).order_by('-created_at')
             usage_data = UsageRecordSerializer(usage_records, many=True).data
-            
+
             # Get custom SMS purchases
             custom_purchases = CustomSMSPurchase.objects.filter(tenant=tenant).filter(date_filter).order_by('-created_at')
             custom_purchase_data = CustomSMSPurchaseSerializer(custom_purchases, many=True).data
-            
+
             # Calculate summary statistics
             total_purchased = purchases.aggregate(total=Sum('amount'))['total'] or 0
             total_credits_purchased = purchases.aggregate(total=Sum('credits'))['total'] or 0
             total_usage_cost = usage_records.aggregate(total=Sum('cost'))['total'] or 0
             total_credits_used = usage_records.aggregate(total=Sum('credits_used'))['total'] or 0
-            
+
             # Get current balance
             sms_balance, _ = SMSBalance.objects.get_or_create(tenant=tenant)
-            
+
             return Response({
                 'success': True,
                 'data': {
@@ -114,7 +119,7 @@ class BillingHistoryView(generics.ListAPIView):
                     'custom_purchases': custom_purchase_data,
                 }
             })
-            
+
         except Exception as e:
             return Response(
                 {
@@ -203,11 +208,11 @@ def billing_history_summary(request):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         # Get period filter
         period = request.query_params.get('period', '30d')
         end_date = timezone.now().date()
-        
+
         if period == '7d':
             start_date = end_date - timedelta(days=7)
         elif period == '30d':
@@ -218,37 +223,37 @@ def billing_history_summary(request):
             start_date = end_date - timedelta(days=365)
         else:
             start_date = end_date - timedelta(days=30)
-        
+
         # Get purchases in period
         purchases = Purchase.objects.filter(
             tenant=tenant,
             created_at__date__gte=start_date,
             created_at__date__lte=end_date
         )
-        
+
         # Get usage records in period
         usage_records = UsageRecord.objects.filter(
             tenant=tenant,
             created_at__date__gte=start_date,
             created_at__date__lte=end_date
         )
-        
+
         # Get payments in period
         payments = PaymentTransaction.objects.filter(
             tenant=tenant,
             created_at__date__gte=start_date,
             created_at__date__lte=end_date
         )
-        
+
         # Calculate summary statistics
         total_purchased = purchases.aggregate(total=Sum('amount'))['total'] or 0
         total_credits_purchased = purchases.aggregate(total=Sum('credits'))['total'] or 0
         total_usage_cost = usage_records.aggregate(total=Sum('cost'))['total'] or 0
         total_credits_used = usage_records.aggregate(total=Sum('credits_used'))['total'] or 0
-        
+
         # Get current balance
         sms_balance, _ = SMSBalance.objects.get_or_create(tenant=tenant)
-        
+
         # Generate monthly usage chart data
         monthly_usage = []
         current_date = start_date
@@ -258,7 +263,7 @@ def billing_history_summary(request):
                 month_end = current_date.replace(year=current_date.year + 1, month=1, day=1) - timedelta(days=1)
             else:
                 month_end = current_date.replace(month=current_date.month + 1, day=1) - timedelta(days=1)
-            
+
             month_usage = usage_records.filter(
                 created_at__date__gte=month_start,
                 created_at__date__lte=month_end
@@ -266,25 +271,25 @@ def billing_history_summary(request):
                 credits=Sum('credits_used'),
                 cost=Sum('cost')
             )
-            
+
             monthly_usage.append({
                 'month': month_start.strftime('%Y-%m'),
                 'credits': month_usage['credits'] or 0,
                 'cost': float(month_usage['cost'] or 0)
             })
-            
+
             # Move to next month
             if current_date.month == 12:
                 current_date = current_date.replace(year=current_date.year + 1, month=1, day=1)
             else:
                 current_date = current_date.replace(month=current_date.month + 1, day=1)
-        
+
         # Generate payment methods chart data
         payment_methods = payments.values('payment_method').annotate(
             count=Count('id'),
             amount=Sum('amount')
         ).order_by('-amount')
-        
+
         payment_methods_data = [
             {
                 'method': item['payment_method'],
@@ -293,7 +298,7 @@ def billing_history_summary(request):
             }
             for item in payment_methods
         ]
-        
+
         return Response({
             'success': True,
             'data': {
@@ -316,7 +321,7 @@ def billing_history_summary(request):
                 }
             }
         })
-        
+
     except Exception as e:
         return Response(
             {
@@ -418,49 +423,49 @@ def purchase_history_detailed(request):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         # Get filters
         status_filter = request.query_params.get('status')
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
         page = int(request.query_params.get('page', 1))
         page_size = int(request.query_params.get('page_size', 20))
-        
+
         # Build query
         queryset = Purchase.objects.filter(tenant=tenant).select_related('package')
-        
+
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-        
+
         if start_date:
             try:
                 start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
                 queryset = queryset.filter(created_at__date__gte=start_dt)
             except ValueError:
                 pass
-        
+
         if end_date:
             try:
                 end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
                 queryset = queryset.filter(created_at__date__lte=end_dt)
             except ValueError:
                 pass
-        
+
         # Order by creation date
         queryset = queryset.order_by('-created_at')
-        
+
         # Pagination
         total_count = queryset.count()
         start_index = (page - 1) * page_size
         end_index = start_index + page_size
-        
+
         purchases = queryset[start_index:end_index]
         purchase_data = PurchaseSerializer(purchases, many=True).data
-        
+
         # Calculate pagination info
         has_next = end_index < total_count
         has_previous = page > 1
-        
+
         return Response({
             'success': True,
             'data': {
@@ -475,7 +480,7 @@ def purchase_history_detailed(request):
                 }
             }
         })
-        
+
     except Exception as e:
         return Response(
             {
@@ -584,7 +589,7 @@ def payment_history_detailed(request):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         # Get filters
         status_filter = request.query_params.get('status')
         payment_method = request.query_params.get('payment_method')
@@ -592,45 +597,45 @@ def payment_history_detailed(request):
         end_date = request.query_params.get('end_date')
         page = int(request.query_params.get('page', 1))
         page_size = int(request.query_params.get('page_size', 20))
-        
+
         # Build query
         queryset = PaymentTransaction.objects.filter(tenant=tenant)
-        
+
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-        
+
         if payment_method:
             queryset = queryset.filter(payment_method=payment_method)
-        
+
         if start_date:
             try:
                 start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
                 queryset = queryset.filter(created_at__date__gte=start_dt)
             except ValueError:
                 pass
-        
+
         if end_date:
             try:
                 end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
                 queryset = queryset.filter(created_at__date__lte=end_dt)
             except ValueError:
                 pass
-        
+
         # Order by creation date
         queryset = queryset.order_by('-created_at')
-        
+
         # Pagination
         total_count = queryset.count()
         start_index = (page - 1) * page_size
         end_index = start_index + page_size
-        
+
         transactions = queryset[start_index:end_index]
         transaction_data = PaymentTransactionSerializer(transactions, many=True).data
-        
+
         # Calculate pagination info
         has_next = end_index < total_count
         has_previous = page > 1
-        
+
         return Response({
             'success': True,
             'data': {
@@ -645,7 +650,7 @@ def payment_history_detailed(request):
                 }
             }
         })
-        
+
     except Exception as e:
         return Response(
             {
@@ -737,45 +742,45 @@ def usage_history_detailed(request):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         # Get filters
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
         page = int(request.query_params.get('page', 1))
         page_size = int(request.query_params.get('page_size', 20))
-        
+
         # Build query
         queryset = UsageRecord.objects.filter(tenant=tenant)
-        
+
         if start_date:
             try:
                 start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
                 queryset = queryset.filter(created_at__date__gte=start_dt)
             except ValueError:
                 pass
-        
+
         if end_date:
             try:
                 end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
                 queryset = queryset.filter(created_at__date__lte=end_dt)
             except ValueError:
                 pass
-        
+
         # Order by creation date
         queryset = queryset.order_by('-created_at')
-        
+
         # Pagination
         total_count = queryset.count()
         start_index = (page - 1) * page_size
         end_index = start_index + page_size
-        
+
         usage_records = queryset[start_index:end_index]
         usage_data = UsageRecordSerializer(usage_records, many=True).data
-        
+
         # Calculate pagination info
         has_next = end_index < total_count
         has_previous = page > 1
-        
+
         return Response({
             'success': True,
             'data': {
@@ -790,7 +795,7 @@ def usage_history_detailed(request):
                 }
             }
         })
-        
+
     except Exception as e:
         return Response(
             {
@@ -856,21 +861,21 @@ def comprehensive_transaction_history(request):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         # Get filters
         status_filter = request.query_params.get('status')
         transaction_type = request.query_params.get('transaction_type')
         page = int(request.query_params.get('page', 1))
         page_size = int(request.query_params.get('page_size', 20))
-        
+
         # Collect all transaction types
         transactions = []
-        
+
         # 1. Regular Purchases
         purchases = Purchase.objects.filter(tenant=tenant).select_related('package')
         if status_filter:
             purchases = purchases.filter(status=status_filter)
-        
+
         for purchase in purchases:
             transactions.append({
                 'id': str(purchase.id),
@@ -892,7 +897,7 @@ def comprehensive_transaction_history(request):
                 'icon': '📦',
                 'color': 'blue'
             })
-        
+
         # 2. Payment Transactions (standalone only - exclude ones that belong to a purchase or custom purchase)
         from billing.models import PaymentTransaction
         payment_transactions = (
@@ -901,7 +906,7 @@ def comprehensive_transaction_history(request):
         )
         if status_filter:
             payment_transactions = payment_transactions.filter(status=status_filter)
-        
+
         for pt in payment_transactions:
             transactions.append({
                 'id': str(pt.id),
@@ -926,13 +931,13 @@ def comprehensive_transaction_history(request):
                 'icon': '💳',
                 'color': 'green'
             })
-        
+
         # 3. Custom SMS Purchases (combine with their payment data into a single entry)
         from billing.models import CustomSMSPurchase
         custom_purchases = CustomSMSPurchase.objects.filter(tenant=tenant)
         if status_filter:
             custom_purchases = custom_purchases.filter(status=status_filter)
-        
+
         for csp in custom_purchases:
             # Prefer payment status if available (so the row reflects real payment progress)
             combined_status = csp.status
@@ -954,7 +959,7 @@ def comprehensive_transaction_history(request):
                 buyer_email = pt.buyer_email
                 buyer_phone = pt.buyer_phone
                 order_id = pt.order_id
-            
+
             transactions.append({
                 'id': str(csp.id),
                 'type': 'custom',
@@ -984,36 +989,36 @@ def comprehensive_transaction_history(request):
                 'icon': '⚙️',
                 'color': 'purple'
             })
-        
+
         # Filter by transaction type if specified
         if transaction_type:
             transactions = [t for t in transactions if t['type'] == transaction_type]
-        
+
         # Sort by creation date (newest first)
         transactions.sort(key=lambda x: x['created_at'], reverse=True)
-        
+
         # Ensure all transactions have consistent status mapping
         for transaction in transactions:
             # Map any "processing" status to "pending" for consistency
             if transaction['status'] == 'processing':
                 transaction['status'] = 'pending'
                 transaction['status_display'] = 'Pending'
-        
+
         # Pagination
         total_count = len(transactions)
         start_index = (page - 1) * page_size
         end_index = start_index + page_size
-        
+
         paginated_transactions = transactions[start_index:end_index]
-        
+
         # Calculate pagination info
         has_next = end_index < total_count
         has_previous = page > 1
-        
+
         # Calculate summary statistics
         total_amount = sum(t['amount'] for t in transactions if t['status'] == 'completed')
         total_credits = sum(t['credits'] for t in transactions if t['credits'] and t['status'] == 'completed')
-        
+
         return Response({
             'success': True,
             'data': {
@@ -1034,7 +1039,7 @@ def comprehensive_transaction_history(request):
                 }
             }
         })
-        
+
     except Exception as e:
         return Response(
             {

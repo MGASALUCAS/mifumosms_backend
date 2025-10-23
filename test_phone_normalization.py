@@ -3,130 +3,76 @@
 Test phone number normalization
 """
 
-import os
-import sys
-import django
-import requests
-import json
+import re
+import phonenumbers
+from phonenumbers import NumberParseException
 
-# Add the project directory to Python path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+def _normalize_phone_to_e164(phone):
+    """Normalize phone number to E.164 format with comprehensive format support."""
+    if not phone:
+        return None
 
-# Setup Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mifumo.settings')
-django.setup()
+    # Clean the phone number - remove spaces, dashes, parentheses
+    cleaned_phone = re.sub(r'[\s\-\(\)]', '', phone.strip())
 
-from accounts.models import User
-from accounts.services.sms_verification import SMSVerificationService
+    # If it's already in E.164 format, return as is
+    if cleaned_phone.startswith('+') and len(cleaned_phone) >= 12:
+        try:
+            parsed = phonenumbers.parse(cleaned_phone, None)
+            if phonenumbers.is_valid_number(parsed):
+                return cleaned_phone
+        except NumberParseException:
+            pass
 
-def normalize_phone_number(phone_number):
-    """Normalize phone number to local format for database lookup."""
-    if not phone_number:
-        return phone_number
-    
-    # Remove all non-digit characters except +
-    cleaned = ''.join(c for c in phone_number if c.isdigit() or c == '+')
-    
-    # Remove leading +
-    if cleaned.startswith('+'):
-        cleaned = cleaned[1:]
-    
-    # Convert international format to local format
-    if cleaned.startswith('255') and len(cleaned) == 12:
-        # 255689726060 -> 0689726060
-        cleaned = '0' + cleaned[3:]
-    elif len(cleaned) == 9 and cleaned.startswith('6'):
-        # 689726060 -> 0689726060
-        cleaned = '0' + cleaned
-    
-    return cleaned
+    # Try to parse with different country codes
+    country_codes = ['TZ', 'KE', 'UG', 'RW', 'BI']  # East African countries
+
+    for country in country_codes:
+        try:
+            parsed = phonenumbers.parse(cleaned_phone, country)
+            if phonenumbers.is_valid_number(parsed):
+                return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+        except NumberParseException:
+            continue
+
+    # Fallback to manual normalization for Tanzanian numbers
+    digits = re.sub(r'\D', '', cleaned_phone)
+
+    # Handle Tanzanian number patterns
+    if digits.startswith('255') and len(digits) == 12:
+        return f"+{digits}"
+    elif digits.startswith('0') and len(digits) == 10:
+        return f"+255{digits[1:]}"
+    elif len(digits) == 9 and digits.startswith(('6', '7', '8', '9')):
+        # Local format without leading 0
+        return f"+255{digits}"
+    elif len(digits) == 10 and digits.startswith('0'):
+        # Local format with leading 0
+        return f"+255{digits[1:]}"
+    elif len(digits) == 12 and digits.startswith('255'):
+        # International format without +
+        return f"+{digits}"
+
+    # If we can't normalize, return the cleaned version
+    return cleaned_phone if cleaned_phone else phone
 
 def test_phone_normalization():
-    """Test phone number normalization."""
-    print("=" * 80)
-    print("TESTING PHONE NUMBER NORMALIZATION")
-    print("=" * 80)
-    
-    # Test different phone number formats
-    phone_formats = [
-        "0689726060",           # Local format
-        "+255689726060",        # International with +
-        "255689726060",         # International without +
-        "0689 726 060",         # With spaces
-        "0689-726-060",         # With dashes
-        "(0689) 726-060",       # With parentheses
-        "689726060",            # Without leading 0
-    ]
-    
-    for phone_format in phone_formats:
-        normalized = normalize_phone_number(phone_format)
-        print(f"'{phone_format}' -> '{normalized}'")
-    
-    print("\n" + "=" * 80)
-    print("TESTING PASSWORD RESET WITH NORMALIZATION")
-    print("=" * 80)
-    
-    try:
-        # Get the user
-        user = User.objects.filter(email='admin@mifumo.com').first()
-        if not user:
-            print("User admin@mifumo.com not found!")
-            return
-        
-        print(f"User: {user.email}")
-        print(f"Stored phone: {user.phone_number}")
-        
-        # Send a fresh verification code
-        sms_verification = SMSVerificationService(str(user.get_tenant().id))
-        result = sms_verification.send_verification_code(user, "password_reset")
-        
-        if not result.get('success'):
-            print("FAILED: Could not send verification code")
-            return
-        
-        user.refresh_from_db()
-        verification_code = user.phone_verification_code
-        print(f"Verification code: {verification_code}")
-        
-        # Test with international format (most likely what frontend sends)
-        print("\n" + "=" * 50)
-        print("TESTING WITH INTERNATIONAL FORMAT (+255689726060)")
-        print("=" * 50)
-        
-        reset_data = {
-            'phone_number': '+255689726060',  # International format
-            'verification_code': verification_code,
-            'new_password': 'newpassword123',
-            'new_password_confirm': 'newpassword123'
-        }
-        
-        print(f"Sending data: {reset_data}")
-        
-        response = requests.post(
-            'http://127.0.0.1:8001/api/auth/sms/reset-password/',
-            json=reset_data,
-            headers={'Content-Type': 'application/json'}
-        )
-        
-        print(f"Response status: {response.status_code}")
-        print(f"Response content: {response.text}")
-        
-        if response.status_code == 200:
-            print("SUCCESS: Password reset worked with international format!")
-        else:
-            print("FAILED: Password reset failed with international format")
-        
-    except Exception as e:
-        print(f"Error testing phone normalization: {e}")
-        import traceback
-        traceback.print_exc()
+    """Test phone number normalization"""
+    print("🔍 Testing Phone Number Normalization")
+    print("=" * 50)
 
-def main():
-    """Run test."""
-    print("Testing Phone Number Normalization")
-    print("=" * 80)
-    
-    test_phone_normalization()
+    test_phones = [
+        "+255712345678",
+        "255712345679",
+        "0712345678",
+        "0712345679",
+        "712345678",
+        "712345679"
+    ]
+
+    for phone in test_phones:
+        normalized = _normalize_phone_to_e164(phone)
+        print(f"'{phone}' -> '{normalized}'")
 
 if __name__ == "__main__":
-    main()
+    test_phone_normalization()

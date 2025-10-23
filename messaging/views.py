@@ -21,9 +21,9 @@ from .models import (
 )
 from .serializers import (
     ContactSerializer, ContactCreateSerializer, ContactBulkImportSerializer, ContactImportSerializer,
-    ContactBulkEditSerializer, ContactBulkDeleteSerializer,
+    ContactBulkEditSerializer, ContactBulkDeleteSerializer, ContactBulkAddTagsSerializer,
     SegmentSerializer, SegmentCreateSerializer,
-    TemplateSerializer, TemplateCreateSerializer, TemplateUpdateSerializer, 
+    TemplateSerializer, TemplateCreateSerializer, TemplateUpdateSerializer,
     TemplateDetailSerializer, TemplateListSerializer, TemplateFilterSerializer,
     ConversationSerializer, MessageSerializer, MessageCreateSerializer,
     CampaignSerializer, CampaignCreateSerializer,
@@ -148,7 +148,7 @@ class ContactBulkImportView(generics.GenericAPIView):
         contacts_data = validated_data['contacts']
         skip_duplicates = validated_data.get('skip_duplicates', True)
         update_existing = validated_data.get('update_existing', False)
-        
+
         imported_count = 0
         updated_count = 0
         skipped_count = 0
@@ -157,7 +157,7 @@ class ContactBulkImportView(generics.GenericAPIView):
         for i, contact_data in enumerate(contacts_data):
             try:
                 phone = contact_data.get('phone')
-                
+
                 # Check for existing contact if phone is provided
                 existing_contact = None
                 if phone and skip_duplicates:
@@ -182,10 +182,10 @@ class ContactBulkImportView(generics.GenericAPIView):
                 contact_serializer_data = {
                     'name': contact_data['full_name'] or 'Unknown',
                     'phone_e164': phone,
-                    'email': contact_data.get('email', ''),
+                    'email': contact_data.get('email') or '',  # Ensure empty string instead of None
                 }
 
-                contact_serializer = ContactCreateSerializer(data=contact_serializer_data)
+                contact_serializer = ContactCreateSerializer(data=contact_serializer_data, context={'request': request})
                 if contact_serializer.is_valid():
                     contact_serializer.save(
                         created_by=request.user,
@@ -256,6 +256,7 @@ class ContactBulkImportView(generics.GenericAPIView):
                 'errors': ['Empty CSV data provided']
             }, status=status.HTTP_400_BAD_REQUEST)
 
+
         imported_count = 0
         updated_count = 0
         skipped_count = 0
@@ -274,21 +275,30 @@ class ContactBulkImportView(generics.GenericAPIView):
                 'errors': [f'CSV parsing error: {str(e)}']
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # Map flexible column names to standard names
+        column_mapping = self._map_csv_columns(csv_reader.fieldnames)
+
         for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 for header
             try:
-                # Handle the new format: name, phone, local_number
-                name = row['name'].strip()
-                phone = row['phone'].strip()
-                local_number = row.get('local_number', '').strip()
-                email = row.get('email', '').strip()
-                
+                # Map columns to standard names
+                mapped_row = {}
+                for original_col, value in row.items():
+                    if original_col in column_mapping:
+                        mapped_row[column_mapping[original_col]] = value.strip()
+
+                # Extract data using mapped column names
+                name = mapped_row.get('name', '').strip()
+                phone = mapped_row.get('phone', '').strip()
+                local_number = mapped_row.get('local_number', '').strip()
+                email = mapped_row.get('email', '').strip()
+
                 # Normalize phone number to E.164 format
                 phone_e164 = self._normalize_phone_to_e164(phone)
                 if not phone_e164:
                     errors.append(f"Row {row_num}: Invalid phone number format: {phone}")
                     skipped_count += 1
                     continue
-                
+
                 # Check for existing contact if skip_duplicates is enabled
                 existing_contact = None
                 if skip_duplicates and phone_e164:
@@ -319,20 +329,21 @@ class ContactBulkImportView(generics.GenericAPIView):
                     'created_by': request.user,
                     'tenant': request.user.tenant
                 }
-                
+
                 # Add tags if provided
                 if row.get('tags'):
                     contact_data['tags'] = [tag.strip() for tag in row['tags'].split(',') if tag.strip()]
-                
+
                 contact = Contact.objects.create(**contact_data)
                 imported_count += 1
-                
+
             except KeyError as e:
                 errors.append(f"Row {row_num}: Missing required field: {str(e)}")
                 skipped_count += 1
             except Exception as e:
                 errors.append(f"Row {row_num}: {str(e)}")
                 skipped_count += 1
+
 
         response_data = {
             'success': True,
@@ -349,33 +360,83 @@ class ContactBulkImportView(generics.GenericAPIView):
             response_data['message'] = f'Successfully imported {imported_count}, updated {updated_count}, skipped {skipped_count} contacts'
 
         return Response(response_data, status=status.HTTP_201_CREATED)
-    
+
     def _normalize_phone_to_e164(self, phone):
-        """Normalize phone number to E.164 format for Tanzania."""
+        """Normalize phone number to E.164 format with comprehensive format support."""
         import re
-        
+        import phonenumbers
+        from phonenumbers import NumberParseException
+
         if not phone:
             return None
-            
-        # Remove any non-digit characters except +
-        phone = re.sub(r'[^\d+]', '', phone)
-        
-        # Handle different formats
-        if phone.startswith('+255'):
-            # Already in E.164 format
-            return phone
-        elif phone.startswith('255'):
-            # Add + prefix
-            return f'+{phone}'
-        elif phone.startswith('0'):
-            # Remove leading 0 and add +255
-            return f'+255{phone[1:]}'
-        else:
-            # Assume it's a local number without country code
-            if len(phone) == 9:
-                return f'+255{phone}'
-            else:
-                return None
+
+        # Clean the phone number - remove spaces, dashes, parentheses
+        cleaned_phone = re.sub(r'[\s\-\(\)]', '', phone.strip())
+
+        # If it's already in E.164 format, return as is
+        if cleaned_phone.startswith('+') and len(cleaned_phone) >= 12:
+            try:
+                parsed = phonenumbers.parse(cleaned_phone, None)
+                if phonenumbers.is_valid_number(parsed):
+                    return cleaned_phone
+            except NumberParseException:
+                pass
+
+        # Try to parse with different country codes
+        country_codes = ['TZ', 'KE', 'UG', 'RW', 'BI']  # East African countries
+
+        for country in country_codes:
+            try:
+                parsed = phonenumbers.parse(cleaned_phone, country)
+                if phonenumbers.is_valid_number(parsed):
+                    return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+            except NumberParseException:
+                continue
+
+        # Fallback to manual normalization for Tanzanian numbers
+        digits = re.sub(r'\D', '', cleaned_phone)
+
+        # Handle Tanzanian number patterns
+        if digits.startswith('255') and len(digits) == 12:
+            return f"+{digits}"
+        elif digits.startswith('0') and len(digits) == 10:
+            return f"+255{digits[1:]}"
+        elif len(digits) == 9 and digits.startswith(('6', '7', '8', '9')):
+            # Local format without leading 0
+            return f"+255{digits}"
+        elif len(digits) == 10 and digits.startswith('0'):
+            # Local format with leading 0
+            return f"+255{digits[1:]}"
+        elif len(digits) == 12 and digits.startswith('255'):
+            # International format without +
+            return f"+{digits}"
+
+        # If we can't normalize, return None
+        return None
+
+    def _map_csv_columns(self, columns):
+        """Map flexible column names to standard names."""
+        column_mapping = {}
+
+        # Common variations for name field
+        name_variations = ['name', 'full_name', 'fullname', 'contact_name', 'first_name', 'last_name']
+        phone_variations = ['phone', 'phone_number', 'mobile', 'mobile_number', 'tel', 'telephone', 'phone_e164']
+        email_variations = ['email', 'email_address', 'e_mail']
+
+        for col in columns:
+            col_lower = col.lower().strip()
+
+            # Map name variations
+            if any(var in col_lower for var in name_variations):
+                column_mapping[col] = 'name'
+            # Map phone variations
+            elif any(var in col_lower for var in phone_variations):
+                column_mapping[col] = 'phone'
+            # Map email variations
+            elif any(var in col_lower for var in email_variations):
+                column_mapping[col] = 'email'
+
+        return column_mapping
 
 
 class ContactImportView(generics.GenericAPIView):
@@ -415,7 +476,7 @@ class ContactImportView(generics.GenericAPIView):
                 }
 
                 # Validate and create contact
-                contact_serializer = ContactCreateSerializer(data=contact_serializer_data)
+                contact_serializer = ContactCreateSerializer(data=contact_serializer_data, context={'request': request})
                 if contact_serializer.is_valid():
                     contact_serializer.save(created_by=request.user)
                     imported_count += 1
@@ -530,7 +591,7 @@ class ContactBulkEditView(generics.GenericAPIView):
                         # Handle comma-separated tags
                         value = [tag.strip() for tag in value.split(',') if tag.strip()]
                     setattr(contact, field, value)
-                
+
                 contact.save()
                 updated_count += 1
             except Exception as e:
@@ -600,6 +661,81 @@ class ContactBulkDeleteView(generics.GenericAPIView):
         }, status=status.HTTP_200_OK)
 
 
+class ContactBulkAddTagsView(generics.GenericAPIView):
+    """Bulk add tags to contacts."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = ContactBulkAddTagsSerializer
+
+    def post(self, request, *args, **kwargs):
+        """Add tags to multiple contacts."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        contact_ids = serializer.validated_data['contact_ids']
+        tags_to_add = serializer.validated_data['tags']
+
+        # Get contacts that belong to the user
+        contacts = Contact.objects.filter(
+            id__in=contact_ids,
+            created_by=request.user,
+            tenant=request.user.tenant
+        )
+
+        if not contacts.exists():
+            return Response({
+                'success': False,
+                'message': 'No contacts found with the provided IDs',
+                'updated_count': 0
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if all requested contacts were found
+        found_ids = set(contacts.values_list('id', flat=True))
+        requested_ids = set(contact_ids)
+        missing_ids = requested_ids - found_ids
+
+        if missing_ids:
+            return Response({
+                'success': False,
+                'message': f'Some contacts not found: {list(missing_ids)}',
+                'updated_count': 0
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Add tags to contacts
+        updated_count = 0
+        errors = []
+
+        for contact in contacts:
+            try:
+                # Get existing tags
+                existing_tags = contact.tags or []
+
+                # Add new tags (avoid duplicates)
+                new_tags = list(set(existing_tags + tags_to_add))
+
+                # Update contact
+                contact.tags = new_tags
+                contact.save()
+                updated_count += 1
+
+            except Exception as e:
+                errors.append(f"Contact {contact.id}: {str(e)}")
+
+        response_data = {
+            'success': True,
+            'message': f'Successfully added tags to {updated_count} contacts',
+            'updated_count': updated_count,
+            'total_requested': len(contact_ids),
+            'tags_added': tags_to_add,
+            'errors': errors
+        }
+
+        if errors:
+            response_data['message'] = f'Added tags to {updated_count} contacts with {len(errors)} errors'
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
 class SegmentListCreateView(generics.ListCreateAPIView):
     """List and create segments."""
 
@@ -650,7 +786,7 @@ def segment_update_count(request, segment_id):
 
 class TemplateFilterSet(FilterSet):
     """Custom filter set for Template model."""
-    
+
     class Meta:
         model = Template
         fields = ['category', 'language', 'channel', 'status', 'approved', 'is_favorite']
@@ -682,23 +818,23 @@ class TemplateListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         """Filter templates by user and tenant with additional filtering."""
         queryset = get_tenant_queryset(Template, self.request.user)
-        
+
         # Additional filtering based on query parameters
         favorites_only = self.request.query_params.get('favorites_only', '').lower() == 'true'
         approved_only = self.request.query_params.get('approved_only', '').lower() == 'true'
-        
+
         if favorites_only:
             queryset = queryset.filter(is_favorite=True)
-        
+
         if approved_only:
             queryset = queryset.filter(approved=True)
-        
+
         return queryset
 
     def list(self, request, *args, **kwargs):
         """Enhanced list view with filtering options."""
         queryset = self.filter_queryset(self.get_queryset())
-        
+
         # Get filter options for frontend
         filter_options = {
             'categories': [{'value': choice[0], 'label': choice[1]} for choice in Template.CATEGORY_CHOICES],
@@ -706,7 +842,7 @@ class TemplateListCreateView(generics.ListCreateAPIView):
             'channels': [{'value': choice[0], 'label': choice[1]} for choice in Template.CHANNEL_CHOICES],
             'statuses': [{'value': choice[0], 'label': choice[1]} for choice in Template.STATUS_CHOICES],
         }
-        
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -744,7 +880,7 @@ class TemplateDetailView(generics.RetrieveUpdateDestroyAPIView):
         """Enhanced retrieve with additional data."""
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        
+
         # Add template statistics
         data = serializer.data
         data['statistics'] = {
@@ -753,7 +889,7 @@ class TemplateDetailView(generics.RetrieveUpdateDestroyAPIView):
             'created': instance.created_at.strftime('%Y-%m-%d'),
             'variables_count': len(instance.variables) if instance.variables else 0
         }
-        
+
         return Response(data)
 
 
@@ -767,9 +903,9 @@ def template_toggle_favorite(request, template_id):
         created_by=request.user,
         tenant=request.user.tenant
     )
-    
+
     template.toggle_favorite()
-    
+
     return Response({
         'message': f'Template {"added to" if template.is_favorite else "removed from"} favorites',
         'is_favorite': template.is_favorite
@@ -786,9 +922,9 @@ def template_increment_usage(request, template_id):
         created_by=request.user,
         tenant=request.user.tenant
     )
-    
+
     template.increment_usage()
-    
+
     return Response({
         'message': 'Usage count updated',
         'usage_count': template.usage_count,
@@ -806,12 +942,12 @@ def template_approve(request, template_id):
         created_by=request.user,
         tenant=request.user.tenant
     )
-    
+
     template.approved = True
     template.approval_status = 'approved'
     template.status = 'approved'
     template.save()
-    
+
     return Response({
         'message': 'Template approved successfully',
         'approved': template.approved,
@@ -829,13 +965,13 @@ def template_reject(request, template_id):
         created_by=request.user,
         tenant=request.user.tenant
     )
-    
+
     reason = request.data.get('reason', '')
     template.approved = False
     template.approval_status = 'rejected'
     template.status = 'rejected'
     template.save()
-    
+
     return Response({
         'message': 'Template rejected successfully',
         'approved': template.approved,
@@ -854,9 +990,9 @@ def template_variables(request, template_id):
         created_by=request.user,
         tenant=request.user.tenant
     )
-    
+
     variables = template.variables if template.variables else []
-    
+
     return Response({
         'template_id': str(template.id),
         'template_name': template.name,
@@ -875,9 +1011,9 @@ def template_copy(request, template_id):
         created_by=request.user,
         tenant=request.user.tenant
     )
-    
+
     new_name = request.data.get('name', f"{template.name} (Copy)")
-    
+
     # Create new template
     new_template = Template.objects.create(
         name=new_name,
@@ -890,9 +1026,9 @@ def template_copy(request, template_id):
         tenant=request.user.tenant,
         status='draft'  # Start as draft
     )
-    
+
     serializer = TemplateDetailSerializer(new_template)
-    
+
     return Response({
         'message': 'Template copied successfully',
         'template': serializer.data
@@ -904,7 +1040,7 @@ def template_copy(request, template_id):
 def template_statistics(request):
     """Get template statistics for the user."""
     user = request.user
-    
+
     # Validate user has a tenant
     try:
         validate_user_tenant(user)
@@ -912,31 +1048,31 @@ def template_statistics(request):
         return Response({
             'error': str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
-    
+
     # Template statistics
     total_templates = Template.objects.filter(
         created_by=user,
         tenant=user.tenant
     ).count()
-    
+
     approved_templates = Template.objects.filter(
         created_by=user,
         tenant=user.tenant,
         approved=True
     ).count()
-    
+
     draft_templates = Template.objects.filter(
         created_by=user,
         tenant=user.tenant,
         status='draft'
     ).count()
-    
+
     favorite_templates = Template.objects.filter(
         created_by=user,
         tenant=user.tenant,
         is_favorite=True
     ).count()
-    
+
     # Category breakdown
     category_stats = Template.objects.filter(
         created_by=user,
@@ -944,7 +1080,7 @@ def template_statistics(request):
     ).values('category').annotate(
         count=models.Count('id')
     ).order_by('-count')
-    
+
     # Language breakdown
     language_stats = Template.objects.filter(
         created_by=user,
@@ -952,7 +1088,7 @@ def template_statistics(request):
     ).values('language').annotate(
         count=models.Count('id')
     ).order_by('-count')
-    
+
     # Channel breakdown
     channel_stats = Template.objects.filter(
         created_by=user,
@@ -960,7 +1096,7 @@ def template_statistics(request):
     ).values('channel').annotate(
         count=models.Count('id')
     ).order_by('-count')
-    
+
     return Response({
         'overview': {
             'total_templates': total_templates,
