@@ -4,7 +4,6 @@ URL patterns for user authentication and management.
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
-from . import views_security
 
 urlpatterns = [
     # Authentication
@@ -49,16 +48,4 @@ urlpatterns = [
 
     # Admin lookup endpoints
     path('lookup/users/', views.user_lookup, name='user-lookup'),
-    
-    # Security endpoints
-    path('security/change-password/', views_security.change_password, name='change-password'),
-    path('security/2fa/status/', views_security.two_factor_status, name='2fa-status'),
-    path('security/2fa/enable/', views_security.enable_2fa, name='enable-2fa'),
-    path('security/2fa/disable/', views_security.disable_2fa, name='disable-2fa'),
-    path('security/2fa/verify/', views_security.verify_2fa, name='verify-2fa'),
-    path('security/sessions/', views_security.UserSessionListView.as_view(), name='user-sessions'),
-    path('security/sessions/<uuid:session_id>/terminate/', views_security.terminate_session, name='terminate-session'),
-    path('security/sessions/terminate-all-others/', views_security.terminate_all_other_sessions, name='terminate-all-other-sessions'),
-    path('security/events/', views_security.SecurityEventListView.as_view(), name='security-events'),
-    path('security/summary/', views_security.security_summary, name='security-summary'),
 ]
