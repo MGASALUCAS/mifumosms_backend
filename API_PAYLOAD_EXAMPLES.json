@@ -1,0 +1,201 @@
+{
+  "sms_api": {
+    "send_sms": {
+      "basic": {
+        "message": "Hello from Mifumo SMS!",
+        "recipients": ["+255123456789"]
+      },
+      "with_sender_id": {
+        "message": "Hello from Mifumo SMS!",
+        "recipients": ["+255123456789"],
+        "sender_id": "MIFUMO"
+      },
+      "bulk_sms": {
+        "message": "Bulk message to multiple recipients",
+        "recipients": ["+255123456789", "+255987654321", "+255555123456"],
+        "sender_id": "BULK"
+      },
+      "scheduled_sms": {
+        "message": "Scheduled message",
+        "recipients": ["+255123456789"],
+        "sender_id": "SCHEDULE",
+        "schedule_time": "2024-12-25T10:00:00Z"
+      }
+    },
+    "get_message_status": {
+      "url": "/api/integration/v1/sms/status/msg_123456789/",
+      "method": "GET",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    },
+    "get_delivery_reports": {
+      "url": "/api/integration/v1/sms/delivery-reports/",
+      "method": "GET",
+      "query_params": {
+        "start_date": "2024-01-01T00:00:00Z",
+        "end_date": "2024-01-31T23:59:59Z",
+        "status": "delivered",
+        "page": 1,
+        "per_page": 50
+      }
+    },
+    "get_balance": {
+      "url": "/api/integration/v1/sms/balance/",
+      "method": "GET",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  },
+  "contacts_api": {
+    "create_contact": {
+      "basic": {
+        "name": "John Doe",
+        "phone_number": "+255123456789"
+      },
+      "with_email": {
+        "name": "Jane Smith",
+        "phone_number": "+255987654321",
+        "email": "jane@example.com"
+      },
+      "with_tags": {
+        "name": "VIP Customer",
+        "phone_number": "+255555123456",
+        "email": "vip@example.com",
+        "tags": ["customer", "vip", "premium"],
+        "is_active": true
+      }
+    },
+    "update_contact": {
+      "name": "John Smith",
+      "phone_number": "+255123456789",
+      "email": "johnsmith@example.com",
+      "tags": ["customer", "premium"],
+      "is_active": true
+    },
+    "search_contacts": {
+      "url": "/api/integration/v1/contacts/search/",
+      "method": "GET",
+      "query_params": {
+        "q": "john",
+        "limit": 20,
+        "offset": 0,
+        "segment_id": "uuid-here"
+      }
+    }
+  },
+  "segments_api": {
+    "create_segment": {
+      "basic": {
+        "name": "VIP Customers"
+      },
+      "with_description": {
+        "name": "Premium Customers",
+        "description": "High-value customers with premium subscriptions"
+      },
+      "with_criteria": {
+        "name": "Active VIPs",
+        "description": "Active VIP customers",
+        "criteria": {
+          "tags": ["vip", "premium"],
+          "is_active": true,
+          "created_after": "2024-01-01"
+        }
+      }
+    },
+    "update_segment": {
+      "name": "Premium Customers",
+      "description": "Updated description",
+      "criteria": {
+        "tags": ["premium", "gold"],
+        "is_active": true
+      }
+    }
+  },
+  "webhooks": {
+    "create_webhook": {
+      "name": "Message Notifications",
+      "webhook_url": "https://myapp.com/webhooks/mifumo",
+      "events": ["message.sent", "message.delivered", "message.failed"],
+      "platform": "custom"
+    },
+    "webhook_payload_example": {
+      "message_id": "msg_123456789",
+      "status": "delivered",
+      "recipients": [
+        {
+          "phone": "+255123456789",
+          "status": "delivered",
+          "delivery_time": "2024-01-01T10:05:00Z"
+        }
+      ],
+      "metadata": {
+        "sender_id": "MIFUMO",
+        "cost": 10.0,
+        "currency": "TZS"
+      }
+    }
+  },
+  "api_keys": {
+    "create_api_key": {
+      "key_name": "Production API Key",
+      "permissions": ["read", "write"],
+      "expires_at": "2025-12-31T23:59:59Z"
+    }
+  },
+  "curl_examples": {
+    "send_sms": "curl -X POST \"https://mifumosms.servehttp.com/api/integration/v1/sms/send/\" \\\n  -H \"Content-Type: application/json\" \\\n  -H \"Authorization: Bearer YOUR_API_KEY\" \\\n  -d '{\n    \"message\": \"Hello from Mifumo SMS!\",\n    \"recipients\": [\"+255123456789\"]\n  }'",
+    "create_contact": "curl -X POST \"https://mifumosms.servehttp.com/api/integration/v1/contacts/create/\" \\\n  -H \"Content-Type: application/json\" \\\n  -H \"Authorization: Bearer YOUR_API_KEY\" \\\n  -d '{\n    \"name\": \"John Doe\",\n    \"phone_number\": \"+255123456789\",\n    \"email\": \"john@example.com\"\n  }'",
+    "get_balance": "curl -X GET \"https://mifumosms.servehttp.com/api/integration/v1/sms/balance/\" \\\n  -H \"Authorization: Bearer YOUR_API_KEY\"",
+    "search_contacts": "curl -X GET \"https://mifumosms.servehttp.com/api/integration/v1/contacts/search/?q=john&limit=10\" \\\n  -H \"Authorization: Bearer YOUR_API_KEY\""
+  },
+  "response_examples": {
+    "success_response": {
+      "success": true,
+      "message": "Operation completed successfully",
+      "data": {
+        "id": "123456789",
+        "status": "success"
+      },
+      "error_code": null,
+      "details": null
+    },
+    "error_response": {
+      "success": false,
+      "message": "Invalid API Key or request payload",
+      "data": null,
+      "error_code": "INVALID_CREDENTIALS",
+      "details": "The provided API key is invalid or expired"
+    },
+    "sms_send_success": {
+      "success": true,
+      "message": "SMS sent successfully",
+      "data": {
+        "message_id": "msg_123456789",
+        "recipients": ["+255123456789"],
+        "status": "sent",
+        "cost": 10.0,
+        "currency": "TZS"
+      },
+      "error_code": null,
+      "details": null
+    },
+    "contact_created_success": {
+      "success": true,
+      "message": "Contact created successfully",
+      "data": {
+        "id": "contact_123456789",
+        "name": "John Doe",
+        "phone_number": "+255123456789",
+        "email": "john@example.com",
+        "tags": ["customer"],
+        "is_active": true,
+        "created_at": "2024-01-01T10:00:00Z"
+      },
+      "error_code": null,
+      "details": null
+    }
+  }
+}
+

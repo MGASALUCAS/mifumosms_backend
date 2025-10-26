@@ -28,9 +28,12 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/tenants/', include('tenants.urls')),
+    path('api/integration/', include('api_integration.urls')),
     path('api/messaging/', include('messaging.urls')),
     path('api/billing/', include('billing.urls')),
     path('api/notifications/', include('notifications.urls')),
+    path('api/sms-provider/', include('api_integration.urls_sms_provider')),
+    path('api/sms-aggregator/', include('api_integration.urls_sms_aggregator')),
     path('webhooks/', include('messaging.webhooks')),
 
     # API Documentation

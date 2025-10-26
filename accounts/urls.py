@@ -4,6 +4,7 @@ URL patterns for user authentication and management.
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
+from . import settings_api
 
 urlpatterns = [
     # Authentication
@@ -48,4 +49,18 @@ urlpatterns = [
 
     # Admin lookup endpoints
     path('lookup/users/', views.user_lookup, name='user-lookup'),
+
+    # User Settings API (moved from api_integration)
+    path('settings/', settings_api.get_api_settings, name='get_settings'),
+    path('usage/', settings_api.get_api_usage, name='get_usage'),
+    
+    # API Key management
+    path('keys/create/', settings_api.create_api_key, name='create_key'),
+    path('keys/<str:key_id>/revoke/', settings_api.revoke_api_key, name='revoke_key'),
+    path('keys/<str:key_id>/regenerate/', settings_api.regenerate_api_key, name='regenerate_key'),
+    
+    # Webhook management
+    path('webhooks/create/', settings_api.create_webhook, name='create_webhook'),
+    path('webhooks/<str:webhook_id>/toggle/', settings_api.toggle_webhook, name='toggle_webhook'),
+    path('webhooks/<str:webhook_id>/delete/', settings_api.delete_webhook, name='delete_webhook'),
 ]

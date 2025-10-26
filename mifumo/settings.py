@@ -99,6 +99,7 @@ LOCAL_APPS = [
     "billing.apps.BillingConfig",
     "notifications",
     "api",
+    "api_integration",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

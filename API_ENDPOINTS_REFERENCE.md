@@ -1,298 +1,294 @@
-# API Endpoints Reference - Quick Lookup
+# API Endpoints Reference - Settings Page
 
-## 🔐 Authentication Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/accounts/register/` | User registration | No |
-| POST | `/api/accounts/login/` | User login | No |
-| POST | `/api/accounts/token/refresh/` | Refresh JWT token | No |
-| POST | `/api/accounts/logout/` | User logout | Yes |
-| GET | `/api/accounts/profile/` | Get user profile | Yes |
-| PUT | `/api/accounts/profile/` | Update user profile | Yes |
-
----
-
-## 📦 SMS Packages Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/billing/sms/packages/` | List all SMS packages | Yes |
-| GET | `/api/billing/sms/packages/{id}/` | Get specific package | Yes |
-
-### Package Types Available:
-- **Real User Test Package**: 5 credits, 250 TZS, 50 TZS/SMS
-- **Lite**: 5000 credits, 150,000 TZS, 30 TZS/SMS
-- **Standard**: 50,000 credits, 1,250,000 TZS, 25 TZS/SMS (Popular)
-- **Pro**: 250,000 credits, 4,500,000 TZS, 18 TZS/SMS
-- **Enterprise**: 1,000,000 credits, 12,000,000 TZS, 12 TZS/SMS
-
----
-
-## 💰 SMS Balance & Usage Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/billing/sms/balance/` | Get current SMS balance | Yes |
-| GET | `/api/billing/sms/usage/statistics/` | Get usage statistics | Yes |
-| GET | `/api/billing/sms/usage/records/` | Get usage records | Yes |
-
----
-
-## 💳 Payment Endpoints
-
-### Mobile Money Providers
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/billing/payments/providers/` | Get available payment providers | Yes |
-
-### Package Purchases
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/billing/payments/initiate/` | Initiate package purchase | Yes |
-| GET | `/api/billing/payments/verify/{order_id}/` | Verify payment status | Yes |
-| GET | `/api/billing/payments/transactions/{id}/progress/` | Get payment progress | Yes |
-| POST | `/api/billing/payments/transactions/{id}/cancel/` | Cancel payment | Yes |
-| GET | `/api/billing/payments/active/` | Get active payments | Yes |
-
-### Custom SMS Purchases
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/billing/payments/custom-sms/calculate/` | Calculate custom pricing | Yes |
-| POST | `/api/billing/payments/custom-sms/initiate/` | Initiate custom purchase | Yes |
-| GET | `/api/billing/payments/custom-sms/{id}/status/` | Check custom purchase status | Yes |
-
----
-
-## 📱 SMS Sending Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/messaging/sms/send/` | Send SMS message | Yes |
-| GET | `/api/messaging/sms/messages/` | Get SMS history | Yes |
-| GET | `/api/messaging/sms/messages/{id}/` | Get specific SMS | Yes |
-| GET | `/api/messaging/sms/delivery-reports/` | Get delivery reports | Yes |
-
----
-
-## 🏷️ Sender ID Management Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/messaging/sender-ids/` | Get available sender IDs | Yes |
-| POST | `/api/messaging/sender-ids/request/` | Request new sender ID | Yes |
-| GET | `/api/messaging/sender-ids/{id}/` | Get specific sender ID | Yes |
-| GET | `/api/messaging/sender-ids/{id}/status/` | Check request status | Yes |
-| PUT | `/api/messaging/sender-ids/{id}/` | Update sender ID | Yes |
-| DELETE | `/api/messaging/sender-ids/{id}/` | Delete sender ID | Yes |
-
----
-
-## 🏢 Tenant Management Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/tenants/profile/` | Get tenant profile | Yes |
-| PUT | `/api/tenants/profile/` | Update tenant profile | Yes |
-| GET | `/api/tenants/members/` | Get tenant members | Yes |
-| POST | `/api/tenants/members/invite/` | Invite new member | Yes |
-| PUT | `/api/tenants/members/{id}/` | Update member role | Yes |
-| DELETE | `/api/tenants/members/{id}/` | Remove member | Yes |
-
----
-
-## 📊 Billing & Analytics Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/billing/overview/` | Get billing overview | Yes |
-| GET | `/api/billing/sms/purchases/` | Get purchase history | Yes |
-| GET | `/api/billing/sms/purchases/history/` | Get detailed purchase history | Yes |
-| GET | `/api/billing/sms/purchases/{id}/` | Get specific purchase | Yes |
-| GET | `/api/billing/plans/` | Get billing plans | Yes |
-| GET | `/api/billing/subscription/` | Get current subscription | Yes |
-
----
-
-## 🔍 Query Parameters Reference
-
-### Pagination
-- `page`: Page number (default: 1)
-- `page_size`: Items per page (default: 20, max: 100)
-
-### Filtering
-- `status`: Filter by status
-- `start_date`: Filter from date (YYYY-MM-DD)
-- `end_date`: Filter to date (YYYY-MM-DD)
-- `search`: Search term
-
-### Ordering
-- `ordering`: Sort field (prefix with `-` for descending)
-
-### Examples:
+## Base URL
 ```
-GET /api/billing/sms/purchases/?page=1&page_size=10&status=completed
-GET /api/messaging/sms/messages/?ordering=-created_at&search=test
-GET /api/billing/sms/usage/statistics/?start_date=2024-01-01&end_date=2024-01-31
+http://127.0.0.1:8001/api/auth/
+```
+
+## Authentication
+All endpoints require JWT Bearer Token:
+```
+Authorization: Bearer <YOUR_ACCESS_TOKEN>
 ```
 
 ---
 
-## 📋 Request/Response Examples
+## 1. Get API Settings (API Keys & Webhooks)
 
-### Login Request
-```json
-POST /api/accounts/login/
-{
-  "email": "user@example.com",
-  "password": "password123"
-}
-```
+**Purpose:** Load all API keys and webhooks for the settings page
 
-### Login Response
+**Endpoint:** `GET /api/auth/settings/`
+
+**Response (200 OK):**
 ```json
 {
   "success": true,
-  "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "first_name": "John",
-    "last_name": "Doe",
-    "is_verified": true
-  }
-}
-```
-
-### Send SMS Request
-```json
-POST /api/messaging/sms/send/
-{
-  "recipients": ["+255123456789"],
-  "message": "Hello from Mifumo SMS!",
-  "sender_id": "MIFUMO"
-}
-```
-
-### Send SMS Response
-```json
-{
-  "success": true,
+  "message": "API settings retrieved successfully.",
   "data": {
-    "message_id": "uuid",
-    "recipients_count": 1,
-    "credits_required": 1,
-    "estimated_cost": 25.00,
-    "status": "queued"
-  }
-}
-```
-
-### Purchase Package Request
-```json
-POST /api/billing/payments/initiate/
-{
-  "package_id": "uuid",
-  "mobile_money_provider": "vodacom"
-}
-```
-
-### Purchase Package Response
-```json
-{
-  "success": true,
-  "data": {
-    "transaction_id": "uuid",
-    "order_id": "MIFUMO-20240115-ABC123",
-    "amount": 150000.00,
-    "credits": 5000,
-    "provider": "vodacom",
-    "provider_name": "Vodacom M-Pesa",
-    "payment_instructions": {
-      "step": "dial",
-      "message": "Dial *150*00# to pay 150,000 TZS",
-      "reference": "MIFUMO-20240115-ABC123"
+    "api_account": {
+      "id": "uuid-of-api-account",
+      "account_id": "ACC-XYZ123",
+      "name": "My API Account",
+      "status": "active",
+      "is_active": true,
+      "created_at": "2024-01-01T10:00:00Z"
     },
-    "expires_at": "2024-01-15T11:00:00Z"
+    "api_keys": [
+      {
+        "id": "uuid-of-key-1",
+        "key_name": "Production API Key",
+        "api_key": "mif_********************************",
+        "secret_key": "****************************************************************",
+        "status": "active",
+        "permissions": {
+          "sms": ["read", "write"]
+        },
+        "total_uses": 1500,
+        "last_used": "2024-07-20T14:30:00Z",
+        "expires_at": "2026-12-31T23:59:59Z",
+        "created_at": "2024-01-01T10:00:00Z"
+      },
+      {
+        "id": "uuid-of-key-2",
+        "key_name": "Development API Key",
+        "api_key": "mif_********************************",
+        "secret_key": "****************************************************************",
+        "status": "active",
+        "permissions": {
+          "sms": ["read"]
+        },
+        "total_uses": 50,
+        "last_used": "2024-07-19T10:00:00Z",
+        "expires_at": null,
+        "created_at": "2024-03-15T09:00:00Z"
+      }
+    ],
+    "webhooks": [
+      {
+        "id": "uuid-of-webhook-1",
+        "url": "https://myapp.com/webhooks/mifumo",
+        "events": ["message.sent", "message.delivered", "message.failed"],
+        "is_active": true,
+        "total_calls": 120,
+        "successful_calls": 118,
+        "failed_calls": 2,
+        "last_triggered": "2024-07-20T14:55:00Z",
+        "last_error": "",
+        "created_at": "2024-05-01T11:00:00Z"
+      },
+      {
+        "id": "uuid-of-webhook-2",
+        "url": "https://analytics.example.com/webhook",
+        "events": ["campaign.completed"],
+        "is_active": false,
+        "total_calls": 5,
+        "successful_calls": 5,
+        "failed_calls": 0,
+        "last_triggered": "2024-07-18T08:00:00Z",
+        "last_error": "",
+        "created_at": "2024-06-10T15:00:00Z"
+      }
+    ],
+    "last_updated": "2024-07-20T15:00:00Z"
   }
 }
 ```
 
 ---
 
-## ⚠️ Error Response Format
+## 2. Create New API Key
 
-### Standard Error Response
+**Purpose:** "+ New Key" button functionality
+
+**Endpoint:** `POST /api/auth/keys/create/`
+
+**Request Body:**
+```json
+{
+  "key_name": "My New API Key",
+  "permissions": {
+    "sms": ["send", "status", "balance"],
+    "contacts": ["read"]
+  },
+  "expires_at": "2025-12-31T23:59:59Z"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "API Key created successfully.",
+  "data": {
+    "id": "uuid-of-new-key",
+    "key_name": "My New API Key",
+    "api_key": "mif_YOUR_NEW_API_KEY_HERE",
+    "secret_key": "YOUR_NEW_SECRET_KEY_HERE",
+    "status": "active",
+    "permissions": {
+      "sms": ["send", "status", "balance"],
+      "contacts": ["read"]
+    },
+    "total_uses": 0,
+    "last_used": null,
+    "expires_at": "2025-12-31T23:59:59Z",
+    "created_at": "2024-07-20T15:05:00Z"
+  }
+}
+```
+
+---
+
+## 3. Revoke API Key
+
+**Purpose:** Three-dot menu "Revoke" option
+
+**Endpoint:** `POST /api/auth/keys/{key_id}/revoke/`
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "API Key revoked successfully.",
+  "data": {
+    "id": "uuid-of-revoked-key",
+    "status": "revoked",
+    "is_active": false
+  }
+}
+```
+
+---
+
+## 4. Regenerate API Key
+
+**Purpose:** Three-dot menu "Regenerate" option
+
+**Endpoint:** `POST /api/auth/keys/{key_id}/regenerate/`
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "API Key regenerated successfully.",
+  "data": {
+    "id": "uuid-of-regenerated-key",
+    "key_name": "Production API Key",
+    "api_key": "mif_YOUR_NEW_API_KEY_HERE",
+    "secret_key": "YOUR_NEW_SECRET_KEY_HERE",
+    "status": "active",
+    "permissions": {
+      "sms": ["read", "write"]
+    },
+    "last_used": null,
+    "expires_at": "2026-12-31T23:59:59Z",
+    "updated_at": "2024-07-20T15:10:00Z"
+  }
+}
+```
+
+---
+
+## 5. Create New Webhook
+
+**Purpose:** "+ Add Webhook" button functionality
+
+**Endpoint:** `POST /api/auth/webhooks/create/`
+
+**Request Body:**
+```json
+{
+  "url": "https://your-domain.com/webhooks/mifumo",
+  "events": ["message.sent", "message.delivered", "campaign.completed"],
+  "is_active": true
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Webhook created successfully.",
+  "data": {
+    "id": "uuid-of-new-webhook",
+    "url": "https://your-domain.com/webhooks/mifumo",
+    "events": ["message.sent", "message.delivered", "campaign.completed"],
+    "is_active": true,
+    "total_calls": 0,
+    "successful_calls": 0,
+    "failed_calls": 0,
+    "last_triggered": null,
+    "last_error": "",
+    "created_at": "2024-07-20T15:15:00Z"
+  }
+}
+```
+
+---
+
+## 6. Toggle Webhook Status
+
+**Purpose:** Three-dot menu "Toggle" option (Active/Inactive)
+
+**Endpoint:** `POST /api/auth/webhooks/{webhook_id}/toggle/`
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Webhook status toggled successfully.",
+  "data": {
+    "id": "uuid-of-webhook",
+    "is_active": false
+  }
+}
+```
+
+---
+
+## 7. Delete Webhook
+
+**Purpose:** Three-dot menu "Delete" option
+
+**Endpoint:** `DELETE /api/auth/webhooks/{webhook_id}/delete/`
+
+**Response (204 No Content):**
+```json
+{
+  "success": true,
+  "message": "Webhook deleted successfully.",
+  "data": null
+}
+```
+
+---
+
+## Error Responses
+
+**Common Error Format:**
 ```json
 {
   "success": false,
-  "error": "Error message",
-  "error_type": "validation_error",
-  "details": {
-    "field_name": ["This field is required."]
-  }
+  "message": "Error description",
+  "error_code": "ERROR_CODE",
+  "details": "Additional error details"
 }
 ```
 
-### Common Error Types
-- `validation_error`: Input validation failed
-- `authentication_error`: Authentication required
-- `permission_error`: Insufficient permissions
-- `not_found`: Resource not found
-- `insufficient_credits`: Not enough SMS credits
-- `payment_failed`: Payment processing failed
-- `rate_limit_exceeded`: Too many requests
+**Common Error Codes:**
+- `AUTHENTICATION_REQUIRED` - User not logged in
+- `INVALID_CREDENTIALS` - Invalid API key
+- `MISSING_MESSAGE` - SMS message is required
+- `INVALID_PHONE_FORMAT` - Phone number format is invalid
+- `INSUFFICIENT_BALANCE` - Account needs to be topped up
 
 ---
 
-## 🔄 Status Codes Reference
+## Frontend Implementation Notes
 
-| Code | Description | When Used |
-|------|-------------|-----------|
-| 200 | OK | Successful GET, PUT, PATCH |
-| 201 | Created | Successful POST |
-| 400 | Bad Request | Validation errors, invalid input |
-| 401 | Unauthorized | Missing or invalid authentication |
-| 403 | Forbidden | Insufficient permissions |
-| 404 | Not Found | Resource not found |
-| 429 | Too Many Requests | Rate limit exceeded |
-| 500 | Internal Server Error | Server error |
-
----
-
-## 🚀 Rate Limits
-
-| Endpoint Category | Limit | Window |
-|------------------|-------|--------|
-| Authentication | 5 requests | 1 minute |
-| SMS Sending | 100 requests | 1 minute |
-| Payment | 10 requests | 1 minute |
-| General API | 1000 requests | 1 hour |
-
----
-
-## 📱 Mobile Money Providers
-
-| Code | Name | Min Amount | Max Amount | Status |
-|------|------|------------|------------|--------|
-| `vodacom` | Vodacom M-Pesa | 1,000 TZS | 1,000,000 TZS | Active |
-| `tigo` | Tigo Pesa | 1,000 TZS | 500,000 TZS | Active |
-| `airtel` | Airtel Money | 1,000 TZS | 500,000 TZS | Active |
-| `halotel` | Halotel Money | 1,000 TZS | 500,000 TZS | Active |
-
----
-
-## 🔧 Development Tips
-
-1. **Always check the `success` field** in responses
-2. **Handle errors gracefully** with proper user feedback
-3. **Implement retry logic** for failed requests
-4. **Use pagination** for large data sets
-5. **Cache frequently accessed data** like packages and balance
-6. **Implement loading states** for better UX
-7. **Validate inputs** before sending requests
-
----
-
-*Last updated: January 2024*
+1. **Load Settings:** Call `GET /settings/` on page load
+2. **API Keys:** Display with masked values, show full values only on creation/regeneration
+3. **Webhooks:** Show status badges (Active/Inactive) and event tags
+4. **Actions:** Implement three-dot menus for each API key and webhook
+5. **Error Handling:** Show appropriate error messages for failed requests
+6. **Real-time Updates:** Refresh data after create/update/delete operations

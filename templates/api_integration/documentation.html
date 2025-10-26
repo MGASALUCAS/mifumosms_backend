@@ -1,0 +1,504 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}API Documentation - Mifumo SMS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .api-doc {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .endpoint-card {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+    
+    .endpoint-header {
+        background: #f8f9fa;
+        padding: 15px 20px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .method-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-right: 10px;
+    }
+    
+    .method-get { background: #28a745; color: white; }
+    .method-post { background: #007bff; color: white; }
+    .method-put { background: #ffc107; color: black; }
+    .method-delete { background: #dc3545; color: white; }
+    
+    .endpoint-body {
+        padding: 20px;
+    }
+    
+    .code-block {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 4px;
+        padding: 15px;
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+        overflow-x: auto;
+        margin: 10px 0;
+    }
+    
+    .param-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 15px 0;
+    }
+    
+    .param-table th,
+    .param-table td {
+        border: 1px solid #e9ecef;
+        padding: 8px 12px;
+        text-align: left;
+    }
+    
+    .param-table th {
+        background: #f8f9fa;
+        font-weight: bold;
+    }
+    
+    .toc {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .toc ul {
+        list-style: none;
+        padding-left: 0;
+    }
+    
+    .toc li {
+        margin: 5px 0;
+    }
+    
+    .toc a {
+        text-decoration: none;
+        color: #007bff;
+    }
+    
+    .toc a:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="api-doc">
+    <h1>Mifumo SMS API Documentation</h1>
+    <p class="lead">Integrate with Mifumo SMS using our RESTful API. Send messages, manage contacts, and track delivery status.</p>
+    
+    <!-- Table of Contents -->
+    <div class="toc">
+        <h3>Table of Contents</h3>
+        <ul>
+            <li><a href="#authentication">Authentication</a></li>
+            <li><a href="#base-url">Base URL</a></li>
+            <li><a href="#sms-endpoints">SMS Endpoints</a></li>
+            <li><a href="#contacts-endpoints">Contacts Endpoints</a></li>
+            <li><a href="#webhooks">Webhooks</a></li>
+            <li><a href="#rate-limits">Rate Limits</a></li>
+            <li><a href="#error-codes">Error Codes</a></li>
+            <li><a href="#examples">Code Examples</a></li>
+        </ul>
+    </div>
+    
+    <!-- Authentication -->
+    <div class="endpoint-card" id="authentication">
+        <div class="endpoint-header">
+            <h3>Authentication</h3>
+        </div>
+        <div class="endpoint-body">
+            <p>All API requests require authentication using an API key. Include your API key in the Authorization header:</p>
+            <div class="code-block">
+Authorization: Bearer YOUR_API_KEY_HERE
+            </div>
+            <p>You can get your API key from the <a href="{% url 'api_integration:api_dashboard' %}">API Dashboard</a>.</p>
+        </div>
+    </div>
+    
+    <!-- Base URL -->
+    <div class="endpoint-card" id="base-url">
+        <div class="endpoint-header">
+            <h3>Base URL</h3>
+        </div>
+        <div class="endpoint-body">
+            <div class="code-block">
+https://mifumosms.servehttp.com/api/integration/v1/
+            </div>
+        </div>
+    </div>
+    
+    <!-- SMS Endpoints -->
+    <div class="endpoint-card" id="sms-endpoints">
+        <div class="endpoint-header">
+            <h3>SMS Endpoints</h3>
+        </div>
+        <div class="endpoint-body">
+            <!-- Send SMS -->
+            <div class="mb-4">
+                <h4>
+                    <span class="method-badge method-post">POST</span>
+                    /sms/send/
+                </h4>
+                <p>Send an SMS message to one or more recipients.</p>
+                
+                <h5>Request Body</h5>
+                <div class="code-block">
+{
+    "message": "Hello from Mifumo SMS!",
+    "recipients": ["+255123456789", "+255987654321"],
+    "sender_id": "MIFUMO",
+    "schedule_time": "2024-01-01T10:00:00Z"  // Optional
+}
+                </div>
+                
+                <h5>Response</h5>
+                <div class="code-block">
+{
+    "success": true,
+    "message": "SMS sent successfully",
+    "data": {
+        "message_id": "msg_123456789",
+        "recipients": ["+255123456789", "+255987654321"],
+        "cost": 0.10,
+        "currency": "USD"
+    }
+}
+                </div>
+            </div>
+            
+            <!-- Get Message Status -->
+            <div class="mb-4">
+                <h4>
+                    <span class="method-badge method-get">GET</span>
+                    /sms/status/{message_id}/
+                </h4>
+                <p>Get the delivery status of a sent message.</p>
+                
+                <h5>Response</h5>
+                <div class="code-block">
+{
+    "success": true,
+    "data": {
+        "message_id": "msg_123456789",
+        "status": "delivered",
+        "delivered_at": "2024-01-01T10:05:00Z",
+        "recipients": [
+            {
+                "phone": "+255123456789",
+                "status": "delivered",
+                "delivered_at": "2024-01-01T10:05:00Z"
+            }
+        ]
+    }
+}
+                </div>
+            </div>
+            
+            <!-- Get Delivery Reports -->
+            <div class="mb-4">
+                <h4>
+                    <span class="method-badge method-get">GET</span>
+                    /sms/delivery-reports/
+                </h4>
+                <p>Get delivery reports for your messages.</p>
+                
+                <h5>Query Parameters</h5>
+                <table class="param-table">
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Type</th>
+                        <th>Required</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>start_date</td>
+                        <td>string</td>
+                        <td>No</td>
+                        <td>Start date (ISO 8601 format)</td>
+                    </tr>
+                    <tr>
+                        <td>end_date</td>
+                        <td>string</td>
+                        <td>No</td>
+                        <td>End date (ISO 8601 format)</td>
+                    </tr>
+                    <tr>
+                        <td>status</td>
+                        <td>string</td>
+                        <td>No</td>
+                        <td>Filter by status (sent, delivered, failed)</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Contacts Endpoints -->
+    <div class="endpoint-card" id="contacts-endpoints">
+        <div class="endpoint-header">
+            <h3>Contacts Endpoints</h3>
+        </div>
+        <div class="endpoint-body">
+            <!-- List Contacts -->
+            <div class="mb-4">
+                <h4>
+                    <span class="method-badge method-get">GET</span>
+                    /contacts/
+                </h4>
+                <p>Get a list of your contacts.</p>
+                
+                <h5>Response</h5>
+                <div class="code-block">
+{
+    "success": true,
+    "data": {
+        "contacts": [
+            {
+                "id": "contact_123",
+                "name": "John Doe",
+                "phone": "+255123456789",
+                "email": "john@example.com",
+                "created_at": "2024-01-01T10:00:00Z"
+            }
+        ],
+        "total": 1,
+        "page": 1,
+        "per_page": 50
+    }
+}
+                </div>
+            </div>
+            
+            <!-- Create Contact -->
+            <div class="mb-4">
+                <h4>
+                    <span class="method-badge method-post">POST</span>
+                    /contacts/
+                </h4>
+                <p>Create a new contact.</p>
+                
+                <h5>Request Body</h5>
+                <div class="code-block">
+{
+    "name": "John Doe",
+    "phone": "+255123456789",
+    "email": "john@example.com",
+    "tags": ["vip", "customer"]
+}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Webhooks -->
+    <div class="endpoint-card" id="webhooks">
+        <div class="endpoint-header">
+            <h3>Webhooks</h3>
+        </div>
+        <div class="endpoint-body">
+            <p>Webhooks allow you to receive real-time notifications about events in your account.</p>
+            
+            <h4>Supported Events</h4>
+            <ul>
+                <li><code>message.sent</code> - Message was sent</li>
+                <li><code>message.delivered</code> - Message was delivered</li>
+                <li><code>message.failed</code> - Message delivery failed</li>
+                <li><code>campaign.completed</code> - Campaign was completed</li>
+            </ul>
+            
+            <h4>Webhook Payload</h4>
+            <div class="code-block">
+{
+    "event": "message.delivered",
+    "timestamp": "2024-01-01T10:05:00Z",
+    "data": {
+        "message_id": "msg_123456789",
+        "recipient": "+255123456789",
+        "status": "delivered",
+        "delivered_at": "2024-01-01T10:05:00Z"
+    }
+}
+            </div>
+            
+            <p>Configure webhooks in the <a href="{% url 'api_integration:api_dashboard' %}">API Dashboard</a>.</p>
+        </div>
+    </div>
+    
+    <!-- Rate Limits -->
+    <div class="endpoint-card" id="rate-limits">
+        <div class="endpoint-header">
+            <h3>Rate Limits</h3>
+        </div>
+        <div class="endpoint-body">
+            <p>API requests are rate limited to prevent abuse:</p>
+            <ul>
+                <li><strong>Per minute:</strong> 60 requests</li>
+                <li><strong>Per hour:</strong> 1,000 requests</li>
+                <li><strong>Per day:</strong> 10,000 requests</li>
+            </ul>
+            <p>Rate limit information is included in response headers:</p>
+            <div class="code-block">
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 59
+X-RateLimit-Reset: 1640995200
+            </div>
+        </div>
+    </div>
+    
+    <!-- Error Codes -->
+    <div class="endpoint-card" id="error-codes">
+        <div class="endpoint-header">
+            <h3>Error Codes</h3>
+        </div>
+        <div class="endpoint-body">
+            <table class="param-table">
+                <tr>
+                    <th>Code</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>400</td>
+                    <td>Bad Request - Invalid request data</td>
+                </tr>
+                <tr>
+                    <td>401</td>
+                    <td>Unauthorized - Invalid or missing API key</td>
+                </tr>
+                <tr>
+                    <td>403</td>
+                    <td>Forbidden - Insufficient permissions</td>
+                </tr>
+                <tr>
+                    <td>404</td>
+                    <td>Not Found - Resource not found</td>
+                </tr>
+                <tr>
+                    <td>429</td>
+                    <td>Too Many Requests - Rate limit exceeded</td>
+                </tr>
+                <tr>
+                    <td>500</td>
+                    <td>Internal Server Error</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Code Examples -->
+    <div class="endpoint-card" id="examples">
+        <div class="endpoint-header">
+            <h3>Code Examples</h3>
+        </div>
+        <div class="endpoint-body">
+            <h4>JavaScript (Node.js)</h4>
+            <div class="code-block">
+const API_KEY = 'mif_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+const BASE_URL = 'https://mifumosms.servehttp.com/api/integration/v1';
+
+async function sendSMS(message, recipients) {
+    const response = await fetch(`${BASE_URL}/sms/send/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            message: message,
+            recipients: recipients,
+            sender_id: 'MIFUMO'
+        })
+    });
+    
+    return await response.json();
+}
+
+// Usage
+sendSMS('Hello from Mifumo!', ['+255123456789'])
+    .then(result => console.log(result))
+    .catch(error => console.error(error));
+            </div>
+            
+            <h4>Python</h4>
+            <div class="code-block">
+import requests
+
+API_KEY = 'mif_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+BASE_URL = 'https://mifumosms.servehttp.com/api/integration/v1'
+
+def send_sms(message, recipients):
+    headers = {
+        'Authorization': f'Bearer {API_KEY}',
+        'Content-Type': 'application/json'
+    }
+    
+    data = {
+        'message': message,
+        'recipients': recipients,
+        'sender_id': 'MIFUMO'
+    }
+    
+    response = requests.post(f'{BASE_URL}/sms/send/', json=data, headers=headers)
+    return response.json()
+
+# Usage
+result = send_sms('Hello from Mifumo!', ['+255123456789'])
+print(result)
+            </div>
+            
+            <h4>PHP</h4>
+            <div class="code-block">
+$apiKey = 'mif_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+$baseUrl = 'https://mifumosms.servehttp.com/api/integration/v1';
+
+function sendSMS($message, $recipients) {
+    global $apiKey, $baseUrl;
+    
+    $data = [
+        'message' => $message,
+        'recipients' => $recipients,
+        'sender_id' => 'MIFUMO'
+    ];
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $baseUrl . '/sms/send/');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $apiKey,
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    
+    $response = curl_exec($ch);
+    curl_close($ch);
+    
+    return json_decode($response, true);
+}
+
+// Usage
+$result = sendSMS('Hello from Mifumo!', ['+255123456789']);
+print_r($result);
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

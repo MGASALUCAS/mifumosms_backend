@@ -33,7 +33,7 @@ class UserRegistrationView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
 
     def create(self, request, *args, **kwargs):
-        """Create user and send verification email."""
+        """Create user and send verification email and SMS."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
@@ -46,17 +46,37 @@ class UserRegistrationView(generics.CreateAPIView):
         # Send verification email (disabled for development)
         # self.send_verification_email(user)
 
+        # Send SMS verification code if user has phone number
+        sms_sent = False
+        if user.phone_number:
+            try:
+                from .services.sms_verification import SMSVerificationService
+                sms_service = SMSVerificationService(str(user.get_tenant().id))
+                sms_result = sms_service.send_verification_code(user, "account_confirmation")
+                sms_sent = sms_result.get('success', False)
+            except Exception as e:
+                print(f"Failed to send SMS verification: {e}")
+
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
 
-        return Response({
+        response_data = {
             'message': 'User created successfully. Please check your email for verification.',
             'user': UserSerializer(user).data,
             'tokens': {
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
             }
-        }, status=status.HTTP_201_CREATED)
+        }
+
+        # Add SMS status to response
+        if sms_sent:
+            response_data['message'] = 'User created successfully. Please check your phone for SMS verification code.'
+            response_data['sms_verification_sent'] = True
+        else:
+            response_data['sms_verification_sent'] = False
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
     def send_verification_email(self, user):
         """Send email verification to user."""
@@ -528,7 +548,9 @@ def send_verification_code(request):
     # If phone number provided, find user by phone
     user = None
     if phone_number:
-        user = User.objects.filter(phone_number=phone_number).first()
+        # Normalize phone number for database lookup
+        normalized_phone = normalize_phone_number(phone_number)
+        user = User.objects.filter(phone_number=normalized_phone).first()
         if not user:
             return Response({
                 'success': False,
@@ -574,7 +596,9 @@ def verify_phone_code(request):
     # Find user
     user = None
     if phone_number:
-        user = User.objects.filter(phone_number=phone_number).first()
+        # Normalize phone number for database lookup
+        normalized_phone = normalize_phone_number(phone_number)
+        user = User.objects.filter(phone_number=normalized_phone).first()
         if not user:
             return Response({
                 'success': False,
@@ -655,7 +679,7 @@ def forgot_password_sms(request):
 
 
 def normalize_phone_number(phone_number):
-    """Normalize phone number to local format for database lookup."""
+    """Normalize phone number for database lookup - try both formats."""
     if not phone_number:
         return phone_number
     
@@ -666,14 +690,32 @@ def normalize_phone_number(phone_number):
     if cleaned.startswith('+'):
         cleaned = cleaned[1:]
     
-    # Convert international format to local format
+    # Try to find user with original format first
+    user = User.objects.filter(phone_number=cleaned).first()
+    if user:
+        return cleaned
+    
+    # Convert international format to local format and try again
     if cleaned.startswith('255') and len(cleaned) == 12:
         # 255689726060 -> 0689726060
-        cleaned = '0' + cleaned[3:]
+        local_format = '0' + cleaned[3:]
+        user = User.objects.filter(phone_number=local_format).first()
+        if user:
+            return local_format
     elif len(cleaned) == 9 and cleaned.startswith('6'):
         # 689726060 -> 0689726060
-        cleaned = '0' + cleaned
+        local_format = '0' + cleaned
+        user = User.objects.filter(phone_number=local_format).first()
+        if user:
+            return local_format
+    elif len(cleaned) == 10 and cleaned.startswith('0'):
+        # 0689726060 -> 255689726060
+        international_format = '255' + cleaned[1:]
+        user = User.objects.filter(phone_number=international_format).first()
+        if user:
+            return international_format
     
+    # Return original format if no match found
     return cleaned
 
 
