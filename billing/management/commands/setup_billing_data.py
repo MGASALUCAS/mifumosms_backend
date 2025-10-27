@@ -59,8 +59,8 @@ class Command(BaseCommand):
                 'name': 'Lite',
                 'package_type': 'lite',
                 'credits': 5000,
-                'price': 150000,  # 5000 * 30
-                'unit_price': 30,
+                'price': 90000,  # 5000 * 18
+                'unit_price': 18,
                 'features': [
                     'Instant top-up',
                     'Basic delivery reports',
@@ -71,8 +71,8 @@ class Command(BaseCommand):
                 'name': 'Standard',
                 'package_type': 'standard',
                 'credits': 50000,
-                'price': 1250000,  # 50000 * 25
-                'unit_price': 25,
+                'price': 700000,  # 50000 * 14
+                'unit_price': 14,
                 'is_popular': True,
                 'features': [
                     'Priority top-up & support',
@@ -85,25 +85,12 @@ class Command(BaseCommand):
                 'name': 'Pro',
                 'package_type': 'pro',
                 'credits': 250000,
-                'price': 4500000,  # 250000 * 18
-                'unit_price': 18,
+                'price': 3000000,  # 250000 * 12
+                'unit_price': 12,
                 'features': [
                     'Bulk campaign tools',
                     'Advanced analytics',
                     'API access',
-                ]
-            },
-            {
-                'name': 'Enterprise',
-                'package_type': 'enterprise',
-                'credits': 1000000,
-                'price': 15000000,  # 1000000 * 15
-                'unit_price': 15,
-                'features': [
-                    'Dedicated account manager',
-                    'Custom integrations',
-                    '24/7 priority support',
-                    'White-label options',
                 ]
             }
         ]

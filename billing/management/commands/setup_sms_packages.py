@@ -43,8 +43,8 @@ class Command(BaseCommand):
                 'name': 'Lite',
                 'package_type': 'lite',
                 'credits': 5000,
-                'price': Decimal('150000.00'),  # 5000 * 30
-                'unit_price': Decimal('30.00'),
+                'price': Decimal('90000.00'),  # 5000 * 18
+                'unit_price': Decimal('18.00'),
                 'is_popular': False,
                 'is_active': True,
                 'features': [
@@ -61,8 +61,8 @@ class Command(BaseCommand):
                 'name': 'Standard',
                 'package_type': 'standard',
                 'credits': 50000,
-                'price': Decimal('1250000.00'),  # 50000 * 25
-                'unit_price': Decimal('25.00'),
+                'price': Decimal('700000.00'),  # 50000 * 14
+                'unit_price': Decimal('14.00'),
                 'is_popular': True,
                 'is_active': True,
                 'features': [
@@ -80,8 +80,8 @@ class Command(BaseCommand):
                 'name': 'Pro',
                 'package_type': 'pro',
                 'credits': 250000,
-                'price': Decimal('4500000.00'),  # 250000 * 18
-                'unit_price': Decimal('18.00'),
+                'price': Decimal('3000000.00'),  # 250000 * 12
+                'unit_price': Decimal('12.00'),
                 'is_popular': False,
                 'is_active': True,
                 'features': [
@@ -94,26 +94,6 @@ class Command(BaseCommand):
                 'default_sender_id': 'MIFUMO',
                 'allowed_sender_ids': ['MIFUMO', 'SMS', 'INFO', 'ALERT', 'NOTIFY', 'PRO', 'BIZ'],
                 'sender_id_restriction': 'allowed_list'
-            },
-            {
-                'name': 'Enterprise',
-                'package_type': 'enterprise',
-                'credits': 1000000,
-                'price': Decimal('12000000.00'),  # 1000000 * 12
-                'unit_price': Decimal('12.00'),
-                'is_popular': False,
-                'is_active': True,
-                'features': [
-                    'Dedicated account manager',
-                    'Custom integrations',
-                    '24/7 priority support',
-                    'White-label options',
-                    'Unlimited sender ID support',
-                    'Custom branding'
-                ],
-                'default_sender_id': 'MIFUMO',
-                'allowed_sender_ids': [],  # Empty means no restrictions
-                'sender_id_restriction': 'none'  # No restrictions for enterprise
             }
         ]
 

@@ -17,7 +17,6 @@ class SMSPackage(models.Model):
         ('lite', 'Lite'),
         ('standard', 'Standard'),
         ('pro', 'Pro'),
-        ('enterprise', 'Enterprise'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -596,10 +595,9 @@ class CustomSMSPurchase(models.Model):
         """
         # Define pricing tiers
         tiers = [
-            {'name': 'Lite', 'min': 1, 'max': 4999, 'unit_price': 30.00},
-            {'name': 'Standard', 'min': 5000, 'max': 50000, 'unit_price': 25.00},
-            {'name': 'Pro', 'min': 50001, 'max': 250000, 'unit_price': 18.00},
-            {'name': 'Enterprise', 'min': 250001, 'max': 1000000, 'unit_price': 12.00},
+            {'name': 'Lite', 'min': 1, 'max': 49999, 'unit_price': 18.00},
+            {'name': 'Standard', 'min': 50000, 'max': 249999, 'unit_price': 14.00},
+            {'name': 'Pro', 'min': 250000, 'max': 1000000, 'unit_price': 12.00},
         ]
         
         # Find the appropriate tier
@@ -609,9 +607,9 @@ class CustomSMSPurchase(models.Model):
                 active_tier = tier
                 break
         
-        # If credits exceed all tiers, use Enterprise pricing
+        # If credits exceed all tiers, use Pro pricing
         if not active_tier and credits > 1000000:
-            active_tier = {'name': 'Enterprise+', 'min': 1000001, 'max': 9999999, 'unit_price': 12.00}
+            active_tier = {'name': 'Pro+', 'min': 1000001, 'max': 9999999, 'unit_price': 12.00}
         
         if not active_tier:
             # Default to highest tier if no match
