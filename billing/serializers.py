@@ -11,12 +11,13 @@ from .models import (
 class SMSPackageSerializer(serializers.ModelSerializer):
     """Serializer for SMS packages."""
     savings_percentage = serializers.ReadOnlyField()
+    subtitle = serializers.ReadOnlyField()
     
     class Meta:
         model = SMSPackage
         fields = [
             'id', 'name', 'package_type', 'credits', 'price', 'unit_price',
-            'is_popular', 'is_active', 'features', 'savings_percentage',
+            'is_popular', 'is_active', 'features', 'savings_percentage', 'subtitle',
             'default_sender_id', 'allowed_sender_ids', 'sender_id_restriction',
             'created_at', 'updated_at'
         ]

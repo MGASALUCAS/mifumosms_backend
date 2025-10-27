@@ -70,6 +70,11 @@ class SMSPackage(models.Model):
             return round(((standard_rate - self.unit_price) / standard_rate) * 100, 1)
         return 0
     
+    @property
+    def subtitle(self):
+        """Generate package subtitle showing credit range."""
+        return f"{self.credits:,} SMS Credits"
+    
     def is_sender_id_allowed(self, sender_id):
         """
         Check if a sender ID is allowed for this package.
