@@ -639,42 +639,90 @@ def verify_phone_code(request):
 @permission_classes([AllowAny])
 def forgot_password_sms(request):
     """Send password reset code via SMS."""
-    phone_number = request.data.get('phone_number')
+    from .serializers import SendVerificationCodeSerializer
     
-    if not phone_number:
+    # Debug: Log request details
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"Request content type: {request.content_type}")
+    logger.info(f"Request data type: {type(request.data)}")
+    logger.info(f"Request data: {request.data}")
+    
+    # Validate request data
+    try:
+        serializer = SendVerificationCodeSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.error(f"Serializer errors: {serializer.errors}")
+            return Response({
+                'success': False,
+                'error': 'Invalid request data.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        phone_number = serializer.validated_data['phone_number']
+        logger.info(f"Phone number extracted: {phone_number}")
+        
+        # Normalize phone number for database lookup
+        normalized_phone = normalize_phone_number(phone_number)
+        logger.info(f"Normalized phone number: {normalized_phone}")
+        
+        user = User.objects.filter(phone_number=normalized_phone).first()
+        if not user:
+            logger.warning(f"No user found for phone: {normalized_phone}")
+            return Response({
+                'success': False,
+                'error': 'No account found with this phone number.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        logger.info(f"User found: {user.email}")
+        
+        # Send password reset code
+        from .services.sms_verification import SMSVerificationService
+        tenant_id = str(user.get_tenant().id) if hasattr(user, 'get_tenant') else None
+        logger.info(f"Tenant ID: {tenant_id}")
+        
+        sms_service = SMSVerificationService(tenant_id)
+        result = sms_service.send_verification_code(user, "password_reset")
+        logger.info(f"SMS result: {result}")
+        
+        if result['success']:
+            response_data = {
+                'success': True,
+                'message': 'Password reset code sent to your phone number',
+                'phone_number': result.get('phone_number')
+            }
+            # Include bypassed flag if present
+            if result.get('bypassed'):
+                response_data['bypassed'] = True
+            return Response(response_data)
+        else:
+            error_message = result.get('error', 'Failed to send reset code')
+            error_code = result.get('details', {}).get('error_code', 0)
+            logger.error(f"Failed to send SMS: {error_message}")
+            
+            # Return more detailed error information
+            response_data = {
+                'success': False,
+                'error': error_message,
+                'error_code': error_code
+            }
+            
+            # Add error details if available
+            if 'details' in result:
+                response_data['details'] = result.get('details')
+            
+            # Return detailed error
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+    
+    except Exception as e:
+        import traceback
+        logger.error(f"Error in forgot_password_sms: {str(e)}")
+        logger.error(traceback.format_exc())
         return Response({
             'success': False,
-            'error': 'Phone number is required.'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Normalize phone number for database lookup
-    normalized_phone = normalize_phone_number(phone_number)
-    user = User.objects.filter(phone_number=normalized_phone).first()
-    if not user:
-        return Response({
-            'success': False,
-            'error': 'No account found with this phone number.'
-        }, status=status.HTTP_404_NOT_FOUND)
-    
-    # Send password reset code
-    from .services.sms_verification import SMSVerificationService
-    sms_service = SMSVerificationService(str(user.get_tenant().id))
-    result = sms_service.send_verification_code(user, "password_reset")
-    
-    if result['success']:
-        response_data = {
-            'success': True,
-            'message': 'Password reset code sent to your phone number',
-            'phone_number': result.get('phone_number')
-        }
-        # Include bypassed flag if present
-        if result.get('bypassed'):
-            response_data['bypassed'] = True
-        return Response(response_data)
-    else:
-        return Response({
-            'success': False,
-            'error': result.get('error', 'Failed to send reset code')
+            'error': f'An error occurred: {str(e)}',
+            'traceback': traceback.format_exc() if settings.DEBUG else None
         }, status=status.HTTP_400_BAD_REQUEST)
 
 

@@ -76,6 +76,7 @@ class MembershipCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating new memberships."""
     
     email = serializers.EmailField(write_only=True)
+    role = serializers.ChoiceField(choices=Membership.ROLE_CHOICES, default='agent', required=False)
     
     class Meta:
         model = Membership
@@ -84,6 +85,7 @@ class MembershipCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """Create membership by email."""
         email = validated_data.pop('email')
+        role = validated_data.get('role', 'agent')
         tenant = self.context['tenant']
         invited_by = self.context['request'].user
         
@@ -91,25 +93,42 @@ class MembershipCreateSerializer(serializers.ModelSerializer):
             user = User.objects.get(email=email)
         except User.DoesNotExist:
             # Create user if doesn't exist
+            # Don't include username since it's not in the User model
             user = User.objects.create_user(
                 email=email,
-                username=email,
                 first_name='',
                 last_name=''
             )
         
-        membership, created = Membership.objects.get_or_create(
+        # Check if user is already a member
+        existing_membership = Membership.objects.filter(tenant=tenant, user=user).first()
+        if existing_membership:
+            status_msg = existing_membership.get_status_display()
+            if existing_membership.status == 'pending':
+                raise serializers.ValidationError({
+                    'email': f'This user already has a pending invitation. You can resend the invitation instead.'
+                })
+            elif existing_membership.status == 'active':
+                raise serializers.ValidationError({
+                    'email': f'This user is already an active member with the role: {existing_membership.get_role_display()}.'
+                })
+            elif existing_membership.status == 'suspended':
+                raise serializers.ValidationError({
+                    'email': f'This user\'s membership is suspended. You can activate them instead.'
+                })
+            else:
+                raise serializers.ValidationError({
+                    'email': 'User is already a member of this tenant.'
+                })
+        
+        # Create membership
+        membership = Membership.objects.create(
             tenant=tenant,
             user=user,
-            defaults={
-                'role': validated_data['role'],
-                'invited_by': invited_by,
-                'status': 'pending'
-            }
+            role=role,
+            invited_by=invited_by,
+            status='pending'
         )
-        
-        if not created:
-            raise serializers.ValidationError("User is already a member of this tenant.")
         
         return membership
 

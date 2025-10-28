@@ -100,6 +100,7 @@ class Membership(models.Model):
     invited_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='invited_memberships')
     invited_at = models.DateTimeField(auto_now_add=True)
     joined_at = models.DateTimeField(null=True, blank=True)
+    invitation_token = models.CharField(max_length=32, blank=True, null=True)
 
     class Meta:
         db_table = 'tenant_memberships'

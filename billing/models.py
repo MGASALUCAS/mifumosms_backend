@@ -73,7 +73,15 @@ class SMSPackage(models.Model):
     @property
     def subtitle(self):
         """Generate package subtitle showing credit range."""
-        return f"{self.credits:,} SMS Credits"
+        # Return range-based subtitle based on package type
+        if self.package_type == 'lite':
+            return "1 to 49,999 SMS"
+        elif self.package_type == 'standard':
+            return "50,000 to 149,999 SMS"
+        elif self.package_type == 'pro':
+            return "250,000 SMS and above"
+        else:
+            return f"{self.credits:,} SMS Credits"
     
     def is_sender_id_allowed(self, sender_id):
         """

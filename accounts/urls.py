@@ -5,6 +5,7 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
 from . import settings_api
+from . import security_views
 
 urlpatterns = [
     # Authentication
@@ -63,4 +64,16 @@ urlpatterns = [
     path('webhooks/create/', settings_api.create_webhook, name='create_webhook'),
     path('webhooks/<str:webhook_id>/toggle/', settings_api.toggle_webhook, name='toggle_webhook'),
     path('webhooks/<str:webhook_id>/delete/', settings_api.delete_webhook, name='delete_webhook'),
+    
+    # Security endpoints
+    path('security/summary/', security_views.security_summary, name='security-summary'),
+    path('security/2fa/status/', security_views.two_factor_status, name='2fa-status'),
+    path('security/2fa/enable/', security_views.enable_two_factor, name='2fa-enable'),
+    path('security/2fa/disable/', security_views.disable_two_factor, name='2fa-disable'),
+    path('security/2fa/verify/', security_views.verify_two_factor, name='2fa-verify'),
+    path('security/sessions/', security_views.security_sessions, name='security-sessions'),
+    path('security/sessions/<str:session_id>/terminate/', security_views.terminate_session, name='terminate-session'),
+    path('security/sessions/terminate-all-others/', security_views.terminate_all_other_sessions, name='terminate-all-other-sessions'),
+    path('security/events/', security_views.security_events, name='security-events'),
+    path('security/change-password/', security_views.change_password_security, name='change-password-security'),
 ]

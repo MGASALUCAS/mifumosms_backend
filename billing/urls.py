@@ -11,6 +11,7 @@ urlpatterns = [
     path('subscription/', views.SubscriptionDetailView.as_view(), name='subscription-detail'),
     path('usage/', views.UsageRecordListView.as_view(), name='usage-list'),
     path('overview/', views.billing_overview, name='billing-overview'),
+    path('info/', views.billing_info, name='billing-info'),
     
     # SMS billing endpoints
     path('sms/packages/', views_sms.SMSPackageListView.as_view(), name='sms-package-list'),

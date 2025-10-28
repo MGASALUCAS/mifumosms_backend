@@ -42,8 +42,8 @@ class Command(BaseCommand):
             {
                 'name': 'Lite',
                 'package_type': 'lite',
-                'credits': 5000,
-                'price': Decimal('90000.00'),  # 5000 * 18
+                'credits': 49999,  # Max of Lite range: 1 to 49,999 SMS
+                'price': Decimal('899982.00'),  # 49999 * 18
                 'unit_price': Decimal('18.00'),
                 'is_popular': False,
                 'is_active': True,
@@ -60,8 +60,8 @@ class Command(BaseCommand):
             {
                 'name': 'Standard',
                 'package_type': 'standard',
-                'credits': 50000,
-                'price': Decimal('700000.00'),  # 50000 * 14
+                'credits': 149999,  # Max of Standard range: 50,000 to 149,999 SMS
+                'price': Decimal('2099986.00'),  # 149999 * 14
                 'unit_price': Decimal('14.00'),
                 'is_popular': True,
                 'is_active': True,
@@ -79,7 +79,7 @@ class Command(BaseCommand):
             {
                 'name': 'Pro',
                 'package_type': 'pro',
-                'credits': 250000,
+                'credits': 250000,  # Minimum of Pro range: 250,000 SMS and above
                 'price': Decimal('3000000.00'),  # 250000 * 12
                 'unit_price': Decimal('12.00'),
                 'is_popular': False,

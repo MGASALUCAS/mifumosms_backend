@@ -43,7 +43,11 @@ class SMSProvider(models.Model):
 
     # Cost configuration
     cost_per_sms = models.DecimalField(max_digits=10, decimal_places=4, default=0.0)
-    currency = models.CharField(max_length=3, default='USD')
+    currency = models.CharField(
+        max_length=10, 
+        default='USD',
+        help_text="Currency code (e.g., USD, EUR, TZS, KES, NGN)"
+    )
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

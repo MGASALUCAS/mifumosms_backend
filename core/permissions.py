@@ -64,6 +64,7 @@ class IsTenantAdmin(permissions.BasePermission):
             return False
 
         try:
+            # Check for active membership (allow owners and admins)
             membership = Membership.objects.get(
                 tenant=request.tenant,
                 user=request.user,
@@ -71,6 +72,8 @@ class IsTenantAdmin(permissions.BasePermission):
             )
             return membership.role in ['owner', 'admin']
         except Membership.DoesNotExist:
+            # If no active membership, user doesn't have admin permissions
+            # This prevents access if not a member or if only pending
             return False
 
 

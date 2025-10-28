@@ -155,7 +155,7 @@ def billing_overview(request):
             .first()
         )
         if not subscription:
-            # Don’t auto-create; surface a clear, helpful 404 with available plans
+            # Don't auto-create; surface a clear, helpful 404 with available plans
             plans = list(
                 BillingPlan.objects
                 .filter(is_active=True)
@@ -244,6 +244,196 @@ def billing_overview(request):
             {
                 'success': False,
                 'message': 'Failed to retrieve billing overview',
+                'error': str(e),
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@swagger_auto_schema(
+    method='get',
+    operation_description="Get billing information for settings page including plan, usage, and payment details.",
+    responses={
+        200: openapi.Response(
+            description="Success",
+            examples={
+                "application/json": {
+                    "success": True,
+                    "data": {
+                        "current_plan": {
+                            "name": "Professional",
+                            "price": 99.00,
+                            "currency": "TZS",
+                            "billing_cycle": "monthly",
+                            "max_messages": 10000,
+                            "status": "active",
+                            "features": ["API Access", "Priority Support"]
+                        },
+                        "usage_this_month": {
+                            "messages_sent": 7245,
+                            "limit": 10000,
+                            "percentage_used": 72.45,
+                            "next_billing_date": "2024-04-01",
+                            "next_billing_amount": 99.00
+                        },
+                        "payment_method": {
+                            "type": "card",
+                            "last_four": "4242",
+                            "expiry_month": 12,
+                            "expiry_year": 2025,
+                            "card_brand": "VISA"
+                        }
+                    }
+                }
+            },
+        ),
+        404: "No subscription found",
+        400: "User not in a tenant",
+        500: "Internal Server Error",
+    },
+)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def billing_info(request):
+    """
+    Get billing information for settings page.
+    Returns current plan details, usage this month, and payment method.
+    GET /api/billing/info/
+    """
+    try:
+        tenant = getattr(request.user, "tenant", None)
+        if not tenant:
+            return Response(
+                {
+                    'success': False,
+                    'message': 'User is not associated with any tenant. Please contact support.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get or create SMS balance
+        sms_balance, _ = SMSBalance.objects.get_or_create(tenant=tenant)
+
+        # Get current subscription
+        subscription = Subscription.objects.select_related("plan").filter(tenant=tenant).first()
+        
+        current_plan_data = None
+        usage_data = None
+        payment_method_data = None
+
+        # Current Plan Information
+        if subscription and subscription.plan:
+            plan = subscription.plan
+            current_plan_data = {
+                'id': str(plan.id),
+                'name': plan.name,
+                'price': float(plan.price),
+                'currency': plan.currency,
+                'billing_cycle': plan.billing_cycle,
+                'plan_type': plan.plan_type,
+                'max_messages': plan.max_sms_per_month,
+                'status': subscription.status,
+                'is_active': subscription.is_active,
+                'features': plan.features or [],
+                'current_period_start': subscription.current_period_start.isoformat() if subscription.current_period_start else None,
+                'current_period_end': subscription.current_period_end.isoformat() if subscription.current_period_end else None,
+            }
+        else:
+            # No subscription - show prepaid credit information
+            current_plan_data = {
+                'name': 'Prepaid',
+                'price': 0.00,
+                'currency': 'TZS',
+                'billing_cycle': 'prepaid',
+                'plan_type': 'prepaid',
+                'max_messages': None,
+                'status': 'active',
+                'is_active': True,
+                'features': ['Pay as you go', 'No monthly commitment'],
+            }
+
+        # Usage This Month
+        now = timezone.now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Get usage records for current month
+        monthly_usage = UsageRecord.objects.filter(
+            tenant=tenant,
+            created_at__gte=month_start
+        ).aggregate(
+            total_credits=Sum('credits_used'),
+            total_cost=Sum('cost')
+        )
+
+        messages_sent = monthly_usage['total_credits'] or 0
+        limit = current_plan_data.get('max_messages') if current_plan_data else None
+        percentage_used = (messages_sent / limit * 100) if limit and limit > 0 else 0
+        
+        usage_data = {
+            'messages_sent': messages_sent,
+            'limit': limit,
+            'percentage_used': round(percentage_used, 2),
+            'cost': float(monthly_usage['total_cost'] or 0),
+        }
+
+        # Calculate next billing date
+        if subscription and subscription.current_period_end:
+            usage_data['next_billing_date'] = subscription.current_period_end.isoformat()
+            if subscription.plan:
+                usage_data['next_billing_amount'] = float(subscription.plan.price)
+        else:
+            usage_data['next_billing_date'] = None
+            usage_data['next_billing_amount'] = 0.00
+
+        # Payment Method Information
+        # Get the most recent completed payment transaction
+        from .models import PaymentTransaction
+        recent_payment = PaymentTransaction.objects.filter(
+            tenant=tenant,
+            status='completed'
+        ).order_by('-completed_at').first()
+
+        if recent_payment:
+            payment_method_data = {
+                'type': recent_payment.payment_method,
+                'payment_method_display': recent_payment.get_payment_method_display(),
+                'last_transaction_date': recent_payment.completed_at.isoformat() if recent_payment.completed_at else None,
+                'last_transaction_amount': float(recent_payment.amount) if recent_payment.amount else 0.00,
+            }
+        else:
+            payment_method_data = {
+                'type': None,
+                'payment_method_display': 'No payment method on file',
+                'last_transaction_date': None,
+                'last_transaction_amount': 0.00,
+            }
+
+        # SMS Balance Information (for prepaid customers)
+        sms_balance_data = {
+            'credits': sms_balance.credits,
+            'total_purchased': sms_balance.total_purchased,
+            'total_used': sms_balance.total_used,
+            'last_updated': sms_balance.last_updated.isoformat() if sms_balance.last_updated else None,
+        }
+
+        return Response(
+            {
+                'success': True,
+                'data': {
+                    'current_plan': current_plan_data,
+                    'usage_this_month': usage_data,
+                    'payment_method': payment_method_data,
+                    'sms_balance': sms_balance_data,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    except Exception as e:
+        return Response(
+            {
+                'success': False,
+                'message': 'Failed to retrieve billing information',
                 'error': str(e),
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,

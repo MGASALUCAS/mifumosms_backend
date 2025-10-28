@@ -2,12 +2,12 @@
 Clean admin configuration for messaging models - organized and streamlined.
 """
 from django.contrib import admin
+from django.contrib import messages
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.utils import timezone
 from django.shortcuts import redirect
-from django.contrib import messages
 from .models import (
     Contact, Segment, Template, Conversation, Message, Attachment,
     Campaign, Flow
@@ -203,8 +203,8 @@ class FlowAdmin(admin.ModelAdmin):
 class SMSProviderAdmin(admin.ModelAdmin):
     """Configure SMS service providers and API settings."""
     list_display = [
-        'name', 'provider_type', 'tenant', 'is_active', 'is_default',
-        'cost_per_sms', 'currency', 'created_at'
+        'name', 'provider_type', 'tenant', 'is_active', 'is_default_badge',
+        'cost_per_sms', 'currency', 'balance_status', 'created_at'
     ]
     list_filter = [
         'provider_type', 'is_active', 'is_default', 'currency', 'created_at', 'tenant'
@@ -213,9 +213,10 @@ class SMSProviderAdmin(admin.ModelAdmin):
         'name', 'provider_type', 'tenant__name', 'api_key'
     ]
     readonly_fields = [
-        'id', 'created_at', 'updated_at'
+        'id', 'created_at', 'updated_at', 'balance_info'
     ]
     list_per_page = 25
+    actions = ['set_as_default', 'test_connections', 'activate_providers', 'deactivate_providers']
 
     fieldsets = (
         ('Provider Information', {
@@ -228,6 +229,11 @@ class SMSProviderAdmin(admin.ModelAdmin):
         }),
         ('Cost Configuration', {
             'fields': ('cost_per_sms', 'currency'),
+            'classes': ('wide',),
+            'description': 'Enter cost per SMS in any currency (USD, EUR, TZS, KES, NGN, etc.)'
+        }),
+        ('Provider Status', {
+            'fields': ('balance_info',),
             'classes': ('wide',)
         }),
         ('Settings', {
@@ -239,6 +245,153 @@ class SMSProviderAdmin(admin.ModelAdmin):
             'classes': ('wide', 'collapse')
         }),
     )
+
+    def is_default_badge(self, obj):
+        """Display is_default status with badge."""
+        if obj.is_default:
+            return format_html('<span class="badge badge-success">Default</span>')
+        return format_html('<span class="badge badge-secondary">-</span>')
+    is_default_badge.short_description = 'Default Provider'
+
+    def balance_status(self, obj):
+        """Display SMS balance status."""
+        try:
+            # Check balance using SMSService
+            from messaging.services.sms_service import SMSService
+            sms_service = SMSService(tenant_id=str(obj.tenant.id) if obj.tenant else None)
+            
+            # Get provider instance and check balance
+            from messaging.services.sms_service import BeemSMSService
+            if obj.provider_type == 'beem':
+                provider = BeemSMSService(obj)
+                result = provider.check_balance()
+                
+                if result.get('success'):
+                    balance = result.get('data', {}).get('balance', 0)
+                    return format_html(
+                        '<span class="badge badge-success">Balance: {}</span>',
+                        f"${balance:,.2f}" if balance else "N/A"
+                    )
+                else:
+                    error = result.get('error', 'Unknown error')
+                    return format_html(
+                        '<span class="badge badge-danger">Error: {}</span>',
+                        error[:30]
+                    )
+            else:
+                return format_html('<span class="badge badge-info">Not Beem</span>')
+        except Exception as e:
+            return format_html('<span class="badge badge-warning">Check Failed</span>')
+    balance_status.short_description = 'Balance'
+
+    def balance_info(self, obj):
+        """Display detailed balance information."""
+        # Don't check balance for new objects (no ID yet)
+        if not obj.id:
+            return 'Balance will be checked after saving the provider.'
+        
+        if obj.provider_type != 'beem':
+            return 'Balance check only available for Beem provider.'
+        
+        try:
+            from messaging.services.sms_service import BeemSMSService
+            provider = BeemSMSService(obj)
+            result = provider.check_balance()
+            
+            if result.get('success'):
+                balance = result.get('data', {}).get('balance', 0)
+                return format_html(
+                    '<p><strong>Balance:</strong> ${:,.2f}</p>',
+                    balance
+                )
+            else:
+                return format_html(
+                    '<p class="error"><strong>Error:</strong> {}</p>',
+                    result.get('error', 'Unknown error')
+                )
+        except Exception as e:
+            return format_html('<p class="error">Failed to check balance: {}</p>', str(e))
+    balance_info.short_description = 'Balance Information'
+
+    def set_as_default(self, request, queryset):
+        """Set selected provider as default for its tenant."""
+        count = 0
+        for provider in queryset:
+            # Remove default status from other providers for the same tenant
+            SMSProvider.objects.filter(
+                tenant=provider.tenant,
+                is_default=True
+            ).exclude(id=provider.id).update(is_default=False)
+            
+            # Set this provider as default
+            provider.is_default = True
+            provider.is_active = True
+            provider.save()
+            count += 1
+        
+        self.message_user(
+            request,
+            f'Successfully set {count} provider(s) as default.',
+            messages.SUCCESS
+        )
+    set_as_default.short_description = 'Set as default provider'
+
+    def test_connections(self, request, queryset):
+        """Test connections for selected providers."""
+        from messaging.services.sms_service import BeemSMSService
+        
+        results = []
+        for provider in queryset:
+            try:
+                if provider.provider_type == 'beem':
+                    sms_service = BeemSMSService(provider)
+                    result = sms_service.check_balance()
+                    
+                    if result.get('success'):
+                        results.append(f'✅ {provider.name}: Connected - Balance checked')
+                    else:
+                        results.append(f'❌ {provider.name}: Failed - {result.get("error")}')
+                else:
+                    results.append(f'⚠️ {provider.name}: Provider type not supported for testing')
+            except Exception as e:
+                results.append(f'❌ {provider.name}: Error - {str(e)}')
+        
+        result_message = '\n'.join(results)
+        self.message_user(request, format_html('<pre>{}</pre>', result_message))
+    test_connections.short_description = 'Test connections for selected providers'
+
+    def activate_providers(self, request, queryset):
+        """Activate selected providers."""
+        count = queryset.update(is_active=True)
+        self.message_user(
+            request,
+            f'Successfully activated {count} provider(s).',
+            messages.SUCCESS
+        )
+    activate_providers.short_description = 'Activate selected providers'
+
+    def deactivate_providers(self, request, queryset):
+        """Deactivate selected providers."""
+        count = queryset.update(is_active=False)
+        self.message_user(
+            request,
+            f'Successfully deactivated {count} provider(s).',
+            messages.SUCCESS
+        )
+    deactivate_providers.short_description = 'Deactivate selected providers'
+
+    def save_model(self, request, obj, form, change):
+        """Save model with created_by tracking."""
+        if not change:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+        
+        # If set as default, remove default from other providers in same tenant
+        if obj.is_default:
+            SMSProvider.objects.filter(
+                tenant=obj.tenant,
+                is_default=True
+            ).exclude(id=obj.id).update(is_default=False)
 
 
 @admin.register(SMSSenderID)
